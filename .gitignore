@@ -1,0 +1,32 @@
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.idea/
+.vscode/
+.DS_Store
+
+# Project artifacts
+*.h5
+*.hdf5
+*.vtk
+*.vtu
+*.vtp
+*.log
+*.tmp
+
+# Generated case outputs
+**/out/
+
+# Example directories
+examples/
+
+# reference directories
+GeoHPEM_reference/

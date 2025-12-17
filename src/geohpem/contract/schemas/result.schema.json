@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://geohpem.local/schema/result-0.1.json",
+  "title": "GeoHPEM SolveResult (meta)",
+  "type": "object",
+  "required": ["schema_version", "status", "registry"],
+  "properties": {
+    "schema_version": { "const": "0.1" },
+    "status": { "enum": ["success", "failed", "canceled"] },
+    "solver_info": { "type": "object" },
+    "stages": { "type": "array" },
+    "warnings": { "type": "array" },
+    "errors": { "type": "array" },
+    "registry": { "type": "array" }
+  },
+  "additionalProperties": true
+}
+

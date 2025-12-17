@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "geohpem"
+version = "0.1.0"
+description = "GeoHPEM platform (pre/post + solver orchestration) for 2D geotechnical analysis."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.23",
+]
+
+[project.optional-dependencies]
+mesh = ["meshio>=5.3.5"]
+gui = ["PySide6>=6.6"]
+viz = ["pyvista>=0.43", "pyvistaqt>=0.11"]
+gmsh = ["pygmsh>=7.1.17", "gmsh>=4.11"]
+dev = ["pytest>=7"]
+
+[project.scripts]
+geohpem = "geohpem.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
