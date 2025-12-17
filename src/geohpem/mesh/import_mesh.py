@@ -5,6 +5,7 @@ from typing import Any
 
 import numpy as np
 
+from geohpem.mesh.convert import ImportReport, meshio_to_contract
 
 def import_with_meshio(path: str | Path) -> dict[str, Any]:
     """
@@ -18,15 +19,15 @@ def import_with_meshio(path: str | Path) -> dict[str, Any]:
         raise RuntimeError("meshio is required: pip install geohpem[mesh]") from exc
 
     mesh = meshio.read(str(path))
-    points = np.asarray(mesh.points[:, :2], dtype=float)
-    out: dict[str, Any] = {"points": points}
-
-    for cell_block in mesh.cells:
-        if cell_block.type == "triangle":
-            out["cells_tri3"] = np.asarray(cell_block.data, dtype=np.int32)
-        elif cell_block.type == "quad":
-            out["cells_quad4"] = np.asarray(cell_block.data, dtype=np.int32)
-        # extend as needed
-
+    out, _report = meshio_to_contract(mesh)
     return out
 
+
+def import_with_meshio_report(path: str | Path) -> tuple[dict[str, Any], ImportReport]:
+    try:
+        import meshio  # type: ignore
+    except Exception as exc:  # pragma: no cover
+        raise RuntimeError("meshio is required: pip install geohpem[mesh]") from exc
+
+    mesh = meshio.read(str(path))
+    return meshio_to_contract(mesh)

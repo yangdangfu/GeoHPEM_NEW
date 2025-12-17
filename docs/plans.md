@@ -41,14 +41,14 @@
 
 > 当前 Input Workspace 是占位。此里程碑目标是：不依赖几何绘制，先把“导入网格 + 配置阶段/边界/材料/输出”做成可用 UI。
 
-- [ ] Project Explorer：对象树结构化（按 Geometry/Mesh/Sets/Materials/Stages/Results）
+- [x] Project Explorer：对象树结构化（按 Geometry/Mesh/Sets/Materials/Stages/Results）
   - DoD：树节点与 request 数据同步；支持右键新增/删除/复制（MVP 可只实现新增/删除）。
-- [ ] Properties：从“只读 JSON”升级为“表单化编辑（最小集）”
+- [x] Properties：从“只读 JSON”升级为“表单化编辑（最小集）”
   - 最小集：`model.mode`、`gravity`、stage 的 `analysis_type/num_steps/dt`、材料 `model_name/parameters`（JSON编辑器即可）、输出请求（列表编辑）
   - DoD：修改后能写回内存模型，并能导出/保存成 `request.json`。
-- [ ] Stage Manager：阶段列表 + 阶段变更摘要（相对上一阶段）
+- [x] Stage Manager：阶段列表 + 阶段变更摘要（相对上一阶段）
   - DoD：选择阶段时，显示该阶段与上阶段差异（启用/停用 sets、BC/Load 变化）。
-- [ ] Pre-check 面板（基础）
+- [x] Pre-check 面板（基础）
   - 检查项：schema_version、stages 非空、mesh 至少包含 points 与一种 cells、assignments 与 set 引用存在性
   - DoD：Run 前弹窗展示检查结果；严重错误阻止运行。
 
@@ -56,14 +56,14 @@
 
 ## M3：网格导入与 sets 管理（“导入现成网格”路线）
 
-- [ ] Mesh Import Dialog（gmsh/meshio）
+- [x] Mesh Import Dialog（gmsh/meshio）
   - 输入：`.msh` / 其他 meshio 支持格式
   - 行为：导入 points/cells；从物理组生成 sets（若存在）；保存为 `mesh.npz`
   - DoD：至少能导入一个 gmsh msh 并生成可运行 case folder。
-- [ ] Sets Editor（NodeSet/EdgeSet/ElementSet）
+- [x] Sets Editor（NodeSet/EdgeSet/ElementSet）
   - 功能：创建/重命名/删除；从选择生成；显示元素数量；高亮显示（后续接 Viewport）
   - DoD：能在 UI 中创建一个 node_set 并被 BC 引用；保存后再打开不丢失。
-- [ ] Mesh 质量检查（基础指标）
+- [x] Mesh 质量检查（基础指标）
   - 2D 三角形：最小角、长宽比；四边形：扭曲度/长宽比（先做三角形也可）
   - DoD：质量面板能列出统计，并能定位“最差的 N 个单元”（先在列表中展示索引即可）。
 

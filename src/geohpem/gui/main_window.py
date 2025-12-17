@@ -4,6 +4,12 @@ from pathlib import Path
 from typing import Any
 
 from geohpem.contract.io import read_result_folder
+from geohpem.contract.io import write_case_folder
+from geohpem.gui.dialogs.import_mesh_dialog import ImportMeshDialog
+from geohpem.gui.dialogs.mesh_quality_dialog import MeshQualityDialog
+from geohpem.gui.dialogs.precheck_dialog import PrecheckDialog
+from geohpem.gui.dialogs.sets_dialog import SetsDialog
+from geohpem.gui.model.project_model import ProjectModel
 from geohpem.gui.widgets.docks.log_dock import LogDock
 from geohpem.gui.widgets.docks.project_dock import ProjectDock
 from geohpem.gui.widgets.docks.properties_dock import PropertiesDock
@@ -62,10 +68,7 @@ class MainWindow:
         self._win.tabifyDockWidget(self.log_dock.dock, self.tasks_dock.dock)
         self.log_dock.dock.raise_()
 
-        self._project_file: Path | None = None
-        self._project: ProjectData | None = None
-        self._work_case_dir: Path | None = None
-        self._dirty = False
+        self.model = ProjectModel()
 
         self._action_new = QAction("New Project...", self._win)
         self._action_new.triggered.connect(self._on_new_project)
@@ -85,6 +88,9 @@ class MainWindow:
         self._action_open_results = QAction("Open Output Folder...", self._win)
         self._action_open_results.triggered.connect(self._on_open_output_dialog)
 
+        self._action_import_mesh = QAction("Import Mesh...", self._win)
+        self._action_import_mesh.triggered.connect(self._on_import_mesh)
+
         self._action_ws_input = QAction("Workspace: Input", self._win)
         self._action_ws_input.triggered.connect(lambda: self.workspace_stack.set_workspace("input"))
 
@@ -93,6 +99,12 @@ class MainWindow:
 
         self._action_run = QAction("Run (Fake Solver)", self._win)
         self._action_run.triggered.connect(self._on_run_fake)
+
+        self._action_sets = QAction("Manage Sets...", self._win)
+        self._action_sets.triggered.connect(self._on_manage_sets)
+
+        self._action_mesh_quality = QAction("Mesh Quality...", self._win)
+        self._action_mesh_quality.triggered.connect(self._on_mesh_quality)
 
         self._action_about = QAction("About", self._win)
         self._action_about.triggered.connect(self._on_about)
@@ -110,7 +122,14 @@ class MainWindow:
         menu_file.addAction(self._action_save)
         menu_file.addAction(self._action_save_as)
         menu_file.addSeparator()
+        menu_file.addAction(self._action_import_mesh)
         menu_file.addAction(self._action_open_results)
+
+        menu_edit = self._win.menuBar().addMenu("Edit")
+        menu_edit.addAction(self._action_sets)
+
+        menu_mesh = self._win.menuBar().addMenu("Mesh")
+        menu_mesh.addAction(self._action_mesh_quality)
 
         menu_ws = self._win.menuBar().addMenu("Workspace")
         menu_ws.addAction(self._action_ws_input)
@@ -124,6 +143,22 @@ class MainWindow:
 
         self.project_dock.case_open_requested.connect(self.open_case_folder)
         self.project_dock.output_open_requested.connect(self.open_output_folder)
+        self.project_dock.selection_changed.connect(self._on_tree_selection)
+
+        self.stage_dock.stage_selected.connect(self._on_stage_selected)
+        self.stage_dock.add_stage.connect(self._on_stage_add)
+        self.stage_dock.copy_stage.connect(self._on_stage_copy)
+        self.stage_dock.delete_stage.connect(self._on_stage_delete)
+
+        self.properties_dock.bind_apply_model(self._apply_model)
+        self.properties_dock.bind_apply_stage(self._apply_stage)
+        self.properties_dock.bind_apply_material(self._apply_material)
+
+        self.model.changed.connect(self._on_model_changed)
+        self.model.stages_changed.connect(lambda stages: self.stage_dock.set_stages(stages))
+        self.model.request_changed.connect(self._refresh_tree)
+        self.model.materials_changed.connect(lambda mats: self._refresh_tree(self.model.ensure_project().request))
+        self.model.mesh_changed.connect(lambda m: self._refresh_tree(self.model.ensure_project().request))
 
     @property
     def qt(self):
@@ -132,30 +167,31 @@ class MainWindow:
     def show(self) -> None:
         self._win.show()
 
-    def set_dirty(self, dirty: bool) -> None:
-        self._dirty = dirty
-
     def _load_project_data(self, project: ProjectData, display_path: Path | None) -> None:
-        self._project = project
-        self._project_file = display_path
-        self._work_case_dir = materialize_to_workdir(project)
+        workdir = materialize_to_workdir(project)
+        project_file = display_path if (display_path and display_path.suffix.lower() == DEFAULT_EXT) else None
+        self.model.set_project(
+            project,
+            display_path=display_path,
+            project_file=project_file,
+            work_case_dir=workdir,
+            dirty=False,
+        )
 
-        title = "GeoHPEM - Untitled" if display_path is None else "GeoHPEM"
-        if display_path:
-            title = f"GeoHPEM - {display_path.name}"
-        self._win.setWindowTitle(title)
-
-        # For now, project tree is driven by the materialized case dir.
-        self.project_dock.set_case(self._work_case_dir, request=project.request, mesh=project.mesh)
-        self.properties_dock.set_object(("request", project.request))
+        # Drive the tree by the materialized case dir.
+        self.project_dock.set_case(workdir, request=project.request, mesh=project.mesh)
         self.stage_dock.set_stages(project.request.get("stages", []))
-        self.log_dock.append_info(f"Loaded project: {display_path or self._work_case_dir}")
+        self.log_dock.append_info(f"Loaded: {display_path or workdir}")
 
         if project.result_meta is not None and project.result_arrays is not None:
-            self.open_output_folder(self._work_case_dir / "out")
-
+            self.open_output_folder(workdir / "out")
         self.workspace_stack.set_workspace("input")
-        self._dirty = False
+
+    def _refresh_tree(self, request: dict[str, Any]) -> None:
+        state = self.model.state()
+        if not state.project or not state.work_case_dir:
+            return
+        self.project_dock.set_case(state.work_case_dir, request=state.project.request, mesh=state.project.mesh)
 
     def open_project_file(self, project_file: Path) -> None:
         try:
@@ -180,21 +216,28 @@ class MainWindow:
         self._load_project_data(project, display_path=case_dir)
 
     def save_project(self, project_file: Path) -> None:
-        if not self._project:
+        state = self.model.state()
+        if not state.project:
             return
+        project = state.project
         # Pull back latest out/ (if any) from work dir before saving.
-        if self._work_case_dir:
-            self._project = update_project_from_workdir(self._project, self._work_case_dir)
+        if state.work_case_dir:
+            project = update_project_from_workdir(project, state.work_case_dir)
         try:
-            saved = save_geohpem(project_file, self._project)
+            saved = save_geohpem(project_file, project)
         except Exception as exc:
             self._QMessageBox.critical(self._win, "Save Failed", str(exc))
             return
-        self._project_file = saved
         self._settings.add_recent_project(saved)
         self._settings.set_last_project(saved)
         self._rebuild_recent_menu()
-        self._dirty = False
+        self.model.set_project(
+            project,
+            display_path=saved,
+            project_file=saved,
+            work_case_dir=state.work_case_dir,
+            dirty=False,
+        )
         self.log_dock.append_info(f"Saved: {saved}")
 
     def open_output_folder(self, out_dir: Path) -> None:
@@ -211,7 +254,7 @@ class MainWindow:
         self.workspace_stack.set_workspace("output")
 
     def _confirm_discard_if_dirty(self) -> bool:
-        if not self._dirty:
+        if not self.model.state().dirty:
             return True
         btn = self._QMessageBox.question(
             self._win,
@@ -222,7 +265,7 @@ class MainWindow:
         return btn == self._QMessageBox.Yes
 
     def _confirm_close(self) -> bool:
-        if not self._dirty:
+        if not self.model.state().dirty:
             return True
         btn = self._QMessageBox.question(
             self._win,
@@ -235,11 +278,12 @@ class MainWindow:
         if btn == self._QMessageBox.No:
             return True
         # Yes -> Save
-        if self._project_file and self._project_file.suffix.lower() == DEFAULT_EXT:
-            self.save_project(self._project_file)
-            return not self._dirty
+        project_file = self.model.state().project_file
+        if project_file and project_file.suffix.lower() == DEFAULT_EXT:
+            self.save_project(project_file)
+            return not self.model.state().dirty
         self._on_save_as()
-        return not self._dirty
+        return not self.model.state().dirty
 
     def _on_open_project_dialog(self) -> None:
         if not self._confirm_discard_if_dirty():
@@ -291,8 +335,7 @@ class MainWindow:
 
         project = new_sample_project(mode=mode) if template == "sample" else new_empty_project(mode=mode)
         self._load_project_data(project, display_path=None)
-        self._project_file = None
-        self._dirty = True
+        self.model.set_dirty(True)
 
     def _on_open_case_dialog(self) -> None:
         if not self._confirm_discard_if_dirty():
@@ -309,13 +352,14 @@ class MainWindow:
         self.open_output_folder(Path(folder))
 
     def _on_save(self) -> None:
-        if self._project_file and self._project_file.suffix.lower() == DEFAULT_EXT:
-            self.save_project(self._project_file)
+        project_file = self.model.state().project_file
+        if project_file and project_file.suffix.lower() == DEFAULT_EXT:
+            self.save_project(project_file)
             return
         self._on_save_as()
 
     def _on_save_as(self) -> None:
-        if not self._project:
+        if not self.model.state().project:
             self._QMessageBox.information(self._win, "Save As", "Open a project/case first.")
             return
         file, _ = self._QFileDialog.getSaveFileName(
@@ -329,16 +373,65 @@ class MainWindow:
         self.save_project(Path(file))
 
     def _on_run_fake(self) -> None:
-        if not self._work_case_dir:
+        state = self.model.state()
+        if not state.project or not state.work_case_dir:
             self._QMessageBox.information(self._win, "Run", "Open a project/case first.")
             return
+        from geohpem.app.precheck import precheck_request_mesh
+
+        issues = precheck_request_mesh(state.project.request, state.project.mesh)
+        dlg = PrecheckDialog(self._win, issues)
+        if not dlg.exec():
+            return
+        # Ensure work dir reflects latest in-memory inputs.
+        write_case_folder(state.work_case_dir, state.project.request, state.project.mesh)
+
         from geohpem.gui.workers.solve_worker import SolveWorker
 
-        worker = SolveWorker(case_dir=self._work_case_dir, solver_selector="fake")
+        worker = SolveWorker(case_dir=state.work_case_dir, solver_selector="fake")
         self.tasks_dock.attach_worker(worker)
         self.log_dock.attach_worker(worker)
         worker.output_ready.connect(self.open_output_folder)
         worker.start()
+
+    def _on_manage_sets(self) -> None:
+        state = self.model.state()
+        if not state.project:
+            self._QMessageBox.information(self._win, "Sets", "Open a project/case first.")
+            return
+
+        def apply_mesh(new_mesh):
+            self.model.update_mesh(new_mesh)
+
+        dlg = SetsDialog(self._win, mesh=state.project.mesh, on_apply=apply_mesh)
+        dlg.exec()
+
+    def _on_mesh_quality(self) -> None:
+        state = self.model.state()
+        if not state.project:
+            self._QMessageBox.information(self._win, "Mesh", "Open a project/case first.")
+            return
+        dlg = MeshQualityDialog(self._win, state.project.mesh)
+        dlg.exec()
+
+    def _on_import_mesh(self) -> None:
+        state = self.model.state()
+        if not state.project:
+            self._QMessageBox.information(self._win, "Import Mesh", "Open a project/case first.")
+            return
+        try:
+            dlg = ImportMeshDialog(self._win)
+            res = dlg.exec()
+        except Exception as exc:
+            self._QMessageBox.critical(self._win, "Import Mesh Failed", str(exc))
+            return
+        if not res:
+            return
+        self.model.update_mesh(res.mesh)
+        self.log_dock.append_info(
+            f"Imported mesh: points={res.report.points}, cells={res.report.cells}, "
+            f"node_sets={len(res.report.node_sets)}, edge_sets={len(res.report.edge_sets)}, elem_sets={len(res.report.element_sets)}"
+        )
 
     def _on_about(self) -> None:
         import platform
@@ -365,3 +458,72 @@ class MainWindow:
             act = QAction(str(p), self._win)
             act.triggered.connect(lambda checked=False, pp=p: self.open_case_folder(pp) if pp.is_dir() else self.open_project_file(pp))
             self._menu_recent.addAction(act)
+
+    def _on_model_changed(self, state) -> None:  # noqa: ANN001
+        title = "GeoHPEM - Untitled"
+        if state.display_path:
+            title = f"GeoHPEM - {state.display_path.name}"
+        if state.dirty:
+            title += " *"
+        self._win.setWindowTitle(title)
+
+    def _on_tree_selection(self, payload: dict[str, Any]) -> None:
+        state = self.model.state()
+        if not state.project:
+            self.properties_dock.show_empty()
+            return
+
+        t = payload.get("type")
+        if t == "model":
+            self.properties_dock.show_model(state.project.request)
+            return
+        if t == "stage":
+            idx = int(payload.get("index", -1))
+            stages = state.project.request.get("stages", [])
+            if 0 <= idx < len(stages) and isinstance(stages[idx], dict):
+                self.properties_dock.show_stage(idx, stages[idx])
+                self.stage_dock.select_stage(idx)
+                return
+        if t == "material":
+            mid = str(payload.get("id", ""))
+            mats = state.project.request.get("materials", {})
+            if isinstance(mats, dict) and mid in mats and isinstance(mats[mid], dict):
+                self.properties_dock.show_material(mid, mats[mid])
+                return
+
+        self.properties_dock.show_empty()
+
+    def _on_stage_selected(self, index: int) -> None:
+        state = self.model.state()
+        if not state.project:
+            return
+        stages = state.project.request.get("stages", [])
+        if 0 <= index < len(stages) and isinstance(stages[index], dict):
+            self.properties_dock.show_stage(index, stages[index])
+
+    def _on_stage_add(self) -> None:
+        idx = self.model.add_stage(copy_from=None)
+        self.stage_dock.select_stage(idx)
+
+    def _on_stage_copy(self, index: int) -> None:
+        idx = self.model.add_stage(copy_from=index)
+        self.stage_dock.select_stage(idx)
+
+    def _on_stage_delete(self, index: int) -> None:
+        try:
+            self.model.delete_stage(index)
+        except Exception as exc:
+            self._QMessageBox.information(self._win, "Delete Stage", str(exc))
+
+    def _apply_model(self, mode: str, gx: float, gy: float) -> None:
+        self.model.update_model_mode(mode)
+        self.model.update_gravity(gx, gy)
+        self.log_dock.append_info(f"Updated model: mode={mode}, g=({gx},{gy})")
+
+    def _apply_stage(self, index: int, patch: dict[str, Any]) -> None:
+        self.model.update_stage(index, patch)
+        self.log_dock.append_info(f"Updated stage[{index}]")
+
+    def _apply_material(self, material_id: str, model_name: str, parameters: dict[str, Any]) -> None:
+        self.model.set_material(material_id, model_name, parameters)
+        self.log_dock.append_info(f"Updated material: {material_id}")
