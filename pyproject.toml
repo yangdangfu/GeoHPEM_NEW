@@ -20,11 +20,11 @@ gmsh = ["pygmsh>=7.1.17", "gmsh>=4.11"]
 dev = ["pytest>=7"]
 
 [project.scripts]
-geohpem = "geohpem.cli:main"
+geohpem = "geohpem.main:main"
+geohpem-cli = "geohpem.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
-

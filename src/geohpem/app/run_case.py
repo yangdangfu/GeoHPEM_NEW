@@ -9,14 +9,18 @@ from geohpem.solver_adapter.loader import load_solver
 logger = logging.getLogger(__name__)
 
 
-def run_case(case_dir: str, solver_selector: str = "fake") -> None:
+def run_case(
+    case_dir: str,
+    solver_selector: str = "fake",
+    callbacks: dict | None = None,
+) -> Path:
     case_path = Path(case_dir)
     request, mesh = read_case_folder(case_path)
 
     solver = load_solver(solver_selector)
-    result_meta, result_arrays = solver.solve(request, mesh, callbacks=None)
+    result_meta, result_arrays = solver.solve(request, mesh, callbacks=callbacks)
 
     out_dir = case_path / "out"
     write_result_folder(out_dir, result_meta, result_arrays)
     logger.info("Wrote results to %s", out_dir)
-
+    return out_dir

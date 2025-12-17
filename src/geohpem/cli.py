@@ -11,6 +11,9 @@ def _build_parser() -> argparse.ArgumentParser:
     ex = sub.add_parser("contract-example", help="Write a minimal Contract v0.1 example into a folder.")
     ex.add_argument("--out", default=None, help="Output folder (default: examples/contract_v0_1_minimal)")
 
+    gui = sub.add_parser("gui", help="Launch the GUI.")
+    gui.add_argument("--open", dest="open_dir", default=None, help="Open a case folder on startup.")
+
     run = sub.add_parser("run", help="Run a solver (fake or external) for a prepared request folder.")
     run.add_argument("case_dir", help="Folder containing request.json + mesh.npz")
     run.add_argument(
@@ -47,4 +50,13 @@ def main(argv: list[str] | None = None) -> int:
         run_case(case_dir=args.case_dir, solver_selector=args.solver)
         return 0
 
+    if args.cmd == "gui":
+        from geohpem.gui.app import run_gui
+
+        return int(run_gui(open_case_dir=args.open_dir))
+
     raise SystemExit(f"Unknown command: {args.cmd}")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
