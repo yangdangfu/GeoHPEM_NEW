@@ -21,6 +21,7 @@ dist/
 *.vtp
 *.log
 *.tmp
+*.geohpem
 
 # Generated case outputs
 **/out/
