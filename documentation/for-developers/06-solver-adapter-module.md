@@ -23,6 +23,13 @@ GeoHPEM supports multiple solver backends through a plugin architecture:
 
 The solver adapter ensures all backends conform to the `SolverProtocol` interface.
 
+### GUI Solver Selection
+
+Users can select the solver via **Solve → Select Solver...** menu:
+- The selected solver is persisted in user settings
+- The "Run" menu item displays the current solver name
+- Before running, the dialog allows testing solver loading via "Check & Show Capabilities"
+
 ---
 
 ## Module Structure
@@ -517,5 +524,5 @@ def test_solver():
 
 ---
 
-Last updated: 2024-12-18
+Last updated: 2024-12-18 (v2 - added GUI solver selection)
 

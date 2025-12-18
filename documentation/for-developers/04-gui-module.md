@@ -186,10 +186,19 @@ Persists user preferences using Qt's `QSettings`:
 
 ```python
 class SettingsStore:
+    # Session
     def get_last_project(self) -> Path | None: ...
     def set_last_project(self, path: Path) -> None: ...
     def get_recent_projects(self) -> list[Path]: ...
     def add_recent_project(self, path: Path) -> None: ...
+    
+    # Display preferences
+    def get_display_units(self) -> dict[str, str]: ...
+    def set_display_units(self, units: dict[str, str]) -> None: ...
+    
+    # Solver preferences
+    def get_solver_selector(self) -> str: ...  # Returns "fake" or "python:<module>"
+    def set_solver_selector(self, selector: str) -> None: ...
 ```
 
 ---
@@ -500,6 +509,29 @@ class UnitsDialogResult:
     display_units: dict[str, str]  # {"length": "mm", "pressure": "kPa", ...}
 ```
 
+### SolverDialog (`dialogs/solver_dialog.py`)
+
+Solver selection and configuration:
+- Choose between built-in "fake" solver or external Python module
+- Enter Python module path for external solvers
+- "Check & Show Capabilities" button to test solver loading
+- Displays solver capabilities JSON
+
+```python
+@dataclass(frozen=True, slots=True)
+class SolverDialogResult:
+    solver_selector: str  # "fake" or "python:<module>"
+```
+
+**Solver Selector Formats**:
+- `"fake"`: Built-in fake solver for testing
+- `"python:<module>"`: Load solver from Python module (e.g., `python:geohpem_solver`)
+
+**UI Elements**:
+- Solver type combo box (Fake / Python module)
+- Module name text field (enabled only for Python module type)
+- Capabilities display area (read-only, shows JSON from `solver.capabilities()`)
+
 ---
 
 ## Workers
@@ -599,5 +631,5 @@ menu_edit.addAction(self._action_my)
 
 ---
 
-Last updated: 2024-12-18 (v3 - added UnitsDialog, unit context support)
+Last updated: 2024-12-18 (v4 - added SolverDialog, solver selection)
 
