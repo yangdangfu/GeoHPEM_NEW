@@ -9,6 +9,7 @@ from geohpem.gui.dialogs.import_mesh_dialog import ImportMeshDialog
 from geohpem.gui.dialogs.mesh_quality_dialog import MeshQualityDialog
 from geohpem.gui.dialogs.precheck_dialog import PrecheckDialog
 from geohpem.gui.dialogs.sets_dialog import SetsDialog
+from geohpem.gui.dialogs.units_dialog import UnitsDialog
 from geohpem.gui.model.project_model import ProjectModel
 from geohpem.gui.model.selection_model import Selection, SelectionModel
 from geohpem.gui.widgets.docks.geometry_dock import GeometryDock
@@ -77,6 +78,7 @@ class MainWindow:
         self.model = ProjectModel()
         self.selection = SelectionModel()
         self._active_workers: list[object] = []
+        self._unit_context = None  # UnitContext | None
 
         self._action_new = QAction("New Project...", self._win)
         self._action_new.triggered.connect(self._on_new_project)
@@ -95,6 +97,9 @@ class MainWindow:
 
         self._action_open_results = QAction("Open Output Folder...", self._win)
         self._action_open_results.triggered.connect(self._on_open_output_dialog)
+
+        self._action_units = QAction("Display Units...", self._win)
+        self._action_units.triggered.connect(self._on_display_units)
 
         self._action_import_mesh = QAction("Import Mesh...", self._win)
         self._action_import_mesh.triggered.connect(self._on_import_mesh)
@@ -153,6 +158,9 @@ class MainWindow:
         menu_ws.addAction(self._action_ws_input)
         menu_ws.addAction(self._action_ws_output)
 
+        menu_view = self._win.menuBar().addMenu("View")
+        menu_view.addAction(self._action_units)
+
         menu_solve = self._win.menuBar().addMenu("Solve")
         menu_solve.addAction(self._action_run)
 
@@ -175,6 +183,7 @@ class MainWindow:
         self.model.changed.connect(self._on_model_changed)
         self.model.stages_changed.connect(lambda stages: self.stage_dock.set_stages(stages))
         self.model.request_changed.connect(self._refresh_tree)
+        self.model.request_changed.connect(lambda req: self._apply_unit_context_from_request(req))
         self.model.materials_changed.connect(lambda mats: self._refresh_tree(self.model.ensure_project().request))
         self.model.mesh_changed.connect(lambda m: self._refresh_tree(self.model.ensure_project().request))
         self.model.undo_state_changed.connect(self._on_undo_state_changed)
@@ -210,6 +219,7 @@ class MainWindow:
         self.project_dock.set_case(workdir, request=project.request, mesh=project.mesh)
         self.stage_dock.set_stages(project.request.get("stages", []))
         self.log_dock.append_info(f"Loaded: {display_path or workdir}")
+        self._apply_unit_context_from_request(project.request)
 
         if project.result_meta is not None and project.result_arrays is not None:
             self.open_output_folder(workdir / "out")
@@ -278,9 +288,11 @@ class MainWindow:
         output_ws = self.workspace_stack.get("output")
         if isinstance(output_ws, OutputWorkspace):
             mesh = None
+            req = None
             state = self.model.state()
             if state.project:
                 mesh = state.project.mesh
+                req = state.project.request
             else:
                 # try load mesh from sibling mesh.npz
                 try:
@@ -291,8 +303,44 @@ class MainWindow:
                 except Exception:
                     mesh = None
             output_ws.set_result(meta, arrays, mesh=mesh)
+            if req is not None:
+                self._apply_unit_context_from_request(req)
         self.log_dock.append_info(f"Opened output: {out_dir}")
         self.workspace_stack.set_workspace("output")
+
+    def _apply_unit_context_from_request(self, request: dict[str, Any]) -> None:
+        from geohpem.units import UnitContext, merge_display_units, normalize_unit_system, request_unit_system
+
+        base = normalize_unit_system(request_unit_system(request))
+        base.setdefault("length", "m")
+        base.setdefault("pressure", "kPa")
+        base.setdefault("force", "kN")
+        base.setdefault("time", "s")
+        display_pref = self._settings.get_display_units()
+        display = merge_display_units(base, display_pref)
+        self._unit_context = UnitContext(base=base, display=display)
+        self.geometry_dock.set_unit_context(self._unit_context)
+        output_ws = self.workspace_stack.get("output")
+        if isinstance(output_ws, OutputWorkspace):
+            output_ws.set_unit_context(self._unit_context)
+
+    def _on_display_units(self) -> None:
+        state = self.model.state()
+        if not state.project:
+            self._QMessageBox.information(self._win, "Display Units", "Open a project/case first.")
+            return
+        from geohpem.units import normalize_unit_system, request_unit_system
+
+        base = normalize_unit_system(request_unit_system(state.project.request))
+        base.setdefault("length", "m")
+        base.setdefault("pressure", "kPa")
+        current = self._settings.get_display_units()
+        dlg = UnitsDialog(self._win, base_units=base, current_display_units=current)
+        res = dlg.exec()
+        if res is None:
+            return
+        self._settings.set_display_units(res.display_units)
+        self._apply_unit_context_from_request(state.project.request)
 
     def _confirm_discard_if_dirty(self) -> bool:
         if not self.model.state().dirty:

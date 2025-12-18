@@ -92,12 +92,12 @@
 
 > 目标：内部统一、显示可切换，避免后处理标尺/探针/输出对标混乱。
 
-- [ ] 单位体系约定（内部/显示）
-  - DoD：内部采用统一 SI（或统一基准），`unit_system` 仅用于显示/输入换算；明确压力单位等。
-- [ ] 坐标与符号约定（2D）
-  - DoD：定义全局坐标（X/Y）、重力方向默认、axisymmetric 轴线约定、应力符号约定（压正/拉正）在文档中明确。
-- [ ] 单位换算工具与 UI 展示
-  - DoD：Properties/Probe/色标显示支持单位切换（先最小：长度/力/压强）。
+- [x] 单位体系约定（内部/显示）
+  - DoD：`docs/UNITS_AND_COORDS.md` 明确 `request.unit_system` 的含义与 v0.1 透传策略；UI 支持显示单位切换。
+- [x] 坐标与符号约定（2D）
+  - DoD：`docs/UNITS_AND_COORDS.md` 明确全局坐标（X/Y）、重力方向默认、axisymmetric 轴线约定（应力符号预留）。
+- [x] 单位换算工具与 UI 展示（最小）
+  - DoD：`View -> Display Units...` 可切换长度/压强显示单位；Geometry 坐标读数与 Output Probe/色标随之更新。
 
 ---
 

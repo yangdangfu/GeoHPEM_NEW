@@ -97,6 +97,7 @@ class OutputWorkspace:
         self._meta: dict[str, Any] | None = None
         self._arrays: dict[str, Any] | None = None
         self._mesh: dict[str, Any] | None = None
+        self._units = None  # UnitContext | None
         self._steps: list[int] = []
         self._reg_items: list[dict[str, Any]] = []
         self._node_set_membership: dict[int, list[str]] = {}
@@ -109,6 +110,13 @@ class OutputWorkspace:
         self.warp.stateChanged.connect(self._render)
         self.warp_scale.valueChanged.connect(self._render)
         self.btn_reset.clicked.connect(self._reset_view)
+
+    def set_unit_context(self, units) -> None:  # noqa: ANN001
+        """
+        Set a UnitContext for display conversion (cloud map / probe readout).
+        """
+        self._units = units
+        self._render()
 
     def set_result(self, meta: dict[str, Any], arrays: dict[str, Any], mesh: dict[str, Any] | None = None) -> None:
         self._meta = meta
@@ -266,6 +274,9 @@ class OutputWorkspace:
 
         location = reg.get("location", "node")
         name = reg.get("name", "")
+        unit_base = reg.get("unit")
+        if not isinstance(unit_base, str) or not unit_base:
+            unit_base = None
         if not isinstance(name, str) or not name:
             return
 
@@ -286,6 +297,28 @@ class OutputWorkspace:
             scalar_name = f"{name}_mag"
         else:
             scalar = np.asarray(arr).reshape(-1)
+
+        # Display unit conversion (scale values only; geometry remains in base units)
+        unit_display: str | None = None
+        if unit_base and self._units is not None:
+            from geohpem.units import conversion_factor, infer_kind_from_unit
+
+            kind = infer_kind_from_unit(unit_base)
+            if name == "u":
+                kind = "length"
+            if kind:
+                unit_display = self._units.display_unit(kind, unit_base)
+                if unit_display and unit_display != unit_base:
+                    scalar = scalar.astype(float, copy=False) * conversion_factor(unit_base, unit_display)
+        elif name == "u" and self._units is not None:
+            # displacement often has no registry unit; assume project length unit
+            ub = self._units.base_unit("length", None)
+            ud = self._units.display_unit("length", None)
+            if ub and ud and ub != ud:
+                from geohpem.units import conversion_factor
+
+                scalar = scalar.astype(float, copy=False) * conversion_factor(ub, ud)
+                unit_display = ud
 
         # Attach scalars to points/cells
         if location in ("node", "nodal"):
@@ -320,7 +353,13 @@ class OutputWorkspace:
         # Render
         self._viewer.clear()
         self._viewer.add_mesh(grid, show_edges=True, cmap="viridis", **scalars_kwargs)
-        self._viewer.add_scalar_bar(title=f"{scalar_name} (step {step_id:06d})")
+        if unit_display:
+            title = f"{scalar_name} [{unit_display}] (step {step_id:06d})"
+        elif unit_base:
+            title = f"{scalar_name} [{unit_base}] (step {step_id:06d})"
+        else:
+            title = f"{scalar_name} (step {step_id:06d})"
+        self._viewer.add_scalar_bar(title=title)
         self._viewer.reset_camera()
         self._viewer.render()
 
@@ -361,10 +400,18 @@ class OutputWorkspace:
                 val = float(grid.point_data[scalar_name][pid])
             node_sets = self._node_set_membership.get(pid, [])
             sets_txt = f" node_sets={node_sets}" if node_sets else ""
+            if self._units is not None:
+                ux = self._units.convert_base_to_display("length", px)
+                uy = self._units.convert_base_to_display("length", py)
+                u = self._units.display_unit("length", "") or ""
+                suf = f" {u}" if u else ""
+                pos_txt = f"x={ux:.6g}{suf}, y={uy:.6g}{suf}"
+            else:
+                pos_txt = f"x={px:.6g}, y={py:.6g}"
             self.probe.setPlainText(
                 f"Probe:\n"
                 f"  pid={pid}\n"
-                f"  x={px:.6g}, y={py:.6g}\n"
+                f"  {pos_txt}\n"
                 f"  {scalar_name}={val}\n"
                 f"  {sets_txt.strip() if sets_txt else 'node_sets=[]'}"
             )

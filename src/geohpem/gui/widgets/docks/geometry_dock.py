@@ -127,7 +127,16 @@ class GeometryDock:
             def mouseMoveEvent(self, event) -> None:  # noqa: ANN001
                 pos = event.position()
                 scene_pos = self.mapToScene(int(pos.x()), int(pos.y()))
-                outer.coord.setText(f"x={scene_pos.x():.4g}, y={(-scene_pos.y()):.4g}")
+                x = float(scene_pos.x())
+                y = float(-scene_pos.y())
+                if outer._units is not None:
+                    ux = outer._units.convert_base_to_display("length", x)
+                    uy = outer._units.convert_base_to_display("length", y)
+                    u = outer._units.display_unit("length", "") or ""
+                    suf = f" {u}" if u else ""
+                    outer.coord.setText(f"x={ux:.4g}{suf}, y={uy:.4g}{suf}")
+                else:
+                    outer.coord.setText(f"x={x:.4g}, y={y:.4g}")
                 if getattr(self, "_panning", False):
                     p = event.position().toPoint()
                     delta = p - getattr(self, "_pan_start", p)
@@ -210,6 +219,7 @@ class GeometryDock:
         self._model: ProjectModel | None = None
         self._poly: Polygon2D | None = None
         self._selected: tuple[str, int] | None = None  # ("vertex"/"edge", index)
+        self._units = None  # UnitContext | None
 
         self._vertex_items: list[Any] = []
         self._edge_items: list[Any] = []
@@ -232,6 +242,13 @@ class GeometryDock:
         model.request_changed.connect(self._on_request_changed)
         if model.state().project:
             self._on_request_changed(model.state().project.request)
+
+    def set_unit_context(self, units) -> None:  # noqa: ANN001
+        """
+        Set a UnitContext for coordinate readout / selection info (display-only).
+        """
+        self._units = units
+        self._select(self._selected)
 
     def _on_request_changed(self, request: dict[str, Any]) -> None:
         poly = get_polygon_from_request(request)
@@ -376,16 +393,36 @@ class GeometryDock:
         if not self._poly or sel is None:
             return
         kind, idx = sel
+        u = None
+        if self._units is not None:
+            u = self._units.display_unit("length", None)
         if kind == "vertex":
             vid = (self._poly.vertex_ids or [None] * len(self._poly.vertices))[idx]
             x, y = self._poly.vertices[idx]
-            self.info.setText(f"Vertex {idx}: uid={vid} x={x:.4g} y={y:.4g}")
+            if self._units is not None:
+                dx = self._units.convert_base_to_display("length", float(x))
+                dy = self._units.convert_base_to_display("length", float(y))
+                suf = f" {u}" if u else ""
+                self.info.setText(f"Vertex {idx}: uid={vid} x={dx:.4g}{suf} y={dy:.4g}{suf}")
+            else:
+                self.info.setText(f"Vertex {idx}: uid={vid} x={x:.4g} y={y:.4g}")
         elif kind == "edge":
             eid = (self._poly.edge_ids or [None] * len(self._poly.vertices))[idx]
             label = self._poly.normalized_edge_groups()[idx]
             x1, y1 = self._poly.vertices[idx]
             x2, y2 = self._poly.vertices[(idx + 1) % len(self._poly.vertices)]
-            self.info.setText(f"Edge {idx}: uid={eid} label={label} ({x1:.4g},{y1:.4g})->({x2:.4g},{y2:.4g})")
+            if self._units is not None:
+                dx1 = self._units.convert_base_to_display("length", float(x1))
+                dy1 = self._units.convert_base_to_display("length", float(y1))
+                dx2 = self._units.convert_base_to_display("length", float(x2))
+                dy2 = self._units.convert_base_to_display("length", float(y2))
+                suf = f" {u}" if u else ""
+                self.info.setText(
+                    f"Edge {idx}: uid={eid} label={label} "
+                    f"({dx1:.4g}{suf},{dy1:.4g}{suf})->({dx2:.4g}{suf},{dy2:.4g}{suf})"
+                )
+            else:
+                self.info.setText(f"Edge {idx}: uid={eid} label={label} ({x1:.4g},{y1:.4g})->({x2:.4g},{y2:.4g})")
 
     def _apply_selection_style(self) -> None:
         from PySide6.QtGui import QPen  # type: ignore
