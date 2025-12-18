@@ -161,6 +161,7 @@ GUI 菜单：
 
 GUI 入口（MVP）：
 - `Tools -> Batch Run...`：选择 cases root / solver / baseline / report，并显示进度与日志（Cancel 为 best-effort）。
+- `Tools -> Open Batch Report...`：打开 `batch_report.json`，以表格方式浏览 success/failed/canceled、耗时、内存、最大差值，并可一键打开 case/out/diagnostics。
 
 ## 13. 结果对比（差值云图/曲线，MVP）
 

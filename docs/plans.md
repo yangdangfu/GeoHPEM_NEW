@@ -135,6 +135,8 @@
   - DoD：GUI 提供 `Tools -> Compare Outputs...`，可打开 A/B 输出（或 case folder），显示差值云图（A-B），并可导出 step-curve CSV（mean/min/max）。
 - [x] 基准性能记录（耗时/内存，MVP）
   - DoD：`batch_report.json` 记录 `elapsed_s`，并在可用时记录 `rss_start_mb/rss_end_mb`（psutil 可选）。
+- [x] Batch Report 浏览器（GUI，MVP）
+  - DoD：GUI 提供 `Tools -> Open Batch Report...`，可加载 `batch_report.json` 并表格浏览/筛选/打开路径。
 
 ---
 
