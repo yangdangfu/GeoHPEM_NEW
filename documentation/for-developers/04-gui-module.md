@@ -313,7 +313,7 @@ class SelectionModel:
 
 ### UndoStack (`model/undo_stack.py`)
 
-Generic undo/redo support:
+Generic undo/redo support with **command merging**:
 
 ```python
 @dataclass(frozen=True, slots=True)
@@ -321,15 +321,26 @@ class UndoCommand:
     name: str
     undo: Callable[[], None]
     redo: Callable[[], None]
+    merge_key: str | None = None  # For coalescing consecutive commands
+    timestamp: float = 0.0        # For merge window checking
 
 class UndoStack:
-    def push_and_redo(self, command: UndoCommand) -> None: ...
+    def push_and_redo(self, cmd: UndoCommand, *, 
+                      merge_key: str | None = None, 
+                      merge_window_s: float = 0.75) -> None:
+        """
+        Push and execute a command.
+        If merge_key matches previous command and within merge_window_s,
+        coalesce into single undo step (keeps old undo, uses new redo).
+        """
     def undo(self) -> None: ...
     def redo(self) -> None: ...
     def can_undo(self) -> bool: ...
     def can_redo(self) -> bool: ...
     def clear(self) -> None: ...
 ```
+
+**Merge Behavior**: When a user rapidly edits the same field (e.g., typing in a text field), consecutive commands with the same `merge_key` within `merge_window_s` (default 0.75s) are merged into a single undo step. The merged command keeps the original `undo` (to restore initial state) but uses the latest `redo`.
 
 ---
 
@@ -397,6 +408,26 @@ class OutputWorkspace:
 - `shutdown()` is called by `MainWindow._shutdown_before_close()` before Qt window closes
 - Properly disposes VTK plotter to avoid OpenGL context errors
 
+**Post-Processing Features** (M8):
+- **Profile Line**: Extract field values along a user-defined line segment
+  - Dialog to set start/end coordinates or "Use last two picks"
+  - Configurable sample count
+  - Optional line overlay in viewport
+  - Opens `PlotDialog` with distance vs value plot
+- **Time History**: Track field value at a single node/element across all steps
+  - Requires prior point/cell pick to select location
+  - Auto-maps step IDs to time values when available
+  - Opens `PlotDialog` with time/step vs value plot
+- **Export Image**: Screenshot current viewport to PNG
+
+**Internal State**:
+```python
+_probe_history: list[dict]     # Last 10 probe picks (x, y, z, pid)
+_last_probe_pid: int | None    # Last picked point ID (for time history)
+_last_cell_id: int | None      # Last picked cell ID (for element history)
+_profile_actor: Any            # Line overlay actor (for removal on next profile)
+```
+
 **Set Membership Tracking**:
 ```python
 # Internal data structures for set lookup
@@ -409,6 +440,82 @@ _elem_set_membership: dict[str, dict[int, list[str]]]  # cell_type -> local_id -
 - Scalar bar shows values in display units with unit label
 - Probe readout converts coordinates to display units
 - Result values (displacement, pressure) converted based on registry unit info
+
+---
+
+## Widget Editors
+
+### AssignmentsEditor (`widgets/assignments_editor.py`)
+
+Table editor for `request.assignments` (material mapping):
+
+```python
+@dataclass(frozen=True, slots=True)
+class AssignmentOptions:
+    element_sets: list[tuple[str, str]]  # (name, cell_type)
+    materials: list[str]
+
+class AssignmentsEditor:
+    """
+    Columns: uid, element_set, cell_type, material_id, extra(json)
+    Features:
+    - Dropdown combos populated from AssignmentOptions
+    - Preserves unknown fields via 'extra' column
+    - Table/JSON tabs with sync button
+    """
+    def set_options(self, options: AssignmentOptions) -> None: ...
+    def set_assignments(self, assignments: list[dict]) -> None: ...
+    def assignments(self) -> list[dict]: ...
+```
+
+### OutputRequestsEditor (`widgets/output_requests_editor.py`)
+
+Table editor for `stage.output_requests` or global `request.output_requests`:
+
+```python
+@dataclass(frozen=True, slots=True)
+class OutputRequestOptions:
+    names: list[str]  # Available output field names from solver capabilities
+
+class OutputRequestsEditor:
+    """
+    Columns: uid, name, location (node/element/ip), every_n, extra(json)
+    Features:
+    - Name dropdown populated from solver capabilities
+    - Location dropdown: node, element, ip
+    - Spinbox for every_n
+    - Table/JSON tabs with sync button
+    """
+    def set_options(self, options: OutputRequestOptions) -> None: ...
+    def set_requests(self, items: list[dict]) -> None: ...
+    def requests(self) -> list[dict]: ...
+```
+
+### StageItemTableEditor (`widgets/stage_table_editor.py`)
+
+Generic table editor for `stage.bcs` or `stage.loads`:
+
+```python
+@dataclass(frozen=True, slots=True)
+class StageItemTableConfig:
+    kind: str        # "bc" | "load"
+    uid_prefix: str  # "bc" | "load"
+    title: str
+    default_field: str
+    default_type: str
+
+class StageItemTableEditor:
+    """
+    Columns: uid, field, type, set (dropdown), value (JSON)
+    Features:
+    - Set name dropdown populated from mesh sets
+    - Preserves unknown fields
+    - Table/JSON tabs with sync button
+    """
+    def set_set_options(self, names: list[str]) -> None: ...
+    def set_items(self, items: list[dict]) -> None: ...
+    def items(self) -> list[dict]: ...
+```
 
 ---
 
@@ -619,6 +726,69 @@ Features:
 - Supports both output folders and case folders
 - Uses coolwarm colormap for diff visualization
 
+### BatchReportDialog (`dialogs/batch_report_dialog.py`)
+
+Viewer for batch run JSON reports:
+- Load and parse `batch_report.json`
+- Filter by status: success, failed, canceled
+- Summary stats: total, success, failed, canceled counts
+- Table columns: case, status, error_code, elapsed_s, rss_start/end/delta_mb, max_linf, max_l2, out_dir, diagnostics, solver, error
+- Actions: Open Case, Open Output, Open Diagnostics Zip, Copy Selected Paths
+- Double-click row to open output folder
+- Callbacks for opening case/output in main window
+
+```python
+@dataclass(frozen=True, slots=True)
+class BatchReportRecord:
+    case_dir: Path
+    status: str                     # "success" | "failed" | "canceled"
+    solver_selector: str
+    elapsed_s: float | None
+    rss_start_mb: float | None      # Memory usage tracking
+    rss_end_mb: float | None
+    out_dir: Path | None
+    diagnostics_zip: Path | None
+    error_code: str | None
+    error: str | None
+    compare_max_linf: float | None  # Baseline comparison metrics
+    compare_max_l2: float | None
+
+def parse_batch_report(path: Path) -> list[BatchReportRecord]: ...
+```
+
+### IssuesDialog (`dialogs/issues_dialog.py`)
+
+Simple dialog for displaying validation issues:
+- Shows summary: Errors, Warnings, Info counts
+- List widget with severity-prefixed messages
+- Single OK button
+
+```python
+class IssuesDialog:
+    def __init__(self, parent, *, title: str, issues: Iterable[PrecheckIssue], ok_text: str = "OK"): ...
+    def exec(self) -> bool: ...
+```
+
+### PlotDialog (`dialogs/plot_dialog.py`)
+
+Matplotlib-based plot dialog for time history and profile line plots:
+- Uses `FigureCanvasQTAgg` for Qt integration
+- Navigation toolbar for pan/zoom
+- Export CSV and PNG buttons
+- Supports multiple series with legend
+
+```python
+@dataclass(frozen=True, slots=True)
+class PlotSeries:
+    x: np.ndarray
+    y: np.ndarray
+    label: str | None = None
+
+class PlotDialog:
+    def __init__(self, parent, *, title, xlabel, ylabel, series: list[PlotSeries], 
+                 note: str | None = None, default_csv_name: str, default_png_name: str): ...
+```
+
 **Solver Selector Formats**:
 - `"fake"`: Built-in fake solver for testing
 - `"python:<module>"`: Load solver from Python module (e.g., `python:geohpem_solver`)
@@ -774,5 +944,5 @@ menu_edit.addAction(self._action_my)
 
 ---
 
-Last updated: 2024-12-18 (v6 - BatchRunDialog, CompareOutputsDialog, thread-safe slots, VTK shutdown)
+Last updated: 2024-12-18 (v7 - widget editors, batch report dialog, plot dialog, undo merge, profile/history)
 

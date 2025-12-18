@@ -16,7 +16,8 @@ documentation/
 │   ├── 05-mesh-module.md              # Mesh handling documentation
 │   ├── 06-solver-adapter-module.md    # Solver adapter documentation
 │   ├── 07-app-module.md               # Application layer documentation
-│   └── 08-units-module.md             # Unit conversion documentation
+│   ├── 08-units-module.md             # Unit conversion documentation
+│   └── 09-domain-module.md            # Domain operations documentation
 └── for-users/                         # User documentation (TBD)
     └── README.md                      # Placeholder
 ```

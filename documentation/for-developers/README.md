@@ -68,7 +68,7 @@ src/geohpem/
 ├── units.py             # Unit conversion and display unit management
 ├── app/                 # Application layer (precheck, run_case, batch runner, compare_outputs, diagnostics)
 ├── contract/            # Solver contract (I/O, validation, schemas)
-├── domain/              # Domain models
+├── domain/              # Domain models + pure operations (mesh_ops, request_ops)
 ├── geometry/            # Geometry primitives (polygon2d)
 ├── gui/                 # Qt GUI (PySide6)
 │   ├── app.py           # Qt application entry
@@ -125,6 +125,7 @@ GeoHPEM is a geotechnical simulation platform with the following key characteris
 | [06-solver-adapter-module.md](06-solver-adapter-module.md) | Solver loading and fake solver |
 | [07-app-module.md](07-app-module.md) | Application layer services |
 | [08-units-module.md](08-units-module.md) | Unit conversion and display units |
+| [09-domain-module.md](09-domain-module.md) | Domain operations (mesh_ops, request_ops) |
 
 ---
 
@@ -214,5 +215,5 @@ from geohpem.project.types import ProjectData
 
 ---
 
-Last updated: 2024-12-18 (v5 - BatchRunDialog, CompareOutputsDialog, thread-safe UI)
+Last updated: 2024-12-18 (v6 - domain ops, widget editors, batch report dialog, plot dialog)
 

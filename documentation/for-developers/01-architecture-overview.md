@@ -104,6 +104,8 @@ Core application logic independent of UI.
 | `run_case` | `app/run_case.py` | Orchestrates single case solver execution |
 | `case_runner` | `app/case_runner.py` | Batch execution of multiple case folders |
 | `compare_outputs` | `app/compare_outputs.py` | Compare two output sets (diff stats, step curves) |
+| `validate_inputs` | `app/validate_inputs.py` | Combined validation (contract + schema + precheck) |
+| `error_mapping` | `app/error_mapping.py` | Map exceptions to standardized error codes |
 | `diagnostics` | `app/diagnostics.py` | Create diagnostic ZIP packages for debugging |
 | `errors` | `app/errors.py` | Custom exceptions (CancelledError) |
 | `package` | `project/package.py` | Load/save `.geohpem` ZIP archives |
@@ -145,6 +147,7 @@ Supporting services for mesh, visualization, and solver integration.
 | `viz/` | Contract mesh → PyVista conversion, result array extraction, cell type mapping |
 | `solver_adapter/` | Solver loading, fake solver for testing |
 | `geometry/` | 2D geometry primitives (Polygon2D) |
+| `domain/` | Pure domain operations (mesh_ops, request_ops) |
 | `units.py` | Unit conversion system and display unit management |
 | `util/` | ID generation, logging configuration |
 
@@ -344,5 +347,5 @@ raise SystemExit(main())
 
 ---
 
-Last updated: 2024-12-18 (v5 - compare_outputs, Tools menu)
+Last updated: 2024-12-18 (v6 - domain ops, widget editors, error mapping, plot dialog, undo merge)
 

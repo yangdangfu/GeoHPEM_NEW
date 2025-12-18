@@ -33,6 +33,8 @@ These services are used by both the GUI (via workers) and CLI.
 app/
 ├── __init__.py
 ├── precheck.py         # Request/mesh validation (with capabilities)
+├── validate_inputs.py  # Combined validation wrapper
+├── error_mapping.py    # Exception to error code mapping
 ├── run_case.py         # Single case solver execution
 ├── case_runner.py      # Batch case execution
 ├── compare_outputs.py  # Output comparison utilities
@@ -396,6 +398,73 @@ def load_outputs(path: Path) -> tuple[dict, dict]:
 
 ---
 
+## Combined Validation
+
+### validate_inputs.py
+
+Unified validation entry point for GUI and batch tooling:
+
+```python
+def validate_inputs(
+    request: dict[str, Any],
+    mesh: dict[str, Any],
+    *,
+    capabilities: dict[str, Any] | None = None,
+) -> list[PrecheckIssue]:
+    """
+    Best-effort validation that never raises.
+    
+    Runs in order:
+    1. validate_request_basic() - Contract validation
+    2. validate_request_jsonschema_if_available() - JSON Schema validation
+    3. precheck_request_mesh() - Semantic validation with capabilities
+    
+    Returns deduplicated list of issues.
+    """
+
+def has_errors(issues: list[PrecheckIssue]) -> bool:
+    """Check if any issue has severity 'ERROR'."""
+```
+
+---
+
+## Error Mapping
+
+### error_mapping.py
+
+Maps exceptions to standardized error codes for diagnostics and reporting:
+
+```python
+@dataclass(frozen=True, slots=True)
+class ErrorInfo:
+    code: str
+    message: str
+    details: dict[str, Any] | None = None
+
+def normalize_error_code(code: str) -> str:
+    """Normalize code to uppercase alphanumeric with underscores."""
+
+def map_exception(exc: BaseException) -> ErrorInfo:
+    """
+    Map exceptions to standardized (code, message, details).
+    
+    Built-in mappings:
+    - CancelledError -> "CANCELED"
+    - ContractError -> "CONTRACT"
+    - FileNotFoundError -> "IO_NOT_FOUND"
+    - PermissionError -> "IO_PERMISSION"
+    - ImportError/ModuleNotFoundError -> "SOLVER_IMPORT"
+    
+    Custom solver exceptions can provide:
+    - exc.code or exc.error_code: str
+    - exc.details or exc.payload: dict
+    
+    Fallback: "SOLVER_RUNTIME"
+    """
+```
+
+---
+
 ## Usage Examples
 
 ### CLI Usage
@@ -573,5 +642,5 @@ configure_logging()  # Sets up basic logging
 
 ---
 
-Last updated: 2024-12-18 (v3 - added compare_outputs module)
+Last updated: 2024-12-18 (v4 - validate_inputs, error_mapping)
 
