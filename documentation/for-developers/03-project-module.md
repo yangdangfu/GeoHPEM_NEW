@@ -260,6 +260,10 @@ def ensure_request_ids(request: dict[str, Any], mesh: dict[str, Any] | None = No
     
     Adds/ensures:
         - stages[*].uid
+        - stages[*].bcs[*].uid (boundary conditions)
+        - stages[*].loads[*].uid (loads)
+        - stages[*].output_requests[*].uid (stage output requests)
+        - output_requests[*].uid (global output requests)
         - materials[*].uid
         - geometry polygon vertex_ids/edge_ids
         - sets_meta[*].uid (for NPZ set keys)
@@ -270,6 +274,16 @@ def ensure_request_ids(request: dict[str, Any], mesh: dict[str, Any] | None = No
     
     Returns:
         The (possibly modified) request dict
+    
+    UID Prefixes:
+        - stage: "stage_..."
+        - bc: "bc_..."
+        - load: "load_..."
+        - outreq: "outreq_..."
+        - mat: "mat_..."
+        - v: "v_..." (geometry vertex)
+        - e: "e_..." (geometry edge)
+        - set: "set_..." (mesh sets)
     """
 
 def find_stage_index_by_uid(request: dict[str, Any], uid: str) -> int | None:
@@ -394,5 +408,5 @@ Stage and material indices can change (e.g., when deleting a stage). Stable UIDs
 
 ---
 
-Last updated: 2024-12-18
+Last updated: 2024-12-18 (v2 - added stage inner object UIDs)
 

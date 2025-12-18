@@ -341,7 +341,8 @@ class OutputWorkspace:
         - Step slider
         - Field mode (auto/magnitude)
         - Warp by displacement
-        - Point probing
+        - Point probing with node/element set membership
+        - Cell picking with element set display
         """
 ```
 
@@ -352,6 +353,17 @@ class OutputWorkspace:
 - **Warp checkbox**: Deform mesh by displacement
 - **Warp scale**: Amplification factor
 - **Reset view**: Reset camera
+
+**Probing Features**:
+- **Point probe** (left-click): Shows node ID, coordinates, field value, and node set membership
+- **Cell probe**: Shows cell ID, cell type, local element ID, and element set membership
+
+**Set Membership Tracking**:
+```python
+# Internal data structures for set lookup
+_node_set_membership: dict[int, list[str]]  # node_id -> set names
+_elem_set_membership: dict[str, dict[int, list[str]]]  # cell_type -> local_id -> set names
+```
 
 ---
 
@@ -406,7 +418,30 @@ Running task display:
 
 ### GeometryDock (`widgets/docks/geometry_dock.py`)
 
-Geometry tree (when using polygon-based geometry definition).
+Interactive polygon geometry editor with visual feedback:
+
+**Features**:
+- Visual display of polygon vertices and edges
+- Draggable vertices for interactive editing
+- Selection support for vertices and edges
+- Visual highlighting of selected items (red color, thicker stroke)
+- Info panel showing selected item details (UID, coordinates, edge labels)
+
+**Selection State**:
+```python
+_selected: tuple[str, int] | None  # ("vertex"/"edge", index) or None
+```
+
+**Interaction**:
+- Click vertex/edge to select
+- Drag vertex to move it
+- Selection shows UID and coordinates in info panel
+
+**Methods**:
+- `bind_model(model)`: Connect to ProjectModel for geometry updates
+- `_set_polygon(poly, push_to_model)`: Update displayed polygon
+- `_select(sel)`: Set selection and update highlighting
+- `_apply_selection_style()`: Update visual styles based on selection
 
 ---
 
@@ -539,5 +574,5 @@ menu_edit.addAction(self._action_my)
 
 ---
 
-Last updated: 2024-12-18
+Last updated: 2024-12-18 (v2 - enhanced probing, geometry selection)
 

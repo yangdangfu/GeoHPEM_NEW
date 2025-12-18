@@ -81,8 +81,8 @@
   - DoD：`stages/materials/geometry/sets_meta` 自动补 `uid`；旧工程打开不报错且可继续编辑/保存。
 - [x] 选择模型（Selection Model，最小版）
   - DoD：Project/Stage 选择统一走 SelectionModel，驱动属性面板与阶段面板。
-- [ ] Hit-test/拾取策略（Input/Output 分别实现）
-  - DoD：Input（Qt2D）能拾取顶点/边/域；Output（VTK）能拾取节点/单元并映射回 sets 或结果值。
+- [x] Hit-test/拾取策略（Input/Output 分别实现，第一版）
+  - DoD：Input（Qt2D）能拾取顶点/边并显示其 uid；Output（VTK）能拾取节点/单元并显示所属 sets 与数值（若有）。
 - [x] 迁移旧数据（无 id 的 request）到带 id 的结构（第一版）
   - DoD：加载 `.geohpem`/case folder 时自动补齐 `uid`（保存时写入工程文件）。
 

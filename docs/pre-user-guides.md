@@ -107,7 +107,8 @@ GUI 菜单：
   - 左侧选择字段（Registry）与步号（Step）
   - 默认显示标量云图（先支持 nodal 标量，如 `p`）
   - 勾选 `Warp by displacement u` 可按位移变形显示（若结果提供 `u`）
-  - 在渲染窗口中点击点可 Probe（显示近邻点的数值）
+  - 在渲染窗口中点击点可 Probe（显示近邻点的数值 + 所属 node sets）
+  - 选中单元（若版本支持 cell picking）会显示单元类型/编号 + 所属 element sets
 
 > 说明：剖面线/时程曲线等将在后续里程碑实现（计划见 `docs/plans.md` 的后续条目）。
 

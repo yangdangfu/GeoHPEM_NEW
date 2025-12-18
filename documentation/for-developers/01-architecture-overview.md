@@ -138,10 +138,18 @@ Supporting services for mesh, visualization, and solver integration.
 | Module | Responsibility |
 |--------|----------------|
 | `mesh/` | Mesh import (meshio), conversion, quality analysis |
-| `viz/` | Contract mesh → PyVista conversion, result array extraction |
+| `viz/` | Contract mesh → PyVista conversion, result array extraction, cell type mapping |
 | `solver_adapter/` | Solver loading, fake solver for testing |
 | `geometry/` | 2D geometry primitives (Polygon2D) |
 | `util/` | ID generation, logging configuration |
+
+**Viz Module Key Functions** (`viz/vtk_convert.py`):
+- `contract_mesh_to_pyvista(mesh)`: Convert Contract NPZ mesh to PyVista UnstructuredGrid
+  - Adds `__cell_type_code` and `__cell_local_id` cell data for element tracking
+- `cell_type_code_to_name(code)`: Map internal cell type code to Contract name (1→"tri3", 2→"quad4")
+- `available_steps_from_arrays(arrays)`: Extract step IDs from result array keys
+- `get_array_for(arrays, location, name, step)`: Retrieve specific result array
+- `vector_magnitude(v)`: Compute magnitude of vector field
 
 ---
 
@@ -325,5 +333,5 @@ raise SystemExit(main())
 
 ---
 
-Last updated: 2024-12-18
+Last updated: 2024-12-18 (v2 - added viz module details)
 
