@@ -18,6 +18,8 @@ class CaseRunRecord:
     status: str  # success|failed|canceled|skipped
     solver_selector: str
     elapsed_s: float
+    rss_start_mb: float | None
+    rss_end_mb: float | None
     out_dir: Path | None
     error: str | None
     diagnostics_zip: Path | None
@@ -123,12 +125,20 @@ def run_cases(
         if should_cancel and should_cancel():
             break
         t0 = time.perf_counter()
+        rss0: float | None = None
+        rss1: float | None = None
         out_dir: Path | None = None
         diag: Path | None = None
         cmp: dict[str, Any] | None = None
         err: str | None = None
         status = "success"
         try:
+            try:
+                import psutil  # type: ignore
+
+                rss0 = float(psutil.Process().memory_info().rss) / (1024.0 * 1024.0)
+            except Exception:
+                rss0 = None
             if on_progress:
                 on_progress(i, total, case_dir, "running")
             callbacks = {"should_cancel": (should_cancel or (lambda: False))}
@@ -137,6 +147,12 @@ def run_cases(
                 base_out = Path(baseline_root) / case_dir.name / "out"
                 if base_out.exists():
                     cmp = _compare_out_dirs(out_dir, base_out)
+            try:
+                import psutil  # type: ignore
+
+                rss1 = float(psutil.Process().memory_info().rss) / (1024.0 * 1024.0)
+            except Exception:
+                rss1 = None
         except CancelledError as exc:
             status = "canceled"
             err = str(exc)
@@ -158,6 +174,8 @@ def run_cases(
                 status=status,
                 solver_selector=solver_selector,
                 elapsed_s=elapsed,
+                rss_start_mb=rss0,
+                rss_end_mb=rss1,
                 out_dir=out_dir,
                 error=err,
                 diagnostics_zip=diag,
@@ -180,6 +198,8 @@ def write_case_run_report(records: list[CaseRunRecord], out_path: Path) -> Path:
                 "status": r.status,
                 "solver_selector": r.solver_selector,
                 "elapsed_s": r.elapsed_s,
+                "rss_start_mb": r.rss_start_mb,
+                "rss_end_mb": r.rss_end_mb,
                 "out_dir": str(r.out_dir) if r.out_dir else None,
                 "error": r.error,
                 "diagnostics_zip": str(r.diagnostics_zip) if r.diagnostics_zip else None,

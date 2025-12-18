@@ -238,6 +238,41 @@ class OutputWorkspace:
         self._viewer.set_background("white")
         self.btn_reset.setEnabled(True)
 
+    def shutdown(self) -> None:
+        """
+        Best-effort teardown for VTK/Qt resources to avoid noisy OpenGL context errors on app exit (Windows).
+        """
+        v = self._viewer
+        if v is None:
+            return
+        # Suppress VTK warnings during teardown (OpenGL context may already be invalid while Qt is closing).
+        try:
+            import vtk  # type: ignore
+
+            vtk.vtkObject.GlobalWarningDisplayOff()
+        except Exception:
+            pass
+        try:
+            plotter = getattr(v, "plotter", None)
+            if plotter is not None and hasattr(plotter, "close"):
+                plotter.close()
+        except Exception:
+            pass
+        try:
+            if hasattr(v, "close"):
+                v.close()
+        except Exception:
+            pass
+        try:
+            # Detach from Qt hierarchy and delete later.
+            if hasattr(v, "setParent"):
+                v.setParent(None)
+            if hasattr(v, "deleteLater"):
+                v.deleteLater()
+        except Exception:
+            pass
+        self._viewer = None
+
     def _reset_view(self) -> None:
         if self._viewer is None:
             return

@@ -42,6 +42,7 @@ class SolveWorker:
             def run(self) -> None:
                 from geohpem.app.run_case import run_case
                 from geohpem.app.diagnostics import build_diagnostics_zip
+                from geohpem.app.errors import CancelledError
                 import traceback
 
                 self.started.emit()
@@ -66,7 +67,7 @@ class SolveWorker:
 
                 try:
                     if self._cancel:
-                        raise RuntimeError("Cancelled")
+                        raise CancelledError("Cancelled by user")
                     out_dir = run_case(
                         str(self._case_dir),
                         solver_selector=self._solver_selector,
@@ -74,6 +75,31 @@ class SolveWorker:
                     )
                     self.progress.emit(100, "Completed")
                     self.output_ready.emit(out_dir)
+                except CancelledError as exc:
+                    msg = str(exc)
+                    tb = traceback.format_exc()
+                    diag = None
+                    try:
+                        caps = None
+                        try:
+                            from geohpem.solver_adapter.loader import load_solver
+
+                            caps = load_solver(self._solver_selector).capabilities()
+                        except Exception:
+                            caps = None
+                        diag = build_diagnostics_zip(
+                            Path(self._case_dir),
+                            solver_selector=self._solver_selector,
+                            capabilities=caps if isinstance(caps, dict) else None,
+                            error=msg,
+                            tb=tb,
+                            logs=self._logs,
+                            include_out=True,
+                        ).zip_path
+                    except Exception:
+                        diag = None
+                    self.log.emit("CANCELED")
+                    self.canceled.emit(diag)
                 except Exception as exc:
                     tb = traceback.format_exc()
                     msg = str(exc)
@@ -99,12 +125,8 @@ class SolveWorker:
                     except Exception:
                         diag = None
 
-                    if self._cancel or "cancel" in msg.lower():
-                        self.log.emit("CANCELED")
-                        self.canceled.emit(diag)
-                    else:
-                        self.log.emit(f"FAILED: {msg}")
-                        self.failed.emit(msg, diag)
+                    self.log.emit(f"FAILED: {msg}")
+                    self.failed.emit(msg, diag)
                 finally:
                     self.finished.emit()
 

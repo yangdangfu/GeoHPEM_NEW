@@ -131,8 +131,10 @@
   - DoD：`python geohpem_cli.py batch-run <root> --solver ...` 可批量运行并输出 `batch_report.json`（含成功/失败/耗时/诊断包路径）；可选 `--baseline <root>` 写入末步数组差异统计。
 - [x] GUI 批量跑算例（Batch Run，MVP）
   - DoD：GUI 菜单提供 `Tools -> Batch Run...`，可选择 root/solver/baseline/report，显示进度，支持 Cancel（best-effort），并提示报告路径。
-- [ ] 结果对比（差值云图/曲线/统计）
-- [ ] 基准性能记录（耗时/内存）
+- [x] 结果对比（差值云图/曲线/统计，MVP）
+  - DoD：GUI 提供 `Tools -> Compare Outputs...`，可打开 A/B 输出（或 case folder），显示差值云图（A-B），并可导出 step-curve CSV（mean/min/max）。
+- [x] 基准性能记录（耗时/内存，MVP）
+  - DoD：`batch_report.json` 记录 `elapsed_s`，并在可用时记录 `rss_start_mb/rss_end_mb`（psutil 可选）。
 
 ---
 

@@ -161,3 +161,11 @@ GUI 菜单：
 
 GUI 入口（MVP）：
 - `Tools -> Batch Run...`：选择 cases root / solver / baseline / report，并显示进度与日志（Cancel 为 best-effort）。
+
+## 13. 结果对比（差值云图/曲线，MVP）
+
+- `Tools -> Compare Outputs...`
+  - 选择 A 与 B（可以选择 case folder 或 `out/` 目录）
+  - 左侧选择字段（交集）与步号（Step）
+  - `View` 可切换：`Diff (A-B)` / `A` / `B`
+  - `Export step-curve CSV...`：导出该字段随 step 的统计（min/max/mean）到 CSV，便于对标与回归分析

@@ -5,6 +5,7 @@ from pathlib import Path
 
 class BatchRunDialog:
     def __init__(self, parent, *, solver_selector: str) -> None:  # noqa: ANN001
+        from PySide6.QtCore import QObject, Slot  # type: ignore
         from PySide6.QtWidgets import (  # type: ignore
             QCheckBox,
             QDialog,
@@ -91,6 +92,37 @@ class BatchRunDialog:
 
         self._worker = None
 
+        outer = self
+
+        class _Slots(QObject):
+            @Slot(int, str)
+            def on_progress(self, p: int, msg: str) -> None:
+                outer._progress.setValue(int(p))
+                outer._append(msg)
+
+            @Slot(str)
+            def on_log(self, msg: str) -> None:
+                outer._append(msg)
+
+            @Slot(str)
+            def on_failed(self, msg: str) -> None:
+                outer._append(f"FAILED: {msg}")
+                outer._QMessageBox.critical(outer._dialog, "Batch Run", msg)
+
+            @Slot(object)
+            def on_report_ready(self, p) -> None:  # noqa: ANN001
+                outer._append(f"Report written: {p}")
+                outer._QMessageBox.information(outer._dialog, "Batch Run", f"Completed.\nReport:\n{p}")
+
+            @Slot()
+            def on_finished(self) -> None:
+                outer._btn_run.setEnabled(True)
+                outer._btn_cancel.setEnabled(False)
+                outer._btn_close.setEnabled(True)
+                outer._worker = None
+
+        self._slots = _Slots()
+
         def update_baseline_enabled() -> None:
             on = bool(self._use_baseline.isChecked())
             self._baseline.setEnabled(on)
@@ -158,23 +190,12 @@ class BatchRunDialog:
 
         worker = BatchRunWorker(root, solver_selector=solver, baseline_root=baseline, report_path=report_path)
         self._worker = worker
-        worker.progress.connect(lambda p, msg: (self._progress.setValue(int(p)), self._append(msg)))
-        worker.log.connect(self._append)
-        worker.failed.connect(lambda msg: self._append(f"FAILED: {msg}"))
-
-        def on_report(p) -> None:  # noqa: ANN001
-            self._append(f"Report written: {p}")
-            self._QMessageBox.information(self._dialog, "Batch Run", f"Completed.\nReport:\n{p}")
-
-        worker.report_ready.connect(on_report)
-
-        def on_finished() -> None:
-            self._btn_run.setEnabled(True)
-            self._btn_cancel.setEnabled(False)
-            self._btn_close.setEnabled(True)
-            self._worker = None
-
-        worker.finished.connect(on_finished)
+        # Connect to QObject slots to ensure UI updates happen in GUI thread.
+        worker.progress.connect(self._slots.on_progress)
+        worker.log.connect(self._slots.on_log)
+        worker.failed.connect(self._slots.on_failed)
+        worker.report_ready.connect(self._slots.on_report_ready)
+        worker.finished.connect(self._slots.on_finished)
         worker.start()
 
     def _on_cancel(self) -> None:

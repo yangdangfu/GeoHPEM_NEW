@@ -3,6 +3,7 @@ from __future__ import annotations
 
 class TasksDock:
     def __init__(self) -> None:
+        from PySide6.QtCore import QObject, Slot  # type: ignore
         from PySide6.QtWidgets import QDockWidget, QLabel, QProgressBar, QPushButton, QVBoxLayout, QWidget  # type: ignore
 
         self.dock = QDockWidget("Tasks")
@@ -27,17 +28,42 @@ class TasksDock:
         self._worker = None
         self.btn_cancel.clicked.connect(self._on_cancel)
 
+        outer = self
+
+        class _Slots(QObject):
+            @Slot(int, str)
+            def on_progress(self, percent: int, message: str) -> None:
+                outer._on_progress(percent, message)
+
+            @Slot()
+            def on_started(self) -> None:
+                outer._set_state("Running")
+
+            @Slot()
+            def on_finished(self) -> None:
+                outer._set_state("Idle")
+                outer._clear_worker()
+
+            @Slot(str, object)
+            def on_failed(self, *_args) -> None:
+                outer._set_state("Failed")
+
+            @Slot(object)
+            def on_canceled(self, *_args) -> None:
+                outer._set_state("Canceled")
+
+        self._slots = _Slots()
+
     def attach_worker(self, worker) -> None:
         # Keep a strong reference to avoid premature GC during background runs.
         self._worker = worker
-        worker.progress.connect(self._on_progress)
-        worker.started.connect(lambda: self._set_state("Running"))
-        worker.finished.connect(lambda: self._set_state("Idle"))
-        worker.finished.connect(self._clear_worker)
+        worker.progress.connect(self._slots.on_progress)
+        worker.started.connect(self._slots.on_started)
+        worker.finished.connect(self._slots.on_finished)
         if hasattr(worker, "failed"):
-            worker.failed.connect(lambda *_: self._set_state("Failed"))
+            worker.failed.connect(self._slots.on_failed)
         if hasattr(worker, "canceled"):
-            worker.canceled.connect(lambda *_: self._set_state("Canceled"))
+            worker.canceled.connect(self._slots.on_canceled)
         self.btn_cancel.setEnabled(True)
 
     def _clear_worker(self) -> None:

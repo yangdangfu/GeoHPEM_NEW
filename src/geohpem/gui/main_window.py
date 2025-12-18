@@ -7,6 +7,7 @@ from geohpem.contract.io import read_result_folder
 from geohpem.contract.io import write_case_folder
 from geohpem.gui.dialogs.import_mesh_dialog import ImportMeshDialog
 from geohpem.gui.dialogs.batch_run_dialog import BatchRunDialog
+from geohpem.gui.dialogs.compare_outputs_dialog import CompareOutputsDialog
 from geohpem.gui.dialogs.mesh_quality_dialog import MeshQualityDialog
 from geohpem.gui.dialogs.precheck_dialog import PrecheckDialog
 from geohpem.gui.dialogs.sets_dialog import SetsDialog
@@ -31,7 +32,7 @@ from geohpem.project.workdir import materialize_to_workdir, update_project_from_
 
 class MainWindow:
     def __init__(self) -> None:
-        from PySide6.QtCore import Qt  # type: ignore
+        from PySide6.QtCore import QObject, Qt, Slot  # type: ignore
         from PySide6.QtGui import QAction  # type: ignore
         from PySide6.QtWidgets import QFileDialog, QMainWindow, QMenu, QMessageBox  # type: ignore
 
@@ -48,6 +49,7 @@ class MainWindow:
         class _GeoMainWindow(QMainWindow):
             def closeEvent(self, event):  # type: ignore[override]
                 if outer._confirm_close():
+                    outer._shutdown_before_close()
                     event.accept()
                 else:
                     event.ignore()
@@ -55,6 +57,23 @@ class MainWindow:
         self._win = _GeoMainWindow()
         self._win.setWindowTitle("GeoHPEM")
         self._win.resize(1400, 900)
+
+        outer = self
+
+        class _UiSlots(QObject):
+            @Slot(object)
+            def on_output_ready(self, out_dir) -> None:  # noqa: ANN001
+                outer.open_output_folder(Path(out_dir))
+
+            @Slot(str, object)
+            def on_solver_failed(self, error_text: str, diag_path) -> None:  # noqa: ANN001
+                outer._on_solver_failed(error_text, diag_path)
+
+            @Slot(object)
+            def on_solver_canceled(self, diag_path) -> None:  # noqa: ANN001
+                outer._on_solver_canceled(diag_path)
+
+        self._ui_slots = _UiSlots()
 
         self.workspace_stack = WorkspaceStack()
         self._win.setCentralWidget(self.workspace_stack.widget)
@@ -106,6 +125,9 @@ class MainWindow:
 
         self._action_batch_run = QAction("Batch Run...", self._win)
         self._action_batch_run.triggered.connect(self._on_batch_run)
+
+        self._action_compare_outputs = QAction("Compare Outputs...", self._win)
+        self._action_compare_outputs.triggered.connect(self._on_compare_outputs)
 
         self._action_import_mesh = QAction("Import Mesh...", self._win)
         self._action_import_mesh.triggered.connect(self._on_import_mesh)
@@ -172,6 +194,7 @@ class MainWindow:
 
         menu_tools = self._win.menuBar().addMenu("Tools")
         menu_tools.addAction(self._action_batch_run)
+        menu_tools.addAction(self._action_compare_outputs)
 
         menu_solve = self._win.menuBar().addMenu("Solve")
         menu_solve.addAction(self._action_select_solver)
@@ -208,6 +231,7 @@ class MainWindow:
 
         self._update_run_action_text()
         self._apply_solver_capabilities(self._safe_get_solver_caps(self._settings.get_solver_selector()))
+        self._shutdown_done = False
 
     @property
     def qt(self):
@@ -215,6 +239,25 @@ class MainWindow:
 
     def show(self) -> None:
         self._win.show()
+
+    def _shutdown_before_close(self) -> None:
+        if getattr(self, "_shutdown_done", False):
+            return
+        self._shutdown_done = True
+        # Best-effort cancel active background workers.
+        for w in list(self._active_workers):
+            try:
+                if hasattr(w, "cancel"):
+                    w.cancel()
+            except Exception:
+                pass
+        # Teardown VTK/Qt render windows before the native HWND/context is destroyed.
+        try:
+            out = self.workspace_stack.get("output")
+            if hasattr(out, "shutdown"):
+                out.shutdown()
+        except Exception:
+            pass
 
     def _load_project_data(self, project: ProjectData, display_path: Path | None) -> None:
         workdir = materialize_to_workdir(project)
@@ -391,6 +434,10 @@ class MainWindow:
         dlg = BatchRunDialog(self._win, solver_selector=self._settings.get_solver_selector())
         dlg.exec()
 
+    def _on_compare_outputs(self) -> None:
+        dlg = CompareOutputsDialog(self._win)
+        dlg.exec()
+
     def _on_display_units(self) -> None:
         state = self.model.state()
         if not state.project:
@@ -558,11 +605,11 @@ class MainWindow:
             worker.finished.connect(lambda: self._active_workers.remove(worker) if worker in self._active_workers else None)
             self.tasks_dock.attach_worker(worker)
             self.log_dock.attach_worker(worker)
-            worker.output_ready.connect(self.open_output_folder)
+            worker.output_ready.connect(self._ui_slots.on_output_ready)
             if hasattr(worker, "failed"):
-                worker.failed.connect(self._on_solver_failed)  # type: ignore[attr-defined]
+                worker.failed.connect(self._ui_slots.on_solver_failed)  # type: ignore[attr-defined]
             if hasattr(worker, "canceled"):
-                worker.canceled.connect(self._on_solver_canceled)  # type: ignore[attr-defined]
+                worker.canceled.connect(self._ui_slots.on_solver_canceled)  # type: ignore[attr-defined]
             worker.start()
         except Exception as exc:
             self._QMessageBox.critical(self._win, "Run Failed", str(exc))

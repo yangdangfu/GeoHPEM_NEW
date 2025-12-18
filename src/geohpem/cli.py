@@ -75,8 +75,9 @@ def main(argv: list[str] | None = None) -> int:
 
         report = Path(args.report) if args.report else (root / "batch_report.json")
         write_case_run_report(records, report)
-        failed = sum(1 for r in records if r.status != "success")
-        print(f"Wrote report: {report} (cases={len(records)}, failed={failed})")
+        failed = sum(1 for r in records if r.status == "failed")
+        canceled = sum(1 for r in records if r.status == "canceled")
+        print(f"Wrote report: {report} (cases={len(records)}, failed={failed}, canceled={canceled})")
         return 0
 
     if args.cmd == "gui":
