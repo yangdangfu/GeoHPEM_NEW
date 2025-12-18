@@ -100,8 +100,11 @@ Core application logic independent of UI.
 
 | Component | Location | Responsibility |
 |-----------|----------|----------------|
-| `precheck` | `app/precheck.py` | Validates request+mesh before solver run |
-| `run_case` | `app/run_case.py` | Orchestrates solver execution |
+| `precheck` | `app/precheck.py` | Validates request+mesh (with solver capabilities support) |
+| `run_case` | `app/run_case.py` | Orchestrates single case solver execution |
+| `case_runner` | `app/case_runner.py` | Batch execution of multiple case folders |
+| `diagnostics` | `app/diagnostics.py` | Create diagnostic ZIP packages for debugging |
+| `errors` | `app/errors.py` | Custom exceptions (CancelledError) |
 | `package` | `project/package.py` | Load/save `.geohpem` ZIP archives |
 | `case_folder` | `project/case_folder.py` | Load case folders (request.json + mesh.npz) |
 | `workdir` | `project/workdir.py` | Create temporary working directories |
@@ -270,9 +273,15 @@ geohpem <command> [options]
 Commands:
   about             Show version info
   gui               Launch the GUI
-  run <case_dir>    Run solver on a case folder
+  run <case_dir>    Run solver on a single case folder
+  batch-run <root>  Run solver on multiple case folders
   contract-example  Generate example contract files
 ```
+
+**batch-run options**:
+- `--solver`: Solver selector (default: "fake")
+- `--baseline`: Baseline root folder for comparison
+- `--report`: JSON report output path
 
 ### GUI Entry (`gui/app.py`)
 
@@ -334,5 +343,5 @@ raise SystemExit(main())
 
 ---
 
-Last updated: 2024-12-18 (v3 - added units module)
+Last updated: 2024-12-18 (v4 - batch runner, diagnostics, capabilities-aware precheck)
 

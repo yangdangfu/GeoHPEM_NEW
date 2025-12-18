@@ -8,7 +8,9 @@ The `app` module contains application-level services that bridge the gap between
 2. [Module Structure](#module-structure)
 3. [Precheck Service](#precheck-service)
 4. [Run Case Service](#run-case-service)
-5. [Usage Examples](#usage-examples)
+5. [Case Runner (Batch)](#case-runner-batch)
+6. [Diagnostics](#diagnostics)
+7. [Usage Examples](#usage-examples)
 
 ---
 
@@ -16,8 +18,10 @@ The `app` module contains application-level services that bridge the gap between
 
 The app module provides:
 
-- **Precheck**: Validates request and mesh before solver execution
+- **Precheck**: Validates request and mesh before solver execution (with capabilities awareness)
 - **Run Case**: Orchestrates solver execution from case folder
+- **Case Runner**: Batch execution of multiple case folders
+- **Diagnostics**: Creates diagnostic ZIP packages for debugging solver failures
 
 These services are used by both the GUI (via workers) and CLI.
 
@@ -28,8 +32,11 @@ These services are used by both the GUI (via workers) and CLI.
 ```
 app/
 ├── __init__.py
-├── precheck.py      # Request/mesh validation
-└── run_case.py      # Solver execution
+├── precheck.py      # Request/mesh validation (with capabilities)
+├── run_case.py      # Single case solver execution
+├── case_runner.py   # Batch case execution
+├── diagnostics.py   # Diagnostic ZIP generation
+└── errors.py        # Custom exceptions (CancelledError)
 ```
 
 ---
@@ -66,13 +73,19 @@ class PrecheckIssue:
 | `LOAD_SET_MISSING` | ERROR | Load references non-existent set |
 | `ASSIGN_SET_MISSING` | ERROR | Assignment references non-existent set |
 | `STAGE_TYPE` | ERROR | Stage is not an object |
+| `CAP_CONTRACT` | ERROR | Schema version not in solver's contract range |
+| `CAP_MODE_UNSUPPORTED` | ERROR | Mode not supported by solver |
+| `CAP_ANALYSIS_UNSUPPORTED` | ERROR | Analysis type not supported by solver |
+| `CAP_OUTPUT_UNSUPPORTED` | WARN | Output field not in solver capabilities |
 
 #### API
 
 ```python
 def precheck_request_mesh(
     request: dict[str, Any],
-    mesh: dict[str, Any]
+    mesh: dict[str, Any],
+    *,
+    capabilities: dict[str, Any] | None = None,
 ) -> list[PrecheckIssue]:
     """
     Validate request and mesh before solver run.
@@ -80,16 +93,18 @@ def precheck_request_mesh(
     Args:
         request: Analysis configuration
         mesh: Mesh data
+        capabilities: Optional solver capabilities dict for extended checks
     
     Returns:
         List of issues (empty if valid)
     
     Checks performed:
-        - Schema version
-        - Model configuration
-        - Stage structure
+        - Schema version (+ contract range if capabilities provided)
+        - Model configuration (+ mode support if capabilities provided)
+        - Stage structure (+ analysis_type support if capabilities provided)
         - Mesh presence and validity
         - Set references in BCs, loads, assignments
+        - Output request names (if capabilities provided)
     """
 
 def summarize_issues(
@@ -252,6 +267,88 @@ def run_case(
 
 ---
 
+## Case Runner (Batch)
+
+### case_runner.py
+
+Provides batch execution of multiple case folders with optional baseline comparison.
+
+#### Data Types
+
+```python
+@dataclass(frozen=True, slots=True)
+class CaseRunRecord:
+    case_dir: Path
+    status: str  # "success" | "failed" | "skipped"
+    solver_selector: str
+    elapsed_s: float
+    out_dir: Path | None
+    error: str | None
+    diagnostics_zip: Path | None
+    compare: dict[str, Any] | None  # Comparison results if baseline provided
+```
+
+#### API
+
+```python
+def discover_case_folders(root: Path) -> list[Path]:
+    """Find case folders (containing request.json + mesh.npz) under root."""
+
+def run_cases(
+    case_dirs: Iterable[Path],
+    *,
+    solver_selector: str,
+    baseline_root: Path | None = None,
+    on_progress: Callable[[int, int, Path, str], None] | None = None,
+    should_cancel: Callable[[], bool] | None = None,
+) -> list[CaseRunRecord]:
+    """Run multiple case folders sequentially with optional baseline comparison."""
+
+def write_case_run_report(records: list[CaseRunRecord], out_path: Path) -> Path:
+    """Write batch run results to JSON file."""
+```
+
+---
+
+## Diagnostics
+
+### diagnostics.py
+
+Creates diagnostic ZIP packages for debugging solver failures.
+
+```python
+@dataclass(frozen=True, slots=True)
+class DiagnosticsInfo:
+    zip_path: Path
+
+def build_diagnostics_zip(
+    case_dir: Path,
+    *,
+    solver_selector: str,
+    capabilities: dict[str, Any] | None = None,
+    error: str | None = None,
+    tb: str | None = None,
+    logs: list[str] | None = None,
+    include_out: bool = True,
+) -> DiagnosticsInfo:
+    """
+    Create a diagnostic ZIP for sharing with solver/platform teams.
+    
+    ZIP Contents:
+        diag/meta.json, request_preview.json, result_preview.json, pip_freeze.txt
+        case/request.json, mesh.npz, out/result.json, out/result.npz
+    """
+```
+
+### errors.py
+
+```python
+class CancelledError(Exception):
+    """Raised when a solver run is cancelled by the user."""
+```
+
+---
+
 ## Usage Examples
 
 ### CLI Usage
@@ -262,6 +359,12 @@ geohpem run examples/case_cli_test --solver fake
 
 # Run with custom solver
 geohpem run examples/case_cli_test --solver python:my_solver.backend
+
+# Batch run all cases under a folder
+geohpem batch-run examples/ --solver fake
+
+# With baseline comparison
+geohpem batch-run examples/ --solver python:my_solver --baseline baseline/
 ```
 
 ### Programmatic Usage
@@ -423,5 +526,5 @@ configure_logging()  # Sets up basic logging
 
 ---
 
-Last updated: 2024-12-18
+Last updated: 2024-12-18 (v2 - batch runner, diagnostics, capabilities-aware precheck)
 

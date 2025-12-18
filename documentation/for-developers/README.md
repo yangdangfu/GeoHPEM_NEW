@@ -40,14 +40,21 @@ pip install -e .
 # Launch GUI
 python -m geohpem gui
 
-# Or using CLI
+# Or using CLI (after pip install -e .)
 geohpem gui
+
+# Development mode (no install required)
+python geohpem_cli.py gui
 
 # Run with a specific case folder
 geohpem gui --open path/to/case
 
-# Run solver on a case folder
+# Run solver on a single case folder
 geohpem run path/to/case --solver fake
+
+# Batch run multiple case folders
+geohpem batch-run path/to/cases --solver fake
+geohpem batch-run path/to/cases --solver python:my_solver --baseline baseline/ --report results.json
 ```
 
 ### Project Structure
@@ -56,10 +63,10 @@ geohpem run path/to/case --solver fake
 src/geohpem/
 ├── __init__.py          # Version info
 ├── __main__.py          # Entry point for `python -m geohpem`
-├── cli.py               # CLI parser (subcommands: about, gui, run, contract-example)
+├── cli.py               # CLI parser (subcommands: about, gui, run, batch-run, contract-example)
 ├── main.py              # Simple GUI launcher
 ├── units.py             # Unit conversion and display unit management
-├── app/                 # Application layer (precheck, run_case)
+├── app/                 # Application layer (precheck, run_case, batch runner, diagnostics)
 ├── contract/            # Solver contract (I/O, validation, schemas)
 ├── domain/              # Domain models
 ├── geometry/            # Geometry primitives (polygon2d)
@@ -207,5 +214,5 @@ from geohpem.project.types import ProjectData
 
 ---
 
-Last updated: 2024-12-18 (v3 - added units module)
+Last updated: 2024-12-18 (v4 - batch runner, diagnostics, solver capabilities)
 

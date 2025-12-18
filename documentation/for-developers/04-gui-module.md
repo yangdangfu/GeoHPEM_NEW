@@ -164,6 +164,25 @@ class MainWindow:
 | `open_output_folder(path)` | Display results |
 | `show()` | Show the window |
 
+**Solver Capabilities Management**:
+
+```python
+# Cached solver capabilities by selector
+_solver_caps_cache: dict[str, dict[str, Any]] = {}
+
+def _get_solver_caps(selector: str) -> dict[str, Any]:
+    """Load and cache solver capabilities."""
+
+def _apply_solver_capabilities(caps: dict[str, Any] | None) -> None:
+    """Propagate capabilities to PropertiesDock."""
+```
+
+On startup and when solver is changed:
+1. Load solver capabilities via `load_solver(selector).capabilities()`
+2. Cache result in `_solver_caps_cache`
+3. Pass to `properties_dock.set_solver_capabilities(caps)`
+4. Pass to `precheck_request_mesh(..., capabilities=caps)` before runs
+
 **Signal Connections**:
 
 ```python
@@ -400,10 +419,24 @@ Tree view of project structure:
 
 ### PropertiesDock (`widgets/docks/properties_dock.py`)
 
-Context-sensitive property editor:
+Context-sensitive property editor with solver capabilities awareness:
+
+**Pages**:
 - Model properties (mode, gravity)
-- Stage properties (type, steps, BCs, loads)
+- Stage properties (type, steps, output requests, BCs, loads)
 - Material properties (model, parameters)
+
+**Solver Capabilities Integration**:
+```python
+def set_solver_capabilities(caps: dict[str, Any] | None) -> None:
+    """Update UI based on solver capabilities."""
+```
+
+- Disables unsupported modes in model combo box (based on `capabilities.modes`)
+- Disables unsupported analysis types in stage combo box (based on `capabilities.analysis_types`)
+- Shows amber-colored warnings when current values are not supported
+- Validates output request names against `capabilities.results/fields`
+- "Add..." button for output requests opens `OutputRequestDialog` pre-populated with valid options
 
 ### StageDock (`widgets/docks/stage_dock.py`)
 
@@ -426,10 +459,17 @@ Log message display:
 
 ### TasksDock (`widgets/docks/tasks_dock.py`)
 
-Running task display:
-- Progress bar
-- Cancel button
-- `attach_worker(worker)`: Connect to worker progress
+Running task display with cancellation support:
+- Progress bar with percentage
+- Status label (Idle, Running, Failed, Canceled)
+- "Cancel" button (enabled when worker is running)
+- `attach_worker(worker)`: Connect to worker progress/status signals
+
+**Cancellation Flow**:
+1. User clicks "Cancel" button
+2. `TasksDock` calls `worker.cancel()`
+3. Button text changes to "Cancel requested..."
+4. Worker detects cancellation and stops
 
 ### GeometryDock (`widgets/docks/geometry_dock.py`)
 
@@ -523,6 +563,20 @@ class SolverDialogResult:
     solver_selector: str  # "fake" or "python:<module>"
 ```
 
+### OutputRequestDialog (`dialogs/output_request_dialog.py`)
+
+Add output requests to a stage based on solver capabilities:
+- Multi-select list of available output fields (from solver capabilities)
+- Location selector (node/element)
+- "Every N" setting for sampling frequency
+- Auto-generates UIDs for new output requests
+
+```python
+@dataclass(frozen=True, slots=True)
+class OutputRequestDialogResult:
+    output_requests: list[dict[str, Any]]  # List of output request dicts with uid, name, location, every_n
+```
+
 **Solver Selector Formats**:
 - `"fake"`: Built-in fake solver for testing
 - `"python:<module>"`: Load solver from Python module (e.g., `python:geohpem_solver`)
@@ -538,21 +592,41 @@ class SolverDialogResult:
 
 ### SolveWorker (`workers/solve_worker.py`)
 
-Background solver execution:
+Background solver execution with cancellation support and diagnostics:
 
 ```python
 class SolveWorker(QThread):
     """
     Signals:
-        progress(float, str)  - Progress update (0-1, message)
-        finished()            - Solver completed
-        error(str)            - Error occurred
-        output_ready(Path)    - Results available at path
-        log(str)              - Log message
+        started()                      - Worker started
+        progress(int, str)             - Progress update (0-100, message)
+        finished()                     - Solver completed (success or fail)
+        output_ready(Path)             - Results available at path
+        log(str)                       - Log message
+        failed(str, Path|None)         - Error text + diagnostics ZIP path
+        canceled(Path|None)            - Diagnostics ZIP path
     """
     
     def __init__(self, case_dir: Path, solver_selector: str): ...
+    def start(self) -> None: ...
+    def cancel(self) -> None:
+        """Request cancellation (best-effort). Solver must respect callbacks['should_cancel']."""
 ```
+
+**Cancellation Flow**:
+1. UI calls `worker.cancel()`
+2. Worker sets internal `_cancel` flag
+3. Solver's `callbacks['should_cancel']()` returns True
+4. Solver raises or exits early
+5. Worker emits `canceled` signal with diagnostics ZIP
+
+**Diagnostics on Failure**:
+When the solver fails, SolveWorker automatically creates a diagnostics ZIP:
+- Environment info (Python, platform)
+- Solver capabilities
+- Error message and traceback
+- Recent log messages
+- Case inputs and outputs
 
 Usage:
 ```python
@@ -560,6 +634,8 @@ worker = SolveWorker(case_dir=workdir, solver_selector="fake")
 self.tasks_dock.attach_worker(worker)
 self.log_dock.attach_worker(worker)
 worker.output_ready.connect(self.open_output_folder)
+worker.failed.connect(self._on_solver_failed)
+worker.canceled.connect(self._on_solver_canceled)
 worker.start()
 ```
 
@@ -631,5 +707,5 @@ menu_edit.addAction(self._action_my)
 
 ---
 
-Last updated: 2024-12-18 (v4 - added SolverDialog, solver selection)
+Last updated: 2024-12-18 (v5 - solver capabilities, OutputRequestDialog, worker cancellation)
 

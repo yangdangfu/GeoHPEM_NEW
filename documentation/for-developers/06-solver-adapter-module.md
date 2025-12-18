@@ -58,6 +58,7 @@ class SolverProtocol(Protocol):
                 "name": "solver_name",
                 "version": "1.0.0",
                 "contract": {"min": "0.1", "max": "0.1"},
+                "modes": ["plane_strain", "axisymmetric"],
                 "analysis_types": ["static", "dynamic", ...],
                 "fields": ["u", "p", ...],
                 "results": ["u", "p", "stress", "strain", ...],
@@ -193,6 +194,7 @@ class FakeSolver:
         return {
             "name": "fake",
             "contract": {"min": "0.1", "max": "0.1"},
+            "modes": ["plane_strain", "axisymmetric"],
             "analysis_types": ["static", "dynamic", "seepage_transient", "consolidation_u_p"],
             "fields": ["u", "p"],
             "results": ["u", "p", "stress", "strain"],
@@ -290,6 +292,7 @@ class MySolver:
             "name": "my_solver",
             "version": "1.0.0",
             "contract": {"min": "0.1", "max": "0.1"},
+            "modes": ["plane_strain"],
             "analysis_types": ["static"],
             "fields": ["u"],
             "results": ["u", "stress", "strain"],
@@ -524,5 +527,5 @@ def test_solver():
 
 ---
 
-Last updated: 2024-12-18 (v2 - added GUI solver selection)
+Last updated: 2024-12-18 (v3 - added modes capability, capabilities integration)
 
