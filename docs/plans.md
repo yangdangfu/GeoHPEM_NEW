@@ -56,6 +56,7 @@
 - [x] Properties 表单化编辑最小集（mode/gravity、stage 核心字段、material JSON）
 - [x] Stage Manager（阶段列表 + diff + Add/Copy/Delete）
 - [x] Pre-check（基础）+ Run 前弹窗阻止 ERROR
+- [x] Input 中央区（Dashboard + Mesh Preview）支持查看网格/高亮 sets/拾取节点与单元信息（为后续“图形选集”打底）
 
 ---
 
@@ -94,10 +95,10 @@
 - [ ] Output UX 增强（GUI 花功夫，避免返工）
   - DoD：交互式剖面线（视窗两点/拖拽创建）；Probe/曲线对象管理（可 pin/复用/导出）；时间轴标准化（global_steps），动画/时程不依赖猜测。
   - [x] M5.ux.1：时间轴标准化（`result.json:global_steps`）并在 UI 显示 stage/time 信息
-  - [x] M5.ux.2：交互式剖面线（Pick 2 points）+ Profiles 列表管理（Plot/Remove）
-  - [ ] M5.ux.3：Probe Pin/复用：Pinned Nodes/Elements 列表 + Time history 可选来源（而非“最后一次拾取”）
-  - [ ] M5.ux.4：交互式剖面线（拖拽/编辑/多条 overlay）+ 保存到工程（随 project 保存）
-  - [ ] M5.ux.5：动画/批量导出：steps → PNG（可选 GIF/MP4）+ 可配置相机保持/重置策略
+- [x] M5.ux.2：交互式剖面线（Pick 2 points）+ Profiles 列表管理（Plot/Remove）
+- [x] M5.ux.3：Probe Pin/复用：Pinned Nodes/Elements 列表 + Time history 可选来源（而非“最后一次拾取”）
+- [ ] M5.ux.4：交互式剖面线（拖拽/编辑/多条 overlay）+ 保存到工程（随 project 保存）
+- [ ] M5.ux.5：动画/批量导出：steps → PNG（可选 GIF/MP4）+ 可配置相机保持/重置策略
 
 ---
 

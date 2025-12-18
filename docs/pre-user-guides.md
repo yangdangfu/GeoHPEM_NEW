@@ -2,7 +2,7 @@
 
 本指南描述当前仓库“已经能做什么、怎么操作”。当前阶段重点是 **导入网格 → 配置阶段 → 运行（fake solver）→ Output 云图/探针 → 保存工程**。
 
-> 说明：Output 已接入 VTK（PyVistaQt）云图渲染与 Probe，但剖面线/曲线/动画等仍在后续里程碑完善。
+> 说明：Output 已接入 VTK（PyVistaQt）云图渲染与 Probe，并提供 Profile line / Time history / 导出截图（PNG）；动画批量导出等仍在后续里程碑完善。
 
 ## 1. 环境准备
 
@@ -19,6 +19,10 @@
   - `<path>` 可以是：
     - `.geohpem` 工程文件
     - case folder（包含 `request.json + mesh.npz` 的目录）
+
+推荐的“更接近实际”的测试算例（已包含多阶段/多 sets/element 字段）：
+- `_Projects/cases/realistic_case_01`
+  - 生成脚本：`python scripts/make_realistic_case.py`（会同时生成 `out/` 结果，便于直接测试 Output）
 
 ## 3. 新建工程
 
@@ -65,11 +69,13 @@ GUI 菜单：
       - Edge set：输入边的节点对，如 `0-1,1-2,2-3` 或 `0 1; 1 2; 2 3`
       - Element set：选择 tri3/quad4，输入单元索引，如 `0,2,3-20`
 
-> 说明：由于 Viewport 还未接入，目前还不支持“从图形选择生成 set”，后续会补齐。
+> 说明：Input 工作区中央已接入 Mesh Preview（高亮 sets + 点击拾取信息），但目前还不支持“从图形选择生成 set”，后续会补齐。
 
 ## 7. 编辑建模数据（Input 工作区 MVP）
 
 左侧 Project Explorer 选择对象，右侧 Properties 可编辑：
+
+> 说明：Input 工作区中间区域包含“流程导航/快捷入口面板”（Quick Actions + Status + 推荐流程）+ “Mesh Preview”（查看网格、sets 高亮、点击拾取节点/单元信息）。核心编辑仍在左右 Dock（Project/Geometry/Properties/Stages）完成。
 
 - `Model`
   - `mode`（plane_strain/axisymmetric）
@@ -134,7 +140,8 @@ GUI 菜单：
     - 也可用旧方式：先在视窗里连续点两次（得到 2 次 Probe），再点 `Use last two picks` 自动填入端点
     - 自动弹出曲线窗口，支持 `Export CSV...` 与 `Save Plot Image...`
   - `Time history...`：时程曲线
-    - 对 nodal 字段：先 Probe 一个点（确定 pid）；对 element 字段：先 pick 一个单元（确定 cell_id）
+    - 弹窗选择来源：`Use last picked` 或 `Use pinned`
+    - 对 nodal 字段：先 Probe 一个点（确定 pid）或 `Pin last probe (node)`；对 element 字段：先 pick 一个单元（确定 cell_id）或 `Pin last cell (element)`
     - 自动弹出曲线窗口（横轴优先用 time，否则用 step），支持 `Export CSV...`
   - `Export image...`：导出当前视窗截图（PNG）
   - `View -> Display Units...` 可切换显示单位（目前最小支持：长度/压强；不改变底层数据）

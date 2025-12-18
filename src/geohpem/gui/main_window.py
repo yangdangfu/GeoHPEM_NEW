@@ -95,8 +95,10 @@ class MainWindow:
         self._win.addDockWidget(Qt.BottomDockWidgetArea, self.tasks_dock.dock)
 
         self._win.tabifyDockWidget(self.project_dock.dock, self.geometry_dock.dock)
+        self._win.tabifyDockWidget(self.properties_dock.dock, self.stage_dock.dock)
         self._win.tabifyDockWidget(self.log_dock.dock, self.tasks_dock.dock)
         self.log_dock.dock.raise_()
+        self.properties_dock.dock.raise_()
 
         self.model = ProjectModel()
         self.selection = SelectionModel()
@@ -145,10 +147,10 @@ class MainWindow:
         self._action_import_mesh.triggered.connect(self._on_import_mesh)
 
         self._action_ws_input = QAction("Workspace: Input", self._win)
-        self._action_ws_input.triggered.connect(lambda: self.workspace_stack.set_workspace("input"))
+        self._action_ws_input.triggered.connect(lambda: self._set_workspace("input"))
 
         self._action_ws_output = QAction("Workspace: Output", self._win)
-        self._action_ws_output.triggered.connect(lambda: self.workspace_stack.set_workspace("output"))
+        self._action_ws_output.triggered.connect(lambda: self._set_workspace("output"))
 
         self._action_select_solver = QAction("Select Solver...", self._win)
         self._action_select_solver.triggered.connect(self._on_select_solver)
@@ -204,6 +206,13 @@ class MainWindow:
 
         menu_view = self._win.menuBar().addMenu("View")
         menu_view.addAction(self._action_units)
+        menu_view.addSeparator()
+        menu_view.addAction(self.project_dock.dock.toggleViewAction())
+        menu_view.addAction(self.geometry_dock.dock.toggleViewAction())
+        menu_view.addAction(self.properties_dock.dock.toggleViewAction())
+        menu_view.addAction(self.stage_dock.dock.toggleViewAction())
+        menu_view.addAction(self.log_dock.dock.toggleViewAction())
+        menu_view.addAction(self.tasks_dock.dock.toggleViewAction())
 
         menu_tools = self._win.menuBar().addMenu("Tools")
         menu_tools.addAction(self._action_validate_inputs)
@@ -256,12 +265,99 @@ class MainWindow:
         self._rebuild_recent_solvers_menu()
         self._shutdown_done = False
 
+        # Wire Input workspace dashboard actions (if available).
+        try:
+            from geohpem.gui.workspaces.input_workspace import InputWorkspace
+
+            input_ws = self.workspace_stack.get("input")
+            if isinstance(input_ws, InputWorkspace):
+                input_ws.new_project_requested.connect(self._on_new_project)
+                input_ws.open_project_requested.connect(self._on_open_project_dialog)
+                input_ws.open_case_requested.connect(self._on_open_case_dialog)
+                input_ws.import_mesh_requested.connect(self._on_import_mesh)
+                input_ws.validate_requested.connect(self._on_validate_inputs)
+                input_ws.run_requested.connect(self._on_run_solver)
+                input_ws.switch_output_requested.connect(lambda: self._set_workspace("output"))
+
+                def _push_input_preview(*_args) -> None:  # noqa: ANN001
+                    st = self.model.state()
+                    if not st.project:
+                        return
+                    try:
+                        input_ws.set_data(request=st.project.request, mesh=st.project.mesh)
+                    except Exception:
+                        pass
+
+                # Keep the center preview in sync with current in-memory project data.
+                self.model.request_changed.connect(_push_input_preview)
+                self.model.mesh_changed.connect(_push_input_preview)
+        except Exception:
+            pass
+
     @property
     def qt(self):
         return self._win
 
     def show(self) -> None:
         self._win.show()
+
+    def _set_workspace(self, name: str) -> None:
+        """
+        Switch workspace and apply a sensible dock layout preset.
+
+        - Input: show editing docks (Geometry/Properties/Stages).
+        - Output: focus on visualization; hide editing docks by default.
+        Users can override via View -> toggle dock actions.
+        """
+        try:
+            self.workspace_stack.set_workspace(name)
+        except Exception:
+            return
+
+        if name == "output":
+            try:
+                self.geometry_dock.dock.hide()
+            except Exception:
+                pass
+            try:
+                self.properties_dock.dock.hide()
+            except Exception:
+                pass
+            try:
+                self.stage_dock.dock.hide()
+            except Exception:
+                pass
+            try:
+                self.project_dock.dock.show()
+            except Exception:
+                pass
+            try:
+                self.log_dock.dock.show()
+            except Exception:
+                pass
+            try:
+                self.tasks_dock.dock.show()
+            except Exception:
+                pass
+            return
+
+        # input default
+        try:
+            self.project_dock.dock.show()
+        except Exception:
+            pass
+        try:
+            self.geometry_dock.dock.show()
+        except Exception:
+            pass
+        try:
+            self.properties_dock.dock.show()
+        except Exception:
+            pass
+        try:
+            self.stage_dock.dock.show()
+        except Exception:
+            pass
 
     def _shutdown_before_close(self) -> None:
         if getattr(self, "_shutdown_done", False):
@@ -279,6 +375,12 @@ class MainWindow:
             out = self.workspace_stack.get("output")
             if hasattr(out, "shutdown"):
                 out.shutdown()
+        except Exception:
+            pass
+        try:
+            inp = self.workspace_stack.get("input")
+            if hasattr(inp, "shutdown"):
+                inp.shutdown()
         except Exception:
             pass
 
@@ -315,7 +417,8 @@ class MainWindow:
 
         if project.result_meta is not None and project.result_arrays is not None:
             self.open_output_folder(workdir / "out")
-        self.workspace_stack.set_workspace("input")
+        else:
+            self._set_workspace("input")
 
     def _refresh_tree(self, request: dict[str, Any]) -> None:
         state = self.model.state()
@@ -398,7 +501,7 @@ class MainWindow:
             if req is not None:
                 self._apply_unit_context_from_request(req)
         self.log_dock.append_info(f"Opened output: {out_dir}")
-        self.workspace_stack.set_workspace("output")
+        self._set_workspace("output")
 
     def _apply_unit_context_from_request(self, request: dict[str, Any]) -> None:
         from geohpem.units import UnitContext, merge_display_units, normalize_unit_system, request_unit_system
@@ -458,6 +561,19 @@ class MainWindow:
         elif selector.startswith("python:"):
             label = selector.split("python:", 1)[1].strip() or selector
         self._action_run.setText(f"Run ({label})")
+        # Also update Input dashboard solver label (best-effort).
+        try:
+            from geohpem.gui.workspaces.input_workspace import InputWorkspace
+
+            input_ws = self.workspace_stack.get("input")
+            if isinstance(input_ws, InputWorkspace):
+                st = self.model.state()
+                proj = None
+                if st.display_path:
+                    proj = str(st.display_path)
+                input_ws.set_status(project=proj, dirty=bool(st.dirty), solver=selector)
+        except Exception:
+            pass
 
     def _on_select_solver(self) -> None:
         cur = self._settings.get_solver_selector()
@@ -857,6 +973,18 @@ class MainWindow:
         if state.dirty:
             title += " *"
         self._win.setWindowTitle(title)
+        # Update Input dashboard status (best-effort).
+        try:
+            from geohpem.gui.workspaces.input_workspace import InputWorkspace
+
+            input_ws = self.workspace_stack.get("input")
+            if isinstance(input_ws, InputWorkspace):
+                proj = None
+                if state.display_path:
+                    proj = str(state.display_path)
+                input_ws.set_status(project=proj, dirty=bool(state.dirty), solver=self._settings.get_solver_selector())
+        except Exception:
+            pass
 
     def _on_undo_state_changed(self, can_undo: bool, can_redo: bool) -> None:
         self._action_undo.setEnabled(bool(can_undo))

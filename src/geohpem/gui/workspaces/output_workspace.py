@@ -108,23 +108,52 @@ class OutputWorkspace:
         self.btn_profile_remove.setEnabled(False)
         left_layout.addWidget(self.btn_profile_remove)
 
+        left_layout.addWidget(QLabel("Pins"))
+        self.pin_list = QListWidget()
+        self.pin_list.setEnabled(False)
+        left_layout.addWidget(self.pin_list, 1)
+
+        self.btn_pin_node = QPushButton("Pin last probe (node)")
+        self.btn_pin_node.setEnabled(False)
+        left_layout.addWidget(self.btn_pin_node)
+        self.btn_pin_elem = QPushButton("Pin last cell (element)")
+        self.btn_pin_elem.setEnabled(False)
+        left_layout.addWidget(self.btn_pin_elem)
+        self.btn_pin_remove = QPushButton("Remove pin")
+        self.btn_pin_remove.setEnabled(False)
+        left_layout.addWidget(self.btn_pin_remove)
+
         splitter.addWidget(left)
 
-        # Right panel: viewer + probe readout
+        # Right panel: viewer + probe readout (resizable)
         right = QWidget()
         right_layout = QVBoxLayout(right)
         self._right_layout = right_layout
+
+        v_split = QSplitter(self._Qt.Vertical)
+        right_layout.addWidget(v_split, 1)
+
+        probe_host = QWidget()
+        probe_layout = QVBoxLayout(probe_host)
+        probe_layout.setContentsMargins(0, 0, 0, 0)
         self.probe = QPlainTextEdit()
         self.probe.setReadOnly(True)
-        self.probe.setMaximumHeight(110)
+        self.probe.setMinimumHeight(70)
         self.probe.setPlainText("Probe: left-click in the viewport to read value.")
-        right_layout.addWidget(self.probe)
+        probe_layout.addWidget(self.probe)
+        v_split.addWidget(probe_host)
 
         self._viewer = None  # QtInteractor
         self._viewer_host = QWidget()
         self._viewer_host_layout = QVBoxLayout(self._viewer_host)
         self._viewer_host_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.addWidget(self._viewer_host, 1)
+        v_split.addWidget(self._viewer_host)
+        try:
+            v_split.setStretchFactor(0, 0)
+            v_split.setStretchFactor(1, 1)
+            v_split.setSizes([90, 1000])
+        except Exception:
+            pass
         splitter.addWidget(right)
         splitter.setStretchFactor(1, 1)
 
@@ -153,15 +182,22 @@ class OutputWorkspace:
         self.btn_profile_remove.clicked.connect(self._remove_selected_profile)
         self.profile_list.currentRowChanged.connect(self._on_profile_selection_changed)
         self.profile_list.itemDoubleClicked.connect(lambda *_: self._plot_selected_profile())
+        self.pin_list.currentRowChanged.connect(self._on_pin_selection_changed)
+        self.btn_pin_node.clicked.connect(self._pin_last_probe)
+        self.btn_pin_elem.clicked.connect(self._pin_last_cell)
+        self.btn_pin_remove.clicked.connect(self._remove_selected_pin)
 
         self._probe_history: list[dict[str, Any]] = []
         self._last_probe_pid: int | None = None
         self._last_cell_id: int | None = None
+        self._last_probe_xyz: tuple[float, float, float] | None = None
+        self._last_cell_info: dict[str, Any] | None = None
 
         self._mode: str = "normal"  # normal|profile_pick
         self._profile_pick_points: list[tuple[float, float, float]] = []
         self._profiles: list[dict[str, Any]] = []
         self._profile_actor = None
+        self._pins: list[dict[str, Any]] = []
 
     def set_unit_context(self, units) -> None:  # noqa: ANN001
         """
@@ -200,6 +236,10 @@ class OutputWorkspace:
         self.profile_list.setEnabled(True)
         self.btn_profile_pick.setEnabled(True)
         self._refresh_profile_list()
+        self.pin_list.setEnabled(True)
+        self.btn_pin_node.setEnabled(True)
+        self.btn_pin_elem.setEnabled(True)
+        self._refresh_pin_list()
 
     def _infer_steps(self, meta: dict[str, Any], arrays: dict[str, Any]) -> tuple[list[int], dict[int, dict[str, Any]]]:
         """
@@ -477,6 +517,7 @@ class OutputWorkspace:
             if pref == "point" and scalar_name in grid.point_data:
                 val = float(grid.point_data[scalar_name][pid])
             self._last_probe_pid = pid
+            self._last_probe_xyz = (px, py, pz)
             self._probe_history.append({"x": px, "y": py, "z": pz, "pid": pid})
             self._probe_history = self._probe_history[-10:]
             if self._mode == "profile_pick":
@@ -544,6 +585,7 @@ class OutputWorkspace:
             local_id = int(grid.cell_data["__cell_local_id"][cell_id])
             ctype = cell_type_code_to_name(ctype_code) or str(ctype_code)
             elem_sets = self._elem_set_membership.get(ctype, {}).get(local_id, [])
+            self._last_cell_info = {"cell_id": int(cell_id), "cell_type": str(ctype), "local_id": int(local_id), "elem_sets": list(elem_sets)}
             self.probe.setPlainText(
                 "Cell pick:\n"
                 f"  cell_id={cell_id}\n"
@@ -835,6 +877,65 @@ class OutputWorkspace:
         )
         dlg.exec()
 
+    def _refresh_pin_list(self, *, select_uid: str | None = None) -> None:
+        self.pin_list.clear()
+        for p in self._pins:
+            kind = str(p.get("kind", ""))
+            if kind == "node":
+                pid = p.get("pid")
+                x, y = p.get("x"), p.get("y")
+                label = f"{p.get('name','node')}  (pid={pid} x={x:.4g} y={y:.4g})"
+            else:
+                cid = p.get("cell_id")
+                ct = p.get("cell_type", "")
+                lid = p.get("local_id")
+                label = f"{p.get('name','elem')}  (cell_id={cid} {ct} local_id={lid})"
+            self.pin_list.addItem(label)
+        self._on_pin_selection_changed(self.pin_list.currentRow())
+        if select_uid:
+            for i, p in enumerate(self._pins):
+                if p.get("uid") == select_uid:
+                    self.pin_list.setCurrentRow(i)
+                    break
+
+    def _on_pin_selection_changed(self, row: int) -> None:
+        ok = 0 <= int(row) < len(self._pins)
+        self.btn_pin_remove.setEnabled(bool(ok))
+
+    def _selected_pin(self) -> dict[str, Any] | None:
+        row = int(self.pin_list.currentRow())
+        if row < 0 or row >= len(self._pins):
+            return None
+        p = self._pins[row]
+        return p if isinstance(p, dict) else None
+
+    def _pin_last_probe(self) -> None:
+        if self._last_probe_pid is None or self._last_probe_xyz is None:
+            self._QMessageBox.information(self.widget, "Pin", "Probe a point first (left-click).")
+            return
+        px, py, _pz = self._last_probe_xyz
+        uid = self._new_uid("pin")
+        pin = {"uid": uid, "kind": "node", "name": f"node_{len([p for p in self._pins if p.get('kind')=='node'])+1}", "pid": int(self._last_probe_pid), "x": float(px), "y": float(py)}
+        self._pins.append(pin)
+        self._refresh_pin_list(select_uid=uid)
+
+    def _pin_last_cell(self) -> None:
+        if self._last_cell_id is None or not isinstance(self._last_cell_info, dict):
+            self._QMessageBox.information(self.widget, "Pin", "Pick a cell first (click on mesh).")
+            return
+        info = dict(self._last_cell_info)
+        uid = self._new_uid("pin")
+        pin = {"uid": uid, "kind": "element", "name": f"elem_{len([p for p in self._pins if p.get('kind')=='element'])+1}", **info}
+        self._pins.append(pin)
+        self._refresh_pin_list(select_uid=uid)
+
+    def _remove_selected_pin(self) -> None:
+        row = int(self.pin_list.currentRow())
+        if row < 0 or row >= len(self._pins):
+            return
+        del self._pins[row]
+        self._refresh_pin_list()
+
     def _step_time_map(self) -> dict[int, float]:
         """
         Best-effort mapping from global step id -> time (float).
@@ -1103,17 +1204,16 @@ class OutputWorkspace:
         if not name:
             return
 
+        # Select source (last pick vs pinned)
+        src = self._select_history_source(location=location)
+        if src is None:
+            return
+
         # Choose index for sampling
         if location in ("node", "nodal"):
-            pid = self._last_probe_pid
-            if pid is None:
-                self._QMessageBox.information(self.widget, "Time History", "Probe a point first (left-click) to pick a node.")
-                return
+            pid = int(src["pid"])
         elif location in ("element", "elem"):
-            cid = self._last_cell_id
-            if cid is None:
-                self._QMessageBox.information(self.widget, "Time History", "Pick a cell first (click on mesh) to pick an element.")
-                return
+            cid = int(src["cell_id"])
         else:
             self._QMessageBox.information(self.widget, "Time History", f"Unsupported location: {location}")
             return
@@ -1180,3 +1280,82 @@ class OutputWorkspace:
             default_png_name=f"history_{scalar_name}.png",
         )
         dlg.exec()
+
+    def _select_history_source(self, *, location: str) -> dict[str, Any] | None:
+        """
+        Pick a source for time history:
+        - node: last probe pid or pinned node
+        - element: last cell pick or pinned element
+        """
+        from PySide6.QtWidgets import (  # type: ignore
+            QComboBox,
+            QDialog,
+            QDialogButtonBox,
+            QFormLayout,
+            QLabel,
+            QRadioButton,
+            QVBoxLayout,
+        )
+
+        want = "node" if location in ("node", "nodal") else "element"
+
+        dlg = QDialog(self.widget)
+        dlg.setWindowTitle("Time History Source")
+        dlg.resize(520, 220)
+        layout = QVBoxLayout(dlg)
+        layout.addWidget(QLabel(f"Field location: {want}"))
+
+        rb_last = QRadioButton("Use last picked")
+        rb_pin = QRadioButton("Use pinned")
+        rb_last.setChecked(True)
+        layout.addWidget(rb_last)
+        layout.addWidget(rb_pin)
+
+        form = QFormLayout()
+        layout.addLayout(form)
+        combo = QComboBox()
+        form.addRow("Pinned", combo)
+
+        pins = [p for p in self._pins if isinstance(p, dict) and p.get("kind") == want]
+        for p in pins:
+            if want == "node":
+                combo.addItem(f"{p.get('name')} (pid={p.get('pid')})", p.get("uid"))
+            else:
+                combo.addItem(f"{p.get('name')} (cell_id={p.get('cell_id')} {p.get('cell_type')})", p.get("uid"))
+        combo.setEnabled(False)
+
+        def sync() -> None:
+            combo.setEnabled(bool(rb_pin.isChecked()))
+
+        rb_last.toggled.connect(sync)
+        rb_pin.toggled.connect(sync)
+        sync()
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        layout.addWidget(buttons)
+        buttons.accepted.connect(dlg.accept)
+        buttons.rejected.connect(dlg.reject)
+
+        if dlg.exec() != QDialog.Accepted:
+            return None
+
+        if rb_last.isChecked():
+            if want == "node":
+                if self._last_probe_pid is None:
+                    self._QMessageBox.information(self.widget, "Time History", "Probe a point first (left-click) or pin one.")
+                    return None
+                return {"kind": "node", "pid": int(self._last_probe_pid)}
+            if self._last_cell_id is None:
+                self._QMessageBox.information(self.widget, "Time History", "Pick a cell first or pin one.")
+                return None
+            return {"kind": "element", "cell_id": int(self._last_cell_id)}
+
+        if not pins:
+            self._QMessageBox.information(self.widget, "Time History", "No pinned items available.")
+            return None
+
+        uid = combo.currentData()
+        for p in pins:
+            if p.get("uid") == uid:
+                return dict(p)
+        return dict(pins[0])
