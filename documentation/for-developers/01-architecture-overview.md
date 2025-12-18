@@ -103,6 +103,7 @@ Core application logic independent of UI.
 | `precheck` | `app/precheck.py` | Validates request+mesh (with solver capabilities support) |
 | `run_case` | `app/run_case.py` | Orchestrates single case solver execution |
 | `case_runner` | `app/case_runner.py` | Batch execution of multiple case folders |
+| `compare_outputs` | `app/compare_outputs.py` | Compare two output sets (diff stats, step curves) |
 | `diagnostics` | `app/diagnostics.py` | Create diagnostic ZIP packages for debugging |
 | `errors` | `app/errors.py` | Custom exceptions (CancelledError) |
 | `package` | `project/package.py` | Load/save `.geohpem` ZIP archives |
@@ -343,5 +344,5 @@ raise SystemExit(main())
 
 ---
 
-Last updated: 2024-12-18 (v4 - batch runner, diagnostics, capabilities-aware precheck)
+Last updated: 2024-12-18 (v5 - compare_outputs, Tools menu)
 

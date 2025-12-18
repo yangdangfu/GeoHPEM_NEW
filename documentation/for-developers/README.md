@@ -66,7 +66,7 @@ src/geohpem/
 ├── cli.py               # CLI parser (subcommands: about, gui, run, batch-run, contract-example)
 ├── main.py              # Simple GUI launcher
 ├── units.py             # Unit conversion and display unit management
-├── app/                 # Application layer (precheck, run_case, batch runner, diagnostics)
+├── app/                 # Application layer (precheck, run_case, batch runner, compare_outputs, diagnostics)
 ├── contract/            # Solver contract (I/O, validation, schemas)
 ├── domain/              # Domain models
 ├── geometry/            # Geometry primitives (polygon2d)
@@ -214,5 +214,5 @@ from geohpem.project.types import ProjectData
 
 ---
 
-Last updated: 2024-12-18 (v4 - batch runner, diagnostics, solver capabilities)
+Last updated: 2024-12-18 (v5 - BatchRunDialog, CompareOutputsDialog, thread-safe UI)
 

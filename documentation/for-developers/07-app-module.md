@@ -32,11 +32,12 @@ These services are used by both the GUI (via workers) and CLI.
 ```
 app/
 ├── __init__.py
-├── precheck.py      # Request/mesh validation (with capabilities)
-├── run_case.py      # Single case solver execution
-├── case_runner.py   # Batch case execution
-├── diagnostics.py   # Diagnostic ZIP generation
-└── errors.py        # Custom exceptions (CancelledError)
+├── precheck.py         # Request/mesh validation (with capabilities)
+├── run_case.py         # Single case solver execution
+├── case_runner.py      # Batch case execution
+├── compare_outputs.py  # Output comparison utilities
+├── diagnostics.py      # Diagnostic ZIP generation
+└── errors.py           # Custom exceptions (CancelledError)
 ```
 
 ---
@@ -349,6 +350,52 @@ class CancelledError(Exception):
 
 ---
 
+## Output Comparison
+
+### compare_outputs.py
+
+Utilities for comparing two sets of solver outputs.
+
+#### Data Types
+
+```python
+@dataclass(frozen=True, slots=True)
+class FieldKey:
+    location: str  # "node" or "element"
+    name: str      # Field name (e.g., "u", "p", "stress")
+
+@dataclass(frozen=True, slots=True)
+class FieldStats:
+    min: float
+    max: float
+    mean: float
+    l2: float    # L2 norm of difference
+    linf: float  # L-infinity norm (max abs)
+```
+
+#### API
+
+```python
+def common_fields(meta_a: dict, meta_b: dict) -> list[FieldKey]:
+    """Find fields present in both output registries."""
+
+def common_steps(arrays_a: dict, arrays_b: dict) -> list[int]:
+    """Find step IDs present in both array sets."""
+
+def diff_stats_for(
+    *, meta_a, arrays_a, meta_b, arrays_b, field: FieldKey, step: int
+) -> FieldStats | None:
+    """Compute difference statistics for a specific field at a step."""
+
+def step_curve_for(*, arrays: dict, field: FieldKey, steps: list[int]) -> list[dict]:
+    """Extract per-step min/max/mean for a field (for CSV export)."""
+
+def load_outputs(path: Path) -> tuple[dict, dict]:
+    """Load outputs from an out/ folder or case folder."""
+```
+
+---
+
 ## Usage Examples
 
 ### CLI Usage
@@ -526,5 +573,5 @@ configure_logging()  # Sets up basic logging
 
 ---
 
-Last updated: 2024-12-18 (v2 - batch runner, diagnostics, capabilities-aware precheck)
+Last updated: 2024-12-18 (v3 - added compare_outputs module)
 

@@ -163,6 +163,20 @@ class MainWindow:
 | `save_project(path)` | Save to .geohpem |
 | `open_output_folder(path)` | Display results |
 | `show()` | Show the window |
+| `_shutdown_before_close()` | Clean up VTK/workers before exit |
+
+**Menu Structure**:
+
+| Menu | Actions |
+|------|---------|
+| File | New, Open, Save, Save As, Recent Projects, Exit |
+| Edit | Undo, Redo |
+| Mesh | Import Mesh, Mesh Quality, Manage Sets |
+| View | Display Units... |
+| **Tools** | **Batch Run..., Compare Outputs...** |
+| Solve | Select Solver..., Run |
+| Workspace | Switch Input/Output |
+| Help | About |
 
 **Solver Capabilities Management**:
 
@@ -361,17 +375,10 @@ Result visualization using PyVista:
 ```python
 class OutputWorkspace:
     def set_result(self, meta, arrays, mesh=None):
-        """
-        Display solver results.
-        
-        Features:
-        - Registry list (available fields)
-        - Step slider
-        - Field mode (auto/magnitude)
-        - Warp by displacement
-        - Point probing with node/element set membership
-        - Cell picking with element set display
-        """
+        """Display solver results with cloud map visualization."""
+    
+    def shutdown(self) -> None:
+        """Clean up VTK/Qt resources before app exit (avoids OpenGL errors on Windows)."""
 ```
 
 **Controls**:
@@ -385,6 +392,10 @@ class OutputWorkspace:
 **Probing Features**:
 - **Point probe** (left-click): Shows node ID, coordinates, field value, and node set membership
 - **Cell probe**: Shows cell ID, cell type, local element ID, and element set membership
+
+**Lifecycle**:
+- `shutdown()` is called by `MainWindow._shutdown_before_close()` before Qt window closes
+- Properly disposes VTK plotter to avoid OpenGL context errors
 
 **Set Membership Tracking**:
 ```python
@@ -452,10 +463,11 @@ Stage management:
 
 ### LogDock (`widgets/docks/log_dock.py`)
 
-Log message display:
+Log message display with thread-safe signal handling:
 - `append_info(msg)`: Add info message
-- `append_error(msg)`: Add error message
-- `attach_worker(worker)`: Connect to worker log signals
+- `attach_worker(worker)`: Connect to worker log signals via QObject slots
+
+**Thread Safety**: Uses internal `_Slots` QObject to ensure UI updates happen in GUI thread.
 
 ### TasksDock (`widgets/docks/tasks_dock.py`)
 
@@ -463,13 +475,15 @@ Running task display with cancellation support:
 - Progress bar with percentage
 - Status label (Idle, Running, Failed, Canceled)
 - "Cancel" button (enabled when worker is running)
-- `attach_worker(worker)`: Connect to worker progress/status signals
+- `attach_worker(worker)`: Connect to worker signals via QObject slots
+
+**Thread Safety**: Uses internal `_Slots` QObject to ensure UI updates happen in GUI thread.
 
 **Cancellation Flow**:
 1. User clicks "Cancel" button
 2. `TasksDock` calls `worker.cancel()`
-3. Button text changes to "Cancel requested..."
-4. Worker detects cancellation and stops
+3. Status label shows "Cancel requested..."
+4. Worker detects cancellation via `should_cancel()` callback and stops
 
 ### GeometryDock (`widgets/docks/geometry_dock.py`)
 
@@ -577,6 +591,34 @@ class OutputRequestDialogResult:
     output_requests: list[dict[str, Any]]  # List of output request dicts with uid, name, location, every_n
 ```
 
+### BatchRunDialog (`dialogs/batch_run_dialog.py`)
+
+GUI dialog for batch running multiple case folders:
+- Cases root folder selection
+- Solver selector input
+- Optional baseline root for comparison
+- JSON report path configuration
+- Progress bar and log display
+- Cancel button for stopping batch run
+
+Uses `BatchRunWorker` for background execution.
+
+### CompareOutputsDialog (`dialogs/compare_outputs_dialog.py`)
+
+Visual comparison tool for two sets of solver outputs:
+- Open two output folders (A and B)
+- View common fields (intersection)
+- Step-by-step comparison with step slider
+- View modes: Diff (A-B), A only, B only
+- PyVista-based cloud map visualization
+- Diff statistics: min, max, mean, L2, Linf
+- Export step-curve CSV for selected field
+
+Features:
+- Auto-loads mesh from sibling `mesh.npz`
+- Supports both output folders and case folders
+- Uses coolwarm colormap for diff visualization
+
 **Solver Selector Formats**:
 - `"fake"`: Built-in fake solver for testing
 - `"python:<module>"`: Load solver from Python module (e.g., `python:geohpem_solver`)
@@ -616,9 +658,10 @@ class SolveWorker(QThread):
 **Cancellation Flow**:
 1. UI calls `worker.cancel()`
 2. Worker sets internal `_cancel` flag
-3. Solver's `callbacks['should_cancel']()` returns True
-4. Solver raises or exits early
-5. Worker emits `canceled` signal with diagnostics ZIP
+3. Before solver starts, if `_cancel` is True, raises `CancelledError`
+4. During solver run, `callbacks['should_cancel']()` returns True
+5. Solver raises `CancelledError` or exits early
+6. Worker catches `CancelledError` specifically and emits `canceled` signal with diagnostics ZIP
 
 **Diagnostics on Failure**:
 When the solver fails, SolveWorker automatically creates a diagnostics ZIP:
@@ -638,6 +681,30 @@ worker.failed.connect(self._on_solver_failed)
 worker.canceled.connect(self._on_solver_canceled)
 worker.start()
 ```
+
+### BatchRunWorker (`workers/batch_run_worker.py`)
+
+Background batch runner for multiple case folders:
+
+```python
+class BatchRunWorker:
+    """
+    Signals:
+        started()                      - Worker started
+        finished()                     - Worker finished
+        progress(int, str)             - Progress (0-100, message)
+        log(str)                       - Log message
+        report_ready(Path)             - JSON report written
+        failed(str)                    - Error message
+    """
+    
+    def __init__(self, root: Path, *, solver_selector: str, 
+                 baseline_root: Path | None, report_path: Path): ...
+    def start(self) -> None: ...
+    def cancel(self) -> None: ...
+```
+
+Used by `BatchRunDialog` for non-blocking batch execution.
 
 ---
 
@@ -707,5 +774,5 @@ menu_edit.addAction(self._action_my)
 
 ---
 
-Last updated: 2024-12-18 (v5 - solver capabilities, OutputRequestDialog, worker cancellation)
+Last updated: 2024-12-18 (v6 - BatchRunDialog, CompareOutputsDialog, thread-safe slots, VTK shutdown)
 
