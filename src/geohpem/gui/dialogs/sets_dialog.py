@@ -207,6 +207,8 @@ class SetsDialog:
             self.list.addItem(label)
 
     def _on_add(self) -> None:
+        from geohpem.domain.mesh_ops import add_edge_set, add_elem_set, add_node_set
+
         kind = str(self.kind.currentData())
         name = self.name.text().strip()
         if not name:
@@ -215,16 +217,16 @@ class SetsDialog:
 
         if kind == "node":
             idx = _parse_int_list(self.indices.text())
-            self._mesh[f"node_set__{name}"] = idx
+            self._mesh = add_node_set(self._mesh, name, idx)
         elif kind == "edge":
             edges = _parse_edge_pairs(self.indices.text())
-            self._mesh[f"edge_set__{name}"] = edges
+            self._mesh = add_edge_set(self._mesh, name, edges)
         elif kind == "elem_tri3":
             idx = _parse_int_list(self.indices.text())
-            self._mesh[f"elem_set__{name}__tri3"] = idx
+            self._mesh = add_elem_set(self._mesh, name, "tri3", idx)
         elif kind == "elem_quad4":
             idx = _parse_int_list(self.indices.text())
-            self._mesh[f"elem_set__{name}__quad4"] = idx
+            self._mesh = add_elem_set(self._mesh, name, "quad4", idx)
         else:
             self._QMessageBox.information(self.dialog, "Add Set", f"Unknown kind: {kind}")
             return
@@ -256,16 +258,18 @@ class SetsDialog:
         return None
 
     def _on_delete(self) -> None:
+        from geohpem.domain.mesh_ops import delete_set
+
         key = self._selected_key()
         if not key:
             return
-        if key in self._mesh:
-            del self._mesh[key]
-            self._on_apply(self._mesh)
-            self._refresh_list()
+        self._mesh = delete_set(self._mesh, key)
+        self._on_apply(self._mesh)
+        self._refresh_list()
 
     def _on_rename(self) -> None:
         from PySide6.QtWidgets import QInputDialog  # type: ignore
+        from geohpem.domain.mesh_ops import rename_set
 
         key = self._selected_key()
         if not key:
@@ -295,6 +299,6 @@ class SetsDialog:
             self._QMessageBox.information(self.dialog, "Rename", f"Target already exists: {new_key}")
             return
 
-        self._mesh[new_key] = self._mesh.pop(key)
+        self._mesh = rename_set(self._mesh, key, new_key)
         self._on_apply(self._mesh)
         self._refresh_list()

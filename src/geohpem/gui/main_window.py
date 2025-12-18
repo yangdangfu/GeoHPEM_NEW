@@ -9,6 +9,7 @@ from geohpem.gui.dialogs.import_mesh_dialog import ImportMeshDialog
 from geohpem.gui.dialogs.batch_run_dialog import BatchRunDialog
 from geohpem.gui.dialogs.batch_report_dialog import BatchReportDialog
 from geohpem.gui.dialogs.compare_outputs_dialog import CompareOutputsDialog
+from geohpem.gui.dialogs.issues_dialog import IssuesDialog
 from geohpem.gui.dialogs.mesh_quality_dialog import MeshQualityDialog
 from geohpem.gui.dialogs.precheck_dialog import PrecheckDialog
 from geohpem.gui.dialogs.sets_dialog import SetsDialog
@@ -112,6 +113,9 @@ class MainWindow:
         self._action_open_case = QAction("Open Case Folder...", self._win)
         self._action_open_case.triggered.connect(self._on_open_case_dialog)
 
+        self._action_export_case = QAction("Export Case Folder...", self._win)
+        self._action_export_case.triggered.connect(self._on_export_case_folder)
+
         self._action_save = QAction("Save", self._win)
         self._action_save.triggered.connect(self._on_save)
 
@@ -132,6 +136,10 @@ class MainWindow:
 
         self._action_compare_outputs = QAction("Compare Outputs...", self._win)
         self._action_compare_outputs.triggered.connect(self._on_compare_outputs)
+
+        self._action_validate_inputs = QAction("Validate Inputs...", self._win)
+        self._action_validate_inputs.setShortcut("F7")
+        self._action_validate_inputs.triggered.connect(self._on_validate_inputs)
 
         self._action_import_mesh = QAction("Import Mesh...", self._win)
         self._action_import_mesh.triggered.connect(self._on_import_mesh)
@@ -173,6 +181,7 @@ class MainWindow:
         self._rebuild_recent_menu()
 
         menu_file.addAction(self._action_open_case)
+        menu_file.addAction(self._action_export_case)
         menu_file.addSeparator()
         menu_file.addAction(self._action_save)
         menu_file.addAction(self._action_save_as)
@@ -197,6 +206,8 @@ class MainWindow:
         menu_view.addAction(self._action_units)
 
         menu_tools = self._win.menuBar().addMenu("Tools")
+        menu_tools.addAction(self._action_validate_inputs)
+        menu_tools.addSeparator()
         menu_tools.addAction(self._action_batch_run)
         menu_tools.addAction(self._action_batch_report)
         menu_tools.addAction(self._action_compare_outputs)
@@ -220,13 +231,17 @@ class MainWindow:
         self.properties_dock.bind_apply_model(self._apply_model)
         self.properties_dock.bind_apply_stage(self._apply_stage)
         self.properties_dock.bind_apply_material(self._apply_material)
+        self.properties_dock.bind_apply_assignments(self._apply_assignments)
+        self.properties_dock.bind_apply_global_output_requests(self._apply_global_output_requests)
 
         self.model.changed.connect(self._on_model_changed)
         self.model.stages_changed.connect(lambda stages: self.stage_dock.set_stages(stages))
         self.model.request_changed.connect(self._refresh_tree)
         self.model.request_changed.connect(lambda req: self._apply_unit_context_from_request(req))
         self.model.materials_changed.connect(lambda mats: self._refresh_tree(self.model.ensure_project().request))
+        self.model.materials_changed.connect(lambda mats: self._on_materials_changed(mats))
         self.model.mesh_changed.connect(lambda m: self._refresh_tree(self.model.ensure_project().request))
+        self.model.mesh_changed.connect(lambda m: self._on_mesh_sets_changed(m))
         self.model.undo_state_changed.connect(self._on_undo_state_changed)
 
         self.geometry_dock.bind_model(self.model)
@@ -284,6 +299,16 @@ class MainWindow:
         self.stage_dock.set_stages(project.request.get("stages", []))
         self.log_dock.append_info(f"Loaded: {display_path or workdir}")
         self._apply_unit_context_from_request(project.request)
+        try:
+            self._on_mesh_sets_changed(project.mesh)
+        except Exception:
+            pass
+        try:
+            mats = project.request.get("materials", {})
+            if isinstance(mats, dict):
+                self._on_materials_changed(mats)
+        except Exception:
+            pass
 
         if project.result_meta is not None and project.result_arrays is not None:
             self.open_output_folder(workdir / "out")
@@ -387,6 +412,18 @@ class MainWindow:
         output_ws = self.workspace_stack.get("output")
         if isinstance(output_ws, OutputWorkspace):
             output_ws.set_unit_context(self._unit_context)
+
+    def _on_mesh_sets_changed(self, mesh: dict[str, Any]) -> None:
+        from geohpem.domain.mesh_ops import collect_element_sets, collect_set_names
+
+        self.properties_dock.set_available_sets(collect_set_names(mesh))
+        self.properties_dock.set_available_element_sets(collect_element_sets(mesh))
+
+    def _on_materials_changed(self, mats: dict[str, Any]) -> None:
+        if not isinstance(mats, dict):
+            self.properties_dock.set_available_materials([])
+            return
+        self.properties_dock.set_available_materials(sorted([str(k) for k in mats.keys()]))
 
     def _safe_get_solver_caps(self, selector: str) -> dict[str, Any] | None:
         try:
@@ -557,6 +594,62 @@ class MainWindow:
             return
         self.open_case_folder(Path(folder))
 
+    def _on_export_case_folder(self) -> None:
+        state = self.model.state()
+        if not state.project:
+            self._QMessageBox.information(self._win, "Export Case Folder", "Open a project/case first.")
+            return
+
+        folder = self._QFileDialog.getExistingDirectory(self._win, "Export Case Folder")
+        if not folder:
+            return
+        out_dir = Path(folder)
+
+        try:
+            has_any = out_dir.exists() and any(out_dir.iterdir())
+        except Exception:
+            has_any = False
+
+        if has_any:
+            btn = self._QMessageBox.warning(
+                self._win,
+                "Export Case Folder",
+                f"Folder is not empty:\n{out_dir}\n\nOverwrite request.json/mesh.npz?",
+                self._QMessageBox.Yes | self._QMessageBox.No,
+            )
+            if btn != self._QMessageBox.Yes:
+                return
+
+        try:
+            import copy
+
+            req = copy.deepcopy(state.project.request)
+            from geohpem.project.normalize import ensure_request_ids
+
+            ensure_request_ids(req, state.project.mesh)
+            write_case_folder(out_dir, req, state.project.mesh)
+        except Exception as exc:
+            self._QMessageBox.critical(self._win, "Export Case Folder Failed", str(exc))
+            return
+
+        self._QMessageBox.information(self._win, "Export Case Folder", f"Wrote:\n{out_dir / 'request.json'}\n{out_dir / 'mesh.npz'}")
+        self.log_dock.append_info(f"Exported case folder: {out_dir}")
+
+    def _on_validate_inputs(self) -> None:
+        state = self.model.state()
+        if not state.project:
+            self._QMessageBox.information(self._win, "Validate Inputs", "Open a project/case first.")
+            return
+
+        solver_selector = self._settings.get_solver_selector()
+        caps = self._safe_get_solver_caps(solver_selector)
+
+        from geohpem.app.validate_inputs import validate_inputs
+
+        issues = validate_inputs(state.project.request, state.project.mesh, capabilities=caps)
+        dlg = IssuesDialog(self._win, title="Validate Inputs", issues=issues, ok_text="Close")
+        dlg.exec()
+
     def _on_open_output_dialog(self) -> None:
         folder = self._QFileDialog.getExistingDirectory(self._win, "Open Output Folder")
         if not folder:
@@ -590,7 +683,6 @@ class MainWindow:
             if not state.project or not state.work_case_dir:
                 self._QMessageBox.information(self._win, "Run", "Open a project/case first.")
                 return
-            from geohpem.app.precheck import precheck_request_mesh
 
             solver_selector = self._settings.get_solver_selector()
             try:
@@ -599,12 +691,23 @@ class MainWindow:
                 self._QMessageBox.critical(self._win, "Run", f"Failed to load solver '{solver_selector}':\n{exc}")
                 return
 
-            issues = precheck_request_mesh(state.project.request, state.project.mesh, capabilities=caps)
+            from geohpem.app.validate_inputs import validate_inputs
+
+            issues = validate_inputs(state.project.request, state.project.mesh, capabilities=caps)
             dlg = PrecheckDialog(self._win, issues)
             if not dlg.exec():
                 return
             # Ensure work dir reflects latest in-memory inputs.
-            write_case_folder(state.work_case_dir, state.project.request, state.project.mesh)
+            try:
+                import copy
+
+                req = copy.deepcopy(state.project.request)
+                from geohpem.project.normalize import ensure_request_ids
+
+                ensure_request_ids(req, state.project.mesh)
+            except Exception:
+                req = state.project.request
+            write_case_folder(state.work_case_dir, req, state.project.mesh)
 
             from geohpem.gui.workers.solve_worker import SolveWorker
 
@@ -759,6 +862,12 @@ class MainWindow:
             if isinstance(mats, dict) and mid in mats and isinstance(mats[mid], dict):
                 self.properties_dock.show_material(mid, mats[mid])
                 return
+        if t == "assignments":
+            self.properties_dock.show_assignments(state.project.request)
+            return
+        if t == "global_output_requests":
+            self.properties_dock.show_global_output_requests(state.project.request)
+            return
 
         self.properties_dock.show_empty()
 
@@ -789,14 +898,21 @@ class MainWindow:
             self._QMessageBox.information(self._win, "Delete Stage", str(exc))
 
     def _apply_model(self, mode: str, gx: float, gy: float) -> None:
-        self.model.update_model_mode(mode)
-        self.model.update_gravity(gx, gy)
+        self.model.update_model(mode, gx, gy)
         self.log_dock.append_info(f"Updated model: mode={mode}, g=({gx},{gy})")
 
-    def _apply_stage(self, index: int, patch: dict[str, Any]) -> None:
-        self.model.update_stage(index, patch)
-        self.log_dock.append_info(f"Updated stage[{index}]")
+    def _apply_stage(self, stage_uid: str, patch: dict[str, Any]) -> None:
+        self.model.update_stage_by_uid(stage_uid, patch)
+        self.log_dock.append_info(f"Updated stage uid={stage_uid}")
 
     def _apply_material(self, material_id: str, model_name: str, parameters: dict[str, Any]) -> None:
         self.model.set_material(material_id, model_name, parameters)
         self.log_dock.append_info(f"Updated material: {material_id}")
+
+    def _apply_assignments(self, assignments: list[dict[str, Any]]) -> None:
+        self.model.update_assignments(assignments)
+        self.log_dock.append_info(f"Updated assignments: {len(assignments)}")
+
+    def _apply_global_output_requests(self, output_requests: list[dict[str, Any]]) -> None:
+        self.model.update_global_output_requests(output_requests)
+        self.log_dock.append_info(f"Updated global output_requests: {len(output_requests)}")

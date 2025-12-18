@@ -117,6 +117,18 @@ class ProjectDock:
             child.setData(0, self._Qt.UserRole, {"type": "material", "id": mid})
             materials_item.addChild(child)
 
+        assignments = request.get("assignments", [])
+        asg_n = len(assignments) if isinstance(assignments, list) else 0
+        asg_item = QTreeWidgetItem([f"Assignments ({asg_n})"])
+        asg_item.setData(0, self._Qt.UserRole, {"type": "assignments"})
+        inputs.addChild(asg_item)
+
+        global_out = request.get("output_requests", [])
+        out_n = len(global_out) if isinstance(global_out, list) else 0
+        out_req_item = QTreeWidgetItem([f"Global output_requests ({out_n})"])
+        out_req_item.setData(0, self._Qt.UserRole, {"type": "global_output_requests"})
+        inputs.addChild(out_req_item)
+
         stages_item = QTreeWidgetItem(["Stages"])
         stages_item.setData(0, self._Qt.UserRole, {"type": "stages"})
         inputs.addChild(stages_item)

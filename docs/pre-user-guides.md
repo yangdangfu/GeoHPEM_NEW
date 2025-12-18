@@ -33,6 +33,7 @@ GUI 菜单：
 
 - 打开：`File -> Open Project...`（`.geohpem`）
 - 另存为：`File -> Save As...`（保存为 `.geohpem` 单文件包）
+- 导出算例目录：`File -> Export Case Folder...`（写出 `request.json + mesh.npz`，便于给 solver 团队/批量回归）
 - 最近项目：`File -> Open Recent`
 - 启动恢复：启动时会询问是否恢复上次打开的工程/目录（可选）
 
@@ -75,12 +76,19 @@ GUI 菜单：
   - `gravity`（gx/gy）
 - `Stages -> <stage>`
   - `analysis_type`、`num_steps`、`dt`
-  - `output_requests`（JSON list；可点 `Add...` 按所选 solver 的 capabilities 快速添加；不支持字段会提示 WARN）
-  - `bcs`（JSON list，后续会做表单化）
-  - `loads`（JSON list，后续会做表单化）
+  - `output_requests`：表格编辑 `name/location/every_n`（name 由 solver capabilities 提供下拉，可编辑；不支持字段会提示 WARN）
+  - `bcs`：表格编辑（Add/Delete/JSON->Table），`set` 支持下拉选择（可编辑）
+  - `loads`：表格编辑（Add/Delete/JSON->Table），`set` 支持下拉选择（可编辑）
+
+> 提示：Stage 编辑现在以 `stage.uid` 为稳定标识（避免增删阶段导致“按索引编辑错对象”的问题）。
 - `Materials -> <material_id>`
   - `model_name`
   - `parameters`（JSON object）
+- `Assignments`
+  - 表格编辑 `element_set / cell_type / material_id`（均支持下拉+可编辑）
+  - 用于将材料分配到 element sets（solver-owned，但平台负责提供结构化配置）
+- `Global output_requests`
+  - 表格编辑 `name/location/every_n`（name 由 solver capabilities 提供下拉，可编辑）
 
 ## 7.1 Undo/Redo
 
@@ -100,12 +108,14 @@ GUI 菜单：
   - `Python module`：通过 `python:<module>` 加载外部 solver 包（未来将以 submodule 方式集成）
 
 - 运行：`Solve -> Run (...)`
-  1) 弹出 Pre-check 窗口：有 ERROR 会阻止运行；WARN 允许继续
+  1) 弹出 Pre-check 窗口：包含 contract 基础校验 +（可选）jsonschema 校验 + precheck；有 ERROR 会阻止运行；WARN 允许继续
      - 若所选 solver 的 `capabilities()` 声明不支持当前 `mode`/`analysis_type`，会直接给出 ERROR
   2) 后台运行，底部 Tasks 显示进度，Log 显示日志
   3) 输出写入工作目录的 `out/` 并自动切换到 Output 工作区
   4) Tasks 面板支持 `Cancel`（best-effort：solver 需要在迭代中检查 `callbacks['should_cancel']`）
   5) 若失败/取消，会在工程工作目录生成 `_diagnostics/diag_*.zip` 便于排查/转交 solver 团队
+
+- 仅校验不运行：`Tools -> Validate Inputs...`（快捷键 `F7`）
 
 ## 10. 查看结果（Output 工作区 MVP）
 
@@ -131,6 +141,7 @@ GUI 菜单：
 - 视图操作：
   - `Ctrl + 鼠标滚轮` 缩放
   - `鼠标中键拖拽` 平移
+  - `Fit` 适配视图；`Reset View` 重置缩放
   - 背景网格与坐标轴用于尺度参考（左下角坐标实时显示）
 
 - `Rectangle`：生成一个默认矩形（带边界标签 bottom/right/top/left）

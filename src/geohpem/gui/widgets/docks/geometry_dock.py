@@ -57,12 +57,16 @@ class GeometryDock:
         self.btn_clear = QPushButton("Clear")
         self.btn_edges = QPushButton("Edge Labels...")
         self.btn_mesh = QPushButton("Generate Mesh...")
+        self.btn_fit = QPushButton("Fit")
+        self.btn_reset_view = QPushButton("Reset View")
         bl.addWidget(self.btn_draw)
         bl.addWidget(self.btn_finish)
         bl.addWidget(self.btn_rect)
         bl.addWidget(self.btn_clear)
         bl.addWidget(self.btn_edges)
         bl.addWidget(self.btn_mesh)
+        bl.addWidget(self.btn_fit)
+        bl.addWidget(self.btn_reset_view)
         bl.addStretch(1)
         layout.addWidget(bar)
 
@@ -72,6 +76,7 @@ class GeometryDock:
         layout.addWidget(self.coord)
 
         self.scene = QGraphicsScene()
+        self.scene.selectionChanged.connect(self._on_scene_selection_changed)
         outer = self
 
         class DrawView(QGraphicsView):
@@ -236,6 +241,8 @@ class GeometryDock:
         self.btn_clear.clicked.connect(self._clear)
         self.btn_edges.clicked.connect(self._edit_edge_labels)
         self.btn_mesh.clicked.connect(self._generate_mesh)
+        self.btn_fit.clicked.connect(self._fit_view)
+        self.btn_reset_view.clicked.connect(self._reset_view)
 
     def bind_model(self, model: ProjectModel) -> None:
         self._model = model
@@ -286,7 +293,7 @@ class GeometryDock:
         pen_edge = QPen(self._Qt.black)
         pen_edge.setWidth(2)
         pen_edge.setCosmetic(True)
-        r = 2.5
+        r = 1.75
 
         # edges
         for i in range(len(verts)):
@@ -371,8 +378,22 @@ class GeometryDock:
             self._vertex_items.append(it)
 
         self.scene.setSceneRect(self.scene.itemsBoundingRect().adjusted(-20, -20, 20, 20))
-        self.scene.selectionChanged.connect(self._on_scene_selection_changed)
         self._apply_selection_style()
+
+    def _fit_view(self) -> None:
+        try:
+            r = self.scene.itemsBoundingRect().adjusted(-30, -30, 30, 30)
+            if r.isNull():
+                return
+            self.view.fitInView(r, self._Qt.KeepAspectRatio)
+        except Exception:
+            pass
+
+    def _reset_view(self) -> None:
+        try:
+            self.view.resetTransform()
+        except Exception:
+            pass
 
     def _on_scene_selection_changed(self) -> None:
         items = self.scene.selectedItems()

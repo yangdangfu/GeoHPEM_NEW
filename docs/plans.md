@@ -103,8 +103,20 @@
 
 ## M8：域模型与命令体系（在 M6 之后推进）
 
-- [ ] Domain Model 收敛（替代散落 dict）
-  - DoD：UI 编辑 domain 对象；导出时生成 request/mesh dict；序列化稳定。
+- [ ] Domain Model 收敛（替代散落 dict，建议分阶段推进）
+  - [x] M8.1：以稳定 uid 为中心的编辑入口
+    - DoD：Stage 编辑不再依赖 index；统一使用 `stage.uid`（避免增删阶段后的引用漂移）。
+  - [x] M8.2：Domain ops（纯函数）覆盖核心变更
+    - DoD：model/material/stage/sets 的主要修改都有对应 `domain/*` helper，ProjectModel/SetsDialog 不直接散写 dict；复制阶段会重置嵌套对象 uid。
+  - [ ] M8.3：UI 表单化与强类型对象（可选，长期）
+    - [x] M8.3.1：BC/Load 表格编辑器（最小可用）
+      - DoD：stage.bcs / stage.loads 支持表格增删改；保持 `uid` 稳定；可从 sets 下拉选择 set 名称；支持 JSON->Table 导入以保留高级用法。
+    - [x] M8.3.2：Assignments 表单化（材料分配）
+      - DoD：element_set/cell_type/material_id 可下拉选择；缺失引用给出即时提示。
+    - [x] M8.3.3：Output Requests 表单化（阶段/全局）
+      - DoD：支持基于 capabilities 的字段/位置选择；every_n 等参数表单化；仍允许高级用户直接编辑 JSON（可切换）。
+    - [x] M8.3.4：校验与导出一致性
+      - DoD：`Tools -> Validate Inputs...` 提供 precheck + schema 校验；`Solve -> Run` 运行前同样校验；`File -> Export Case Folder...` 与保存/运行前均自动 normalize（ids/sets_meta）。
 - [x] Undo/Redo（基础版，已实现）
   - DoD：至少覆盖 model/gravity、stage 增删改、material 改、geometry 改、mesh 改。
 - [ ] Undo/Redo（增强：细粒度 + 合并策略）

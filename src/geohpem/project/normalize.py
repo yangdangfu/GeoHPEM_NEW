@@ -41,6 +41,13 @@ def ensure_request_ids(request: dict[str, Any], mesh: dict[str, Any] | None = No
             if isinstance(m, dict) and not m.get("uid"):
                 m["uid"] = new_uid("mat")
 
+    # assignments (optional)
+    assigns = request.get("assignments")
+    if isinstance(assigns, list):
+        for a in assigns:
+            if isinstance(a, dict) and not a.get("uid"):
+                a["uid"] = new_uid("assign")
+
     # global output requests (optional)
     out_reqs = request.get("output_requests")
     if isinstance(out_reqs, list):
@@ -70,6 +77,19 @@ def ensure_request_ids(request: dict[str, Any], mesh: dict[str, Any] | None = No
         if not isinstance(sets_meta, dict):
             sets_meta = {}
             request["sets_meta"] = sets_meta
+        # Drop stale entries (e.g. after mesh import/rename/delete).
+        stale = [
+            k
+            for k in list(sets_meta.keys())
+            if isinstance(k, str)
+            and (k.startswith("node_set__") or k.startswith("edge_set__") or k.startswith("elem_set__"))
+            and k not in mesh
+        ]
+        for k in stale:
+            try:
+                del sets_meta[k]
+            except Exception:
+                pass
         for k in mesh.keys():
             if not (k.startswith("node_set__") or k.startswith("edge_set__") or k.startswith("elem_set__")):
                 continue

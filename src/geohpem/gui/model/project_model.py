@@ -36,6 +36,7 @@ class ProjectModel:
             mesh_changed = Signal(object)  # dict
             stages_changed = Signal(object)  # list
             materials_changed = Signal(object)  # dict
+            assignments_changed = Signal(object)  # list
             undo_state_changed = Signal(bool, bool)  # can_undo, can_redo
 
         self._signals = _Signals()
@@ -44,6 +45,7 @@ class ProjectModel:
         self.mesh_changed = self._signals.mesh_changed
         self.stages_changed = self._signals.stages_changed
         self.materials_changed = self._signals.materials_changed
+        self.assignments_changed = self._signals.assignments_changed
         self.undo_state_changed = self._signals.undo_state_changed
 
         self._display_path: Path | None = None
@@ -82,6 +84,7 @@ class ProjectModel:
         self.mesh_changed.emit(project.mesh)
         self.stages_changed.emit(project.request.get("stages", []))
         self.materials_changed.emit(project.request.get("materials", {}))
+        self.assignments_changed.emit(project.request.get("assignments", []))
         self.undo_state_changed.emit(self.undo_stack.can_undo(), self.undo_stack.can_redo())
 
     def set_dirty(self, dirty: bool) -> None:
@@ -118,9 +121,16 @@ class ProjectModel:
     def _set_request_no_undo(self, request: dict[str, Any]) -> None:
         project = self.ensure_project()
         project.request = request
+        try:
+            from geohpem.project.normalize import ensure_request_ids
+
+            ensure_request_ids(project.request, project.mesh)
+        except Exception:
+            pass
         self.request_changed.emit(project.request)
         self.stages_changed.emit(project.request.get("stages", []))
         self.materials_changed.emit(project.request.get("materials", {}))
+        self.assignments_changed.emit(project.request.get("assignments", []))
 
     def _with_request_undo(self, name: str, mutator: Callable[[], None]) -> None:
         before = self._clone_request()
@@ -143,8 +153,32 @@ class ProjectModel:
         def mut() -> None:
             project = self.ensure_project()
             project.request = new_request
+            try:
+                from geohpem.project.normalize import ensure_request_ids
+
+                ensure_request_ids(project.request, project.mesh)
+            except Exception:
+                pass
 
         self._with_request_undo("Edit Request", mut)
+
+    def update_assignments(self, assignments: list[dict[str, Any]]) -> None:
+        from geohpem.domain.request_ops import set_assignments
+
+        def mut() -> None:
+            project = self.ensure_project()
+            project.request = set_assignments(project.request, assignments)
+
+        self._with_request_undo("Edit Assignments", mut)
+
+    def update_global_output_requests(self, output_requests: list[dict[str, Any]]) -> None:
+        from geohpem.domain.request_ops import set_global_output_requests
+
+        def mut() -> None:
+            project = self.ensure_project()
+            project.request = set_global_output_requests(project.request, output_requests)
+
+        self._with_request_undo("Edit Global Output Requests", mut)
 
     def update_mesh(self, new_mesh: dict[str, Any]) -> None:
         project = self.ensure_project()
@@ -153,118 +187,123 @@ class ProjectModel:
 
         def _undo() -> None:
             project.mesh = {k: np.asarray(v).copy() for k, v in before.items()}
+            from geohpem.project.normalize import ensure_request_ids
+
+            ensure_request_ids(project.request, project.mesh)
             self.mesh_changed.emit(project.mesh)
 
         def _redo() -> None:
             project.mesh = {k: np.asarray(v).copy() for k, v in after.items()}
+            from geohpem.project.normalize import ensure_request_ids
+
+            ensure_request_ids(project.request, project.mesh)
             self.mesh_changed.emit(project.mesh)
 
         self.undo_stack.push_and_redo(UndoCommand(name="Edit Mesh", undo=_undo, redo=_redo))
         self.undo_state_changed.emit(self.undo_stack.can_undo(), self.undo_stack.can_redo())
         self.set_dirty(True)
 
-    def update_model_mode(self, mode: str) -> None:
+    def update_model(self, mode: str, gx: float, gy: float) -> None:
+        from geohpem.domain.request_ops import set_model
+
         def mut() -> None:
             project = self.ensure_project()
-            model = project.request.setdefault("model", {})
-            model["mode"] = mode
+            project.request = set_model(project.request, mode=mode, gravity=(gx, gy))
+
+        self._with_request_undo("Edit Model", mut)
+
+    def update_model_mode(self, mode: str) -> None:
+        from geohpem.domain.request_ops import set_model_mode
+
+        def mut() -> None:
+            project = self.ensure_project()
+            project.request = set_model_mode(project.request, mode)
 
         self._with_request_undo("Set Mode", mut)
 
     def update_gravity(self, gx: float, gy: float) -> None:
+        from geohpem.domain.request_ops import set_gravity
+
         def mut() -> None:
             project = self.ensure_project()
-            model = project.request.setdefault("model", {})
-            model["gravity"] = [float(gx), float(gy)]
+            project.request = set_gravity(project.request, gx, gy)
 
         self._with_request_undo("Set Gravity", mut)
 
     def update_stage(self, index: int, patch: dict[str, Any]) -> None:
+        from geohpem.domain.request_ops import apply_stage_patch_by_index
+
         def mut() -> None:
             project = self.ensure_project()
-            stages = project.request.setdefault("stages", [])
-            if index < 0 or index >= len(stages):
-                raise IndexError(index)
-            stage = stages[index]
-            if not isinstance(stage, dict):
-                raise TypeError("stage is not an object")
-            stage.update(patch)
+            project.request = apply_stage_patch_by_index(project.request, index, patch)
+
+        self._with_request_undo("Edit Stage", mut)
+
+    def update_stage_by_uid(self, stage_uid: str, patch: dict[str, Any]) -> None:
+        """
+        Update a stage by stable uid (preferred over index to avoid reference drift).
+        """
+        from geohpem.domain.request_ops import apply_stage_patch_by_uid
+
+        def mut() -> None:
+            project = self.ensure_project()
+            project.request = apply_stage_patch_by_uid(project.request, stage_uid, patch)
 
         self._with_request_undo("Edit Stage", mut)
 
     def add_stage(self, *, copy_from: int | None = None) -> int:
-        project = self.ensure_project()
-        stages = project.request.setdefault("stages", [])
+        from geohpem.domain.request_ops import add_stage
+
         added_index: int | None = None
 
         def mut() -> None:
             nonlocal added_index
-            from geohpem.util.ids import new_uid
-
             project = self.ensure_project()
-            stages = project.request.setdefault("stages", [])
-            if copy_from is None:
-                new_stage: dict[str, Any] = {
-                    "id": f"stage_{len(stages)+1}",
-                    "uid": new_uid("stage"),
-                    "analysis_type": "static",
-                    "num_steps": 1,
-                    "bcs": [],
-                    "loads": [],
-                    "output_requests": [],
-                }
-            else:
-                src = stages[copy_from]
-                if not isinstance(src, dict):
-                    raise TypeError("stage is not an object")
-                new_stage = copy.deepcopy(src)
-                new_stage["id"] = f"{new_stage.get('id','stage')}_copy"
-                new_stage["uid"] = new_uid("stage")
-            stages.append(new_stage)
-            added_index = len(stages) - 1
+            req2, idx = add_stage(project.request, copy_from_index=copy_from)
+            project.request = req2
+            added_index = idx
 
         self._with_request_undo("Add Stage", mut)
-        return int(added_index if added_index is not None else len(stages) - 1)
+        if added_index is not None:
+            return int(added_index)
+        try:
+            stages = self.ensure_project().request.get("stages", [])
+            return max(0, len(stages) - 1) if isinstance(stages, list) else 0
+        except Exception:
+            return 0
 
     def delete_stage(self, index: int) -> None:
+        from geohpem.domain.request_ops import delete_stage
+
         def mut() -> None:
             project = self.ensure_project()
-            stages = project.request.get("stages", [])
-            if not isinstance(stages, list):
-                return
-            if len(stages) <= 1:
-                raise ValueError("Cannot delete the last stage")
-            if index < 0 or index >= len(stages):
-                raise IndexError(index)
-            stages.pop(index)
+            project.request = delete_stage(project.request, index)
 
         self._with_request_undo("Delete Stage", mut)
 
     def set_material(self, material_id: str, model_name: str, parameters: dict[str, Any]) -> None:
+        from geohpem.domain.request_ops import upsert_material
+
         def mut() -> None:
             project = self.ensure_project()
-            mats = project.request.setdefault("materials", {})
-            mats[material_id] = {"model_name": model_name, "parameters": parameters}
+            project.request = upsert_material(project.request, material_id, model_name, parameters)
 
         self._with_request_undo("Edit Material", mut)
 
     def delete_material(self, material_id: str) -> None:
+        from geohpem.domain.request_ops import delete_material
+
         def mut() -> None:
             project = self.ensure_project()
-            mats = project.request.get("materials", {})
-            if not isinstance(mats, dict):
-                return
-            if material_id in mats:
-                del mats[material_id]
+            project.request = delete_material(project.request, material_id)
 
         self._with_request_undo("Delete Material", mut)
 
     def update_geometry(self, geometry: dict[str, Any] | None) -> None:
+        from geohpem.domain.request_ops import set_geometry
+
         def mut() -> None:
             project = self.ensure_project()
-            if geometry is None:
-                project.request.pop("geometry", None)
-            else:
-                project.request["geometry"] = geometry
+            project.request = set_geometry(project.request, geometry)
 
         self._with_request_undo("Edit Geometry", mut)
