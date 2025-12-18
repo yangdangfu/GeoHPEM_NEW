@@ -122,8 +122,9 @@ class ProjectDock:
         inputs.addChild(stages_item)
         for i, s in enumerate(request.get("stages", [])):
             sid = s.get("id", f"stage_{i+1}") if isinstance(s, dict) else f"stage_{i+1}"
+            suid = s.get("uid", "") if isinstance(s, dict) else ""
             child = QTreeWidgetItem([sid])
-            child.setData(0, self._Qt.UserRole, {"type": "stage", "index": i})
+            child.setData(0, self._Qt.UserRole, {"type": "stage", "uid": suid, "index": i})
             stages_item.addChild(child)
 
         outputs = QTreeWidgetItem(["Outputs"])

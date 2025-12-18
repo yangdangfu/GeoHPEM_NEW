@@ -13,6 +13,7 @@ from geohpem import __version__
 from geohpem.contract.errors import ContractError
 from geohpem.contract.validate import validate_request_basic
 from geohpem.project.migrations import migrate_manifest, migrate_request, migrate_result
+from geohpem.project.normalize import ensure_request_ids
 from geohpem.project.types import ProjectData
 
 
@@ -44,6 +45,7 @@ def make_manifest(extra: dict[str, Any] | None = None) -> dict[str, Any]:
 
 def save_geohpem(path: str | Path, project: ProjectData) -> Path:
     out_path = normalize_project_path(path)
+    ensure_request_ids(project.request, project.mesh)
     validate_request_basic(project.request)
 
     manifest = project.manifest or make_manifest()
@@ -88,6 +90,7 @@ def load_geohpem(path: str | Path) -> ProjectData:
         mesh_npz_bytes = zf.read("mesh.npz")
         mesh_npz = np.load(io.BytesIO(mesh_npz_bytes), allow_pickle=False)
         mesh = {k: mesh_npz[k] for k in mesh_npz.files}
+        ensure_request_ids(request, mesh)
 
         result_meta = None
         result_arrays = None

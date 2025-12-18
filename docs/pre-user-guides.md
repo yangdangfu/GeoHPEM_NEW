@@ -82,6 +82,11 @@ GUI 菜单：
   - `model_name`
   - `parameters`（JSON object）
 
+## 7.1 Undo/Redo
+
+- 菜单：`Edit -> Undo / Redo`
+- 快捷键：`Ctrl+Z` / `Ctrl+Y`
+
 ## 8. 网格质量检查（M3）
 
 - `Mesh -> Mesh Quality...`

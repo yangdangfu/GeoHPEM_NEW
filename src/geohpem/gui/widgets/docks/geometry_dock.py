@@ -246,6 +246,9 @@ class GeometryDock:
         if push_to_model and self._model and self._model.state().project:
             req = self._model.state().project.request
             req2 = set_polygon_in_request(req, poly)
+            from geohpem.project.normalize import ensure_request_ids
+
+            ensure_request_ids(req2, self._model.state().project.mesh)
             self._model.update_request(req2)
 
     def _redraw(self) -> None:

@@ -48,10 +48,10 @@ class StageDock:
         )  # type: ignore
 
         class _Signals(QWidget):
-            stage_selected = Signal(int)
+            stage_selected = Signal(str)  # uid
             add_stage = Signal()
-            copy_stage = Signal(int)
-            delete_stage = Signal(int)
+            copy_stage = Signal(str)  # uid
+            delete_stage = Signal(str)  # uid
 
         self._signals = _Signals()
         self.stage_selected = self._signals.stage_selected
@@ -120,17 +120,22 @@ class StageDock:
         prev = self._stages[row - 1] if row - 1 >= 0 else None
         cur = self._stages[row]
         self.diff.setPlainText(_stage_diff(prev, cur))
-        self.stage_selected.emit(row)
+        uid = str(cur.get("uid", ""))
+        if uid:
+            self.stage_selected.emit(uid)
 
     def _on_copy(self) -> None:
         row = self.list.currentRow()
         if row < 0:
             return
-        self.copy_stage.emit(row)
+        uid = str(self._stages[row].get("uid", ""))
+        if uid:
+            self.copy_stage.emit(uid)
 
     def _on_delete(self) -> None:
         row = self.list.currentRow()
         if row < 0:
             return
-        self.delete_stage.emit(row)
-
+        uid = str(self._stages[row].get("uid", ""))
+        if uid:
+            self.delete_stage.emit(uid)

@@ -135,6 +135,7 @@ class PropertiesDock:
         self._apply_material_cb: Callable[[str, str, dict[str, Any]], None] | None = None
 
         self._current_stage_index: int | None = None
+        self._current_stage_uid: str | None = None
         self._current_material_id: str | None = None
 
         self._btn_apply_model.clicked.connect(self._on_apply_model)
@@ -172,6 +173,7 @@ class PropertiesDock:
 
     def show_stage(self, stage_index: int, stage: dict[str, Any]) -> None:
         self._current_stage_index = stage_index
+        self._current_stage_uid = str(stage.get("uid", "")) if isinstance(stage, dict) else None
         self._stage_id.setText(str(stage.get("id", f"stage_{stage_index+1}")))
         at = stage.get("analysis_type", "static")
         idx = self._analysis_type.findData(at)

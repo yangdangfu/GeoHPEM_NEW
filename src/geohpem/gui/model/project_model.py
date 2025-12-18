@@ -200,11 +200,14 @@ class ProjectModel:
 
         def mut() -> None:
             nonlocal added_index
+            from geohpem.util.ids import new_uid
+
             project = self.ensure_project()
             stages = project.request.setdefault("stages", [])
             if copy_from is None:
                 new_stage: dict[str, Any] = {
                     "id": f"stage_{len(stages)+1}",
+                    "uid": new_uid("stage"),
                     "analysis_type": "static",
                     "num_steps": 1,
                     "bcs": [],
@@ -217,6 +220,7 @@ class ProjectModel:
                     raise TypeError("stage is not an object")
                 new_stage = copy.deepcopy(src)
                 new_stage["id"] = f"{new_stage.get('id','stage')}_copy"
+                new_stage["uid"] = new_uid("stage")
             stages.append(new_stage)
             added_index = len(stages) - 1
 

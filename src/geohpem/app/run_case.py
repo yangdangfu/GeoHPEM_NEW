@@ -16,6 +16,9 @@ def run_case(
 ) -> Path:
     case_path = Path(case_dir)
     request, mesh = read_case_folder(case_path)
+    from geohpem.project.normalize import ensure_request_ids
+
+    ensure_request_ids(request, mesh)
 
     solver = load_solver(solver_selector)
     result_meta, result_arrays = solver.solve(request, mesh, callbacks=callbacks)

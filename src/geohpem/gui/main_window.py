@@ -10,6 +10,7 @@ from geohpem.gui.dialogs.mesh_quality_dialog import MeshQualityDialog
 from geohpem.gui.dialogs.precheck_dialog import PrecheckDialog
 from geohpem.gui.dialogs.sets_dialog import SetsDialog
 from geohpem.gui.model.project_model import ProjectModel
+from geohpem.gui.model.selection_model import Selection, SelectionModel
 from geohpem.gui.widgets.docks.geometry_dock import GeometryDock
 from geohpem.gui.widgets.docks.log_dock import LogDock
 from geohpem.gui.widgets.docks.project_dock import ProjectDock
@@ -19,6 +20,7 @@ from geohpem.gui.widgets.docks.tasks_dock import TasksDock
 from geohpem.gui.workspaces.output_workspace import OutputWorkspace
 from geohpem.gui.workspaces.workspace_stack import WorkspaceStack
 from geohpem.project.case_folder import load_case_folder
+from geohpem.project.normalize import find_stage_index_by_uid
 from geohpem.project.package import DEFAULT_EXT, load_geohpem, save_geohpem
 from geohpem.project.types import ProjectData
 from geohpem.project.workdir import materialize_to_workdir, update_project_from_workdir
@@ -73,6 +75,7 @@ class MainWindow:
         self.log_dock.dock.raise_()
 
         self.model = ProjectModel()
+        self.selection = SelectionModel()
         self._active_workers: list[object] = []
 
         self._action_new = QAction("New Project...", self._win)
@@ -179,6 +182,8 @@ class MainWindow:
         self.geometry_dock.bind_model(self.model)
         self._on_undo_state_changed(False, False)
 
+        self.selection.changed.connect(self._on_selection_changed)
+
     @property
     def qt(self):
         return self._win
@@ -189,6 +194,10 @@ class MainWindow:
     def _load_project_data(self, project: ProjectData, display_path: Path | None) -> None:
         workdir = materialize_to_workdir(project)
         project_file = display_path if (display_path and display_path.suffix.lower() == DEFAULT_EXT) else None
+        # Ensure stable IDs exist (stages/materials/geometry/sets meta)
+        from geohpem.project.normalize import ensure_request_ids
+
+        ensure_request_ids(project.request, project.mesh)
         self.model.set_project(
             project,
             display_path=display_path,
@@ -510,24 +519,40 @@ class MainWindow:
         self._action_redo.setEnabled(bool(can_redo))
 
     def _on_tree_selection(self, payload: dict[str, Any]) -> None:
+        t = str(payload.get("type", ""))
+        if t == "stage" and "uid" in payload and not payload.get("uid"):
+            # fallback for older payloads
+            payload = dict(payload)
+            payload["type"] = "stage"
+        self.selection.set(Selection(kind=t, ref=payload))
+
+    def _on_stage_selected(self, uid: str) -> None:
+        self.selection.set(Selection(kind="stage", ref={"type": "stage", "uid": uid}))
+
+    def _on_selection_changed(self, sel) -> None:  # noqa: ANN001
         state = self.model.state()
-        if not state.project:
+        if not state.project or sel is None:
             self.properties_dock.show_empty()
             return
 
-        t = payload.get("type")
+        t = sel.kind
+        ref = sel.ref
         if t == "model":
             self.properties_dock.show_model(state.project.request)
             return
         if t == "stage":
-            idx = int(payload.get("index", -1))
+            uid = str(ref.get("uid", ""))
+            idx = find_stage_index_by_uid(state.project.request, uid)
+            if idx is None:
+                self.properties_dock.show_empty()
+                return
             stages = state.project.request.get("stages", [])
             if 0 <= idx < len(stages) and isinstance(stages[idx], dict):
                 self.properties_dock.show_stage(idx, stages[idx])
                 self.stage_dock.select_stage(idx)
                 return
         if t == "material":
-            mid = str(payload.get("id", ""))
+            mid = str(ref.get("id", ""))
             mats = state.project.request.get("materials", {})
             if isinstance(mats, dict) and mid in mats and isinstance(mats[mid], dict):
                 self.properties_dock.show_material(mid, mats[mid])
@@ -535,25 +560,29 @@ class MainWindow:
 
         self.properties_dock.show_empty()
 
-    def _on_stage_selected(self, index: int) -> None:
-        state = self.model.state()
-        if not state.project:
-            return
-        stages = state.project.request.get("stages", [])
-        if 0 <= index < len(stages) and isinstance(stages[index], dict):
-            self.properties_dock.show_stage(index, stages[index])
-
     def _on_stage_add(self) -> None:
         idx = self.model.add_stage(copy_from=None)
         self.stage_dock.select_stage(idx)
 
-    def _on_stage_copy(self, index: int) -> None:
-        idx = self.model.add_stage(copy_from=index)
+    def _on_stage_copy(self, uid: str) -> None:
+        state = self.model.state()
+        if not state.project:
+            return
+        idx0 = find_stage_index_by_uid(state.project.request, uid)
+        if idx0 is None:
+            return
+        idx = self.model.add_stage(copy_from=idx0)
         self.stage_dock.select_stage(idx)
 
-    def _on_stage_delete(self, index: int) -> None:
+    def _on_stage_delete(self, uid: str) -> None:
+        state = self.model.state()
+        if not state.project:
+            return
+        idx = find_stage_index_by_uid(state.project.request, uid)
+        if idx is None:
+            return
         try:
-            self.model.delete_stage(index)
+            self.model.delete_stage(idx)
         except Exception as exc:
             self._QMessageBox.information(self._win, "Delete Stage", str(exc))
 
