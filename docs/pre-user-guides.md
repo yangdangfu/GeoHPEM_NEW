@@ -61,6 +61,7 @@ GUI 菜单：
     - Rename：重命名选中的 set
     - Add：创建新 set（MVP 以手工输入索引为主）
       - Node set：输入节点索引，如 `0,1,5-10`
+      - Edge set：输入边的节点对，如 `0-1,1-2,2-3` 或 `0 1; 1 2; 2 3`
       - Element set：选择 tri3/quad4，输入单元索引，如 `0,2,3-20`
 
 > 说明：由于 Viewport 还未接入，目前还不支持“从图形选择生成 set”，后续会补齐。
@@ -101,3 +102,30 @@ GUI 菜单：
 
 > 说明：云图/剖面/曲线等将在后续里程碑实现（计划见 `docs/plans.md` 的 M6）。
 
+## 11. 画几何 → pygmsh 网格化（M4）
+
+> 目前实现的是 **单一 Polygon2D 域** 的最小几何编辑与网格化闭环。
+
+### 11.1 创建/编辑几何
+
+左侧 Dock（与 Project 同一栏可切 tab）：`Geometry`
+
+- 视图操作：
+  - `Ctrl + 鼠标滚轮` 缩放
+  - `鼠标中键拖拽` 平移
+  - 背景网格与坐标轴用于尺度参考（左下角坐标实时显示）
+
+- `Rectangle`：生成一个默认矩形（带边界标签 bottom/right/top/left）
+- `Draw Polygon`：进入绘制模式
+  - 左键依次点击添加顶点
+  - 右键或 `Finish` 结束并闭合为多边形
+- 拖拽顶点：可直接拖动白色节点点位修改几何
+- `Edge Labels...`：编辑每条边的标签（用于生成 edge sets）
+
+### 11.2 网格化
+
+- `Generate Mesh...`
+  - 设置 `mesh_size`
+  - 成功后会更新项目的 `mesh`，并根据边标签/区域名自动生成 sets：
+    - `edge_set__<label>`
+    - `elem_set__<region_name>__tri3`

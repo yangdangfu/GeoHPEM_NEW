@@ -21,10 +21,18 @@ class TasksDock:
         layout.addWidget(self.progress)
         layout.addStretch(1)
 
+        self._worker = None
+
     def attach_worker(self, worker) -> None:
+        # Keep a strong reference to avoid premature GC during background runs.
+        self._worker = worker
         worker.progress.connect(self._on_progress)
         worker.started.connect(lambda: self._set_state("Running"))
         worker.finished.connect(lambda: self._set_state("Idle"))
+        worker.finished.connect(self._clear_worker)
+
+    def _clear_worker(self) -> None:
+        self._worker = None
 
     def _set_state(self, state: str) -> None:
         self.label.setText(state)
@@ -34,4 +42,3 @@ class TasksDock:
     def _on_progress(self, percent: int, message: str) -> None:
         self.progress.setValue(percent)
         self.label.setText(message)
-

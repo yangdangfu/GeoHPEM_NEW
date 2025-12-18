@@ -28,6 +28,7 @@ class ImportMeshDialog:
         )  # type: ignore
 
         self._QFileDialog = QFileDialog
+        self._QDialog = QDialog
         self.dialog = QDialog(parent)
         self.dialog.setWindowTitle("Import Mesh")
         self.dialog.resize(650, 200)
@@ -58,7 +59,7 @@ class ImportMeshDialog:
         self.buttons.rejected.connect(self.dialog.reject)
 
     def exec(self) -> ImportMeshResult | None:
-        if self.dialog.exec() != self.dialog.Accepted:
+        if int(self.dialog.exec()) != int(self._QDialog.Accepted):
             return None
 
         path = self.path.text().strip()
@@ -81,4 +82,3 @@ class ImportMeshDialog:
         )
         if file:
             self.path.setText(file)
-

@@ -14,6 +14,7 @@ def run_gui(open_case_dir: str | None = None) -> int:
     from geohpem.gui.settings import SettingsStore
 
     app = QApplication(sys.argv)
+    _install_excepthook(app)
     window = MainWindow()
     window.show()
 
@@ -42,3 +43,22 @@ def run_gui(open_case_dir: str | None = None) -> int:
                     window.open_project_file(last)
 
     return app.exec()
+
+
+def _install_excepthook(app) -> None:  # noqa: ANN001
+    """
+    Show unhandled Python exceptions in a dialog instead of silently exiting.
+    """
+    import traceback
+
+    from PySide6.QtWidgets import QMessageBox  # type: ignore
+
+    def excepthook(exc_type, exc, tb):  # noqa: ANN001
+        text = "".join(traceback.format_exception(exc_type, exc, tb))
+        try:
+            QMessageBox.critical(None, "Unhandled Exception", text)
+        finally:
+            # Also print to stderr for console runs.
+            sys.__excepthook__(exc_type, exc, tb)
+
+    sys.excepthook = excepthook

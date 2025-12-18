@@ -186,3 +186,12 @@ class ProjectModel:
             self.set_dirty(True)
             self.materials_changed.emit(mats)
             self.request_changed.emit(project.request)
+
+    def update_geometry(self, geometry: dict[str, Any] | None) -> None:
+        project = self.ensure_project()
+        if geometry is None:
+            project.request.pop("geometry", None)
+        else:
+            project.request["geometry"] = geometry
+        self.set_dirty(True)
+        self.request_changed.emit(project.request)

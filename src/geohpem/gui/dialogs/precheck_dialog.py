@@ -15,6 +15,7 @@ class PrecheckDialog:
             QVBoxLayout,
         )  # type: ignore
 
+        self._QDialog = QDialog
         self.dialog = QDialog(parent)
         self.dialog.setWindowTitle("Pre-check")
         self.dialog.resize(700, 450)
@@ -41,5 +42,4 @@ class PrecheckDialog:
         self.buttons.rejected.connect(self.dialog.reject)
 
     def exec(self) -> bool:
-        return self.dialog.exec() == self.dialog.Accepted
-
+        return int(self.dialog.exec()) == int(self._QDialog.Accepted)

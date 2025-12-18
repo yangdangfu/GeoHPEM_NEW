@@ -10,6 +10,7 @@ from geohpem.gui.dialogs.mesh_quality_dialog import MeshQualityDialog
 from geohpem.gui.dialogs.precheck_dialog import PrecheckDialog
 from geohpem.gui.dialogs.sets_dialog import SetsDialog
 from geohpem.gui.model.project_model import ProjectModel
+from geohpem.gui.widgets.docks.geometry_dock import GeometryDock
 from geohpem.gui.widgets.docks.log_dock import LogDock
 from geohpem.gui.widgets.docks.project_dock import ProjectDock
 from geohpem.gui.widgets.docks.properties_dock import PropertiesDock
@@ -54,21 +55,25 @@ class MainWindow:
         self._win.setCentralWidget(self.workspace_stack.widget)
 
         self.project_dock = ProjectDock()
+        self.geometry_dock = GeometryDock()
         self.properties_dock = PropertiesDock()
         self.stage_dock = StageDock()
         self.log_dock = LogDock()
         self.tasks_dock = TasksDock()
 
         self._win.addDockWidget(Qt.LeftDockWidgetArea, self.project_dock.dock)
+        self._win.addDockWidget(Qt.LeftDockWidgetArea, self.geometry_dock.dock)
         self._win.addDockWidget(Qt.RightDockWidgetArea, self.properties_dock.dock)
         self._win.addDockWidget(Qt.RightDockWidgetArea, self.stage_dock.dock)
         self._win.addDockWidget(Qt.BottomDockWidgetArea, self.log_dock.dock)
         self._win.addDockWidget(Qt.BottomDockWidgetArea, self.tasks_dock.dock)
 
+        self._win.tabifyDockWidget(self.project_dock.dock, self.geometry_dock.dock)
         self._win.tabifyDockWidget(self.log_dock.dock, self.tasks_dock.dock)
         self.log_dock.dock.raise_()
 
         self.model = ProjectModel()
+        self._active_workers: list[object] = []
 
         self._action_new = QAction("New Project...", self._win)
         self._action_new.triggered.connect(self._on_new_project)
@@ -159,6 +164,8 @@ class MainWindow:
         self.model.request_changed.connect(self._refresh_tree)
         self.model.materials_changed.connect(lambda mats: self._refresh_tree(self.model.ensure_project().request))
         self.model.mesh_changed.connect(lambda m: self._refresh_tree(self.model.ensure_project().request))
+
+        self.geometry_dock.bind_model(self.model)
 
     @property
     def qt(self):
@@ -373,26 +380,32 @@ class MainWindow:
         self.save_project(Path(file))
 
     def _on_run_fake(self) -> None:
-        state = self.model.state()
-        if not state.project or not state.work_case_dir:
-            self._QMessageBox.information(self._win, "Run", "Open a project/case first.")
-            return
-        from geohpem.app.precheck import precheck_request_mesh
+        try:
+            state = self.model.state()
+            if not state.project or not state.work_case_dir:
+                self._QMessageBox.information(self._win, "Run", "Open a project/case first.")
+                return
+            from geohpem.app.precheck import precheck_request_mesh
 
-        issues = precheck_request_mesh(state.project.request, state.project.mesh)
-        dlg = PrecheckDialog(self._win, issues)
-        if not dlg.exec():
-            return
-        # Ensure work dir reflects latest in-memory inputs.
-        write_case_folder(state.work_case_dir, state.project.request, state.project.mesh)
+            issues = precheck_request_mesh(state.project.request, state.project.mesh)
+            dlg = PrecheckDialog(self._win, issues)
+            if not dlg.exec():
+                return
+            # Ensure work dir reflects latest in-memory inputs.
+            write_case_folder(state.work_case_dir, state.project.request, state.project.mesh)
 
-        from geohpem.gui.workers.solve_worker import SolveWorker
+            from geohpem.gui.workers.solve_worker import SolveWorker
 
-        worker = SolveWorker(case_dir=state.work_case_dir, solver_selector="fake")
-        self.tasks_dock.attach_worker(worker)
-        self.log_dock.attach_worker(worker)
-        worker.output_ready.connect(self.open_output_folder)
-        worker.start()
+            worker = SolveWorker(case_dir=state.work_case_dir, solver_selector="fake")
+            # Keep strong reference during run to prevent GC-related crashes.
+            self._active_workers.append(worker)
+            worker.finished.connect(lambda: self._active_workers.remove(worker) if worker in self._active_workers else None)
+            self.tasks_dock.attach_worker(worker)
+            self.log_dock.attach_worker(worker)
+            worker.output_ready.connect(self.open_output_folder)
+            worker.start()
+        except Exception as exc:
+            self._QMessageBox.critical(self._win, "Run Failed", str(exc))
 
     def _on_manage_sets(self) -> None:
         state = self.model.state()

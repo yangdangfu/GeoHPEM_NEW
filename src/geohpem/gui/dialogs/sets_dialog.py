@@ -40,6 +40,42 @@ def _parse_int_list(text: str) -> np.ndarray:
     return arr
 
 
+def _parse_edge_pairs(text: str) -> np.ndarray:
+    """
+    Parse edge pairs as node indices.
+
+    Accepted forms (mixed separators allowed):
+    - "0-1, 1-2, 2-3"
+    - "0 1; 1 2; 2 3"
+    - "0,1; 1,2"  (comma inside pair)
+
+    Returns (K,2) int32.
+    """
+    text = (text or "").strip()
+    if not text:
+        return np.zeros((0, 2), dtype=np.int32)
+    # Split pairs by ';' or ',' or newline.
+    normalized = text.replace("|", ";")
+    parts: list[str] = []
+    for chunk in normalized.splitlines():
+        parts.extend([p.strip() for p in chunk.replace(";", ",").split(",") if p.strip()])
+    pairs: list[tuple[int, int]] = []
+    for part in parts:
+        p = part.strip()
+        if not p:
+            continue
+        if "-" in p and " " not in p:
+            a, b = p.split("-", 1)
+            pairs.append((int(a), int(b)))
+            continue
+        # split by whitespace
+        toks = [t for t in p.split() if t]
+        if len(toks) != 2:
+            raise ValueError(f"Invalid edge pair: {part!r}")
+        pairs.append((int(toks[0]), int(toks[1])))
+    return np.asarray(pairs, dtype=np.int32).reshape(-1, 2)
+
+
 class SetsDialog:
     """
     Minimal Sets manager:
@@ -110,6 +146,7 @@ class SetsDialog:
 
         self.kind = QComboBox()
         self.kind.addItem("Node set", "node")
+        self.kind.addItem("Edge set", "edge")
         self.kind.addItem("Element set (tri3)", "elem_tri3")
         self.kind.addItem("Element set (quad4)", "elem_quad4")
         form.addRow("Kind", self.kind)
@@ -118,7 +155,7 @@ class SetsDialog:
         form.addRow("Name", self.name)
 
         self.indices = QLineEdit()
-        self.indices.setPlaceholderText("e.g. 0,1,2-10")
+        self.indices.setPlaceholderText("Nodes: 0,1,2-10  |  Edges: 0-1;1-2;2-3  |  Elems: 0,2,3-20")
         form.addRow("Indices", self.indices)
 
         self.btn_add = QPushButton("Add")
@@ -175,13 +212,18 @@ class SetsDialog:
         if not name:
             self._QMessageBox.information(self.dialog, "Add Set", "Name is required.")
             return
-        idx = _parse_int_list(self.indices.text())
 
         if kind == "node":
+            idx = _parse_int_list(self.indices.text())
             self._mesh[f"node_set__{name}"] = idx
+        elif kind == "edge":
+            edges = _parse_edge_pairs(self.indices.text())
+            self._mesh[f"edge_set__{name}"] = edges
         elif kind == "elem_tri3":
+            idx = _parse_int_list(self.indices.text())
             self._mesh[f"elem_set__{name}__tri3"] = idx
         elif kind == "elem_quad4":
+            idx = _parse_int_list(self.indices.text())
             self._mesh[f"elem_set__{name}__quad4"] = idx
         else:
             self._QMessageBox.information(self.dialog, "Add Set", f"Unknown kind: {kind}")
@@ -256,4 +298,3 @@ class SetsDialog:
         self._mesh[new_key] = self._mesh.pop(key)
         self._on_apply(self._mesh)
         self._refresh_list()
-

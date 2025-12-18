@@ -69,19 +69,36 @@ def meshio_to_contract(mesh) -> tuple[dict[str, Any], ImportReport]:  # noqa: AN
         safe = _unique_name(safe, used_set_names)
         phys_id_to_name_dim[pid] = (safe, dim)
 
-    # cell_data: list of dicts aligned with mesh.cells
-    cell_data = getattr(mesh, "cell_data", []) or []
+    # meshio version compatibility:
+    # - mesh.cell_data can be a list[dict] aligned with mesh.cells (older patterns)
+    # - or a dict[str, list[np.ndarray]] where each list aligns with mesh.cells (meshio>=5 common)
+    cell_data = getattr(mesh, "cell_data", None) or {}
 
     def get_phys_tags(block_index: int) -> np.ndarray | None:
-        if block_index >= len(cell_data):
+        # dict-of-lists form: {"gmsh:physical":[...], "gmsh:geometrical":[...]}
+        if isinstance(cell_data, dict):
+            for key in ("gmsh:physical", "gmsh:geometrical"):
+                seq = cell_data.get(key)
+                if isinstance(seq, (list, tuple)) and block_index < len(seq):
+                    tags = seq[block_index]
+                    if tags is None:
+                        continue
+                    return np.asarray(tags, dtype=np.int64).reshape(-1)
             return None
-        data = cell_data[block_index]
-        if not isinstance(data, dict):
-            return None
-        tags = data.get("gmsh:physical") or data.get("gmsh:geometrical")
-        if tags is None:
-            return None
-        return np.asarray(tags, dtype=np.int64).reshape(-1)
+
+        # list-of-dicts form: [{...}, {...}, ...]
+        if isinstance(cell_data, list):
+            if block_index >= len(cell_data):
+                return None
+            data = cell_data[block_index]
+            if not isinstance(data, dict):
+                return None
+            tags = data.get("gmsh:physical") or data.get("gmsh:geometrical")
+            if tags is None:
+                return None
+            return np.asarray(tags, dtype=np.int64).reshape(-1)
+
+        return None
 
     node_sets: dict[str, np.ndarray] = {}
     edge_sets: dict[str, np.ndarray] = {}
@@ -138,12 +155,14 @@ def meshio_to_contract(mesh) -> tuple[dict[str, Any], ImportReport]:  # noqa: AN
         out["cells_tri3"] = cells_tri3
 
         offset = 0
-        for conn, tags in zip(tri_conns, tri_tags_list, strict=True):
+        for conn, tags in zip(tri_conns, tri_tags_list):
             if tags is None:
                 offset += conn.shape[0]
                 continue
             for pid in np.unique(tags):
                 pid_i = int(pid)
+                if pid_i == 0:
+                    continue
                 nm, dim = phys_id_to_name_dim.get(pid_i, (None, None))  # type: ignore[assignment]
                 if nm is None:
                     nm = name_for_pid(pid_i, 2)
@@ -160,12 +179,14 @@ def meshio_to_contract(mesh) -> tuple[dict[str, Any], ImportReport]:  # noqa: AN
         out["cells_quad4"] = cells_quad4
 
         offset = 0
-        for conn, tags in zip(quad_conns, quad_tags_list, strict=True):
+        for conn, tags in zip(quad_conns, quad_tags_list):
             if tags is None:
                 offset += conn.shape[0]
                 continue
             for pid in np.unique(tags):
                 pid_i = int(pid)
+                if pid_i == 0:
+                    continue
                 nm, dim = phys_id_to_name_dim.get(pid_i, (None, None))  # type: ignore[assignment]
                 if nm is None:
                     nm = name_for_pid(pid_i, 2)
@@ -178,11 +199,13 @@ def meshio_to_contract(mesh) -> tuple[dict[str, Any], ImportReport]:  # noqa: AN
             offset += conn.shape[0]
 
     if line_conns:
-        for conn, tags in zip(line_conns, line_tags_list, strict=True):
+        for conn, tags in zip(line_conns, line_tags_list):
             if tags is None:
                 continue
             for pid in np.unique(tags):
                 pid_i = int(pid)
+                if pid_i == 0:
+                    continue
                 nm, dim = phys_id_to_name_dim.get(pid_i, (None, None))  # type: ignore[assignment]
                 if nm is None:
                     nm = name_for_pid(pid_i, 1)
@@ -196,11 +219,13 @@ def meshio_to_contract(mesh) -> tuple[dict[str, Any], ImportReport]:  # noqa: AN
                     edge_sets[nm] = edges
 
     if vertex_conns:
-        for conn, tags in zip(vertex_conns, vertex_tags_list, strict=True):
+        for conn, tags in zip(vertex_conns, vertex_tags_list):
             if tags is None:
                 continue
             for pid in np.unique(tags):
                 pid_i = int(pid)
+                if pid_i == 0:
+                    continue
                 nm, dim = phys_id_to_name_dim.get(pid_i, (None, None))  # type: ignore[assignment]
                 if nm is None:
                     nm = name_for_pid(pid_i, 0)
