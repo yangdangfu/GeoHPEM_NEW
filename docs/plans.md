@@ -114,7 +114,8 @@
 
 ## M9：solver 集成增强（capabilities 驱动）
 
-- [ ] Solver Manager（选择/显示 capabilities，缓存）
+- [x] Solver Manager（选择/显示 capabilities，缓存）
+  - DoD：GUI 可选择 solver（fake / python:<module>），可检查并展示 `solver.capabilities()`，运行时使用所选 solver。
 - [ ] capabilities 驱动 UI 灰置/提示（mode/analysis_type/输出字段）
 - [ ] 运行监视增强（取消协作、错误码映射、诊断包 zip）
 

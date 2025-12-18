@@ -9,6 +9,7 @@ from geohpem.gui.dialogs.import_mesh_dialog import ImportMeshDialog
 from geohpem.gui.dialogs.mesh_quality_dialog import MeshQualityDialog
 from geohpem.gui.dialogs.precheck_dialog import PrecheckDialog
 from geohpem.gui.dialogs.sets_dialog import SetsDialog
+from geohpem.gui.dialogs.solver_dialog import SolverDialog
 from geohpem.gui.dialogs.units_dialog import UnitsDialog
 from geohpem.gui.model.project_model import ProjectModel
 from geohpem.gui.model.selection_model import Selection, SelectionModel
@@ -110,8 +111,11 @@ class MainWindow:
         self._action_ws_output = QAction("Workspace: Output", self._win)
         self._action_ws_output.triggered.connect(lambda: self.workspace_stack.set_workspace("output"))
 
-        self._action_run = QAction("Run (Fake Solver)", self._win)
-        self._action_run.triggered.connect(self._on_run_fake)
+        self._action_select_solver = QAction("Select Solver...", self._win)
+        self._action_select_solver.triggered.connect(self._on_select_solver)
+
+        self._action_run = QAction("Run", self._win)
+        self._action_run.triggered.connect(self._on_run_solver)
 
         self._action_sets = QAction("Manage Sets...", self._win)
         self._action_sets.triggered.connect(self._on_manage_sets)
@@ -162,6 +166,7 @@ class MainWindow:
         menu_view.addAction(self._action_units)
 
         menu_solve = self._win.menuBar().addMenu("Solve")
+        menu_solve.addAction(self._action_select_solver)
         menu_solve.addAction(self._action_run)
 
         menu_help = self._win.menuBar().addMenu("Help")
@@ -192,6 +197,8 @@ class MainWindow:
         self._on_undo_state_changed(False, False)
 
         self.selection.changed.connect(self._on_selection_changed)
+
+        self._update_run_action_text()
 
     @property
     def qt(self):
@@ -323,6 +330,25 @@ class MainWindow:
         output_ws = self.workspace_stack.get("output")
         if isinstance(output_ws, OutputWorkspace):
             output_ws.set_unit_context(self._unit_context)
+
+    def _update_run_action_text(self) -> None:
+        selector = self._settings.get_solver_selector()
+        label = selector
+        if selector == "fake":
+            label = "fake"
+        elif selector.startswith("python:"):
+            label = selector.split("python:", 1)[1].strip() or selector
+        self._action_run.setText(f"Run ({label})")
+
+    def _on_select_solver(self) -> None:
+        cur = self._settings.get_solver_selector()
+        dlg = SolverDialog(self._win, current_selector=cur)
+        res = dlg.exec()
+        if res is None:
+            return
+        self._settings.set_solver_selector(res.solver_selector)
+        self._update_run_action_text()
+        self.log_dock.append_info(f"Selected solver: {res.solver_selector}")
 
     def _on_display_units(self) -> None:
         state = self.model.state()
@@ -461,7 +487,7 @@ class MainWindow:
             return
         self.save_project(Path(file))
 
-    def _on_run_fake(self) -> None:
+    def _on_run_solver(self) -> None:
         try:
             state = self.model.state()
             if not state.project or not state.work_case_dir:
@@ -478,7 +504,8 @@ class MainWindow:
 
             from geohpem.gui.workers.solve_worker import SolveWorker
 
-            worker = SolveWorker(case_dir=state.work_case_dir, solver_selector="fake")
+            solver_selector = self._settings.get_solver_selector()
+            worker = SolveWorker(case_dir=state.work_case_dir, solver_selector=solver_selector)
             # Keep strong reference during run to prevent GC-related crashes.
             self._active_workers.append(worker)
             worker.finished.connect(lambda: self._active_workers.remove(worker) if worker in self._active_workers else None)

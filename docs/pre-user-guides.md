@@ -95,7 +95,11 @@ GUI 菜单：
 
 ## 9. 运行求解（目前为 fake solver）
 
-- `Solve -> Run (Fake Solver)`
+- 选择 solver：`Solve -> Select Solver...`
+  - `Fake`：内置的假 solver，用于跑通流程与 UI
+  - `Python module`：通过 `python:<module>` 加载外部 solver 包（未来将以 submodule 方式集成）
+
+- 运行：`Solve -> Run (...)`
   1) 弹出 Pre-check 窗口：有 ERROR 会阻止运行；WARN 允许继续
   2) 后台运行，底部 Tasks 显示进度，Log 显示日志
   3) 输出写入工作目录的 `out/` 并自动切换到 Output 工作区

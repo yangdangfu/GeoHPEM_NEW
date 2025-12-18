@@ -87,3 +87,14 @@ class SettingsStore:
             if isinstance(k, str) and isinstance(v, str):
                 payload[k] = v
         self._q.setValue("display_units", payload)
+
+    # ---- Solver preferences ----
+
+    def get_solver_selector(self) -> str:
+        raw = self._q.value("solver_selector", "fake")
+        if not isinstance(raw, str) or not raw.strip():
+            return "fake"
+        return raw.strip()
+
+    def set_solver_selector(self, selector: str) -> None:
+        self._q.setValue("solver_selector", str(selector))
