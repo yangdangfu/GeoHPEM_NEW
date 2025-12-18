@@ -124,12 +124,14 @@ GUI 菜单：
 - Output 工作区会从 `result.json:registry` 动态列出可用结果项，并用 VTK 渲染网格与云图
 - 操作：
   - 左侧选择字段（Registry）与步号（Step）
+    - Step 下方会显示 `global_step_id / time / stage`（若 solver 提供 `result.json:global_steps`）
   - 默认显示标量云图（先支持 nodal 标量，如 `p`）
   - 勾选 `Warp by displacement u` 可按位移变形显示（若结果提供 `u`）
   - 在渲染窗口中点击点可 Probe（显示近邻点的数值 + 所属 node sets）
   - 选中单元（若版本支持 cell picking）会显示单元类型/编号 + 所属 element sets
   - `Profile line...`：剖面线（线采样）
-    - 建议先在视窗里连续点两次（得到 2 次 Probe），再点 `Use last two picks` 自动填入端点
+    - 推荐方式（更顺手）：点 `Pick 2 points (viewport)` 进入剖面拾取模式，在视窗连续点两次即可自动生成剖面并弹出曲线
+    - 也可用旧方式：先在视窗里连续点两次（得到 2 次 Probe），再点 `Use last two picks` 自动填入端点
     - 自动弹出曲线窗口，支持 `Export CSV...` 与 `Save Plot Image...`
   - `Time history...`：时程曲线
     - 对 nodal 字段：先 Probe 一个点（确定 pid）；对 element 字段：先 pick 一个单元（确定 cell_id）

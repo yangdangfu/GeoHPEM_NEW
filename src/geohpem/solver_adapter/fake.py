@@ -46,6 +46,7 @@ class FakeSolver:
 
         arrays: dict[str, Any] = {}
         stage_infos: list[dict[str, Any]] = []
+        global_steps: list[dict[str, Any]] = []
         step_counter = 0
 
         for si, stage in enumerate(stages):
@@ -69,6 +70,14 @@ class FakeSolver:
                 arrays[f"nodal__u__step{step_key}"] = disp
                 arrays[f"nodal__p__step{step_key}"] = pore
                 times.append(float(stage.get("dt", 1.0)) * (step + 1))
+                global_steps.append(
+                    {
+                        "id": int(step_counter),
+                        "stage_id": str(stage_id),
+                        "stage_step": int(step),
+                        "time": float(times[-1]),
+                    }
+                )
 
             stage_infos.append({"id": stage_id, "num_steps": num_steps, "times": times})
 
@@ -77,6 +86,7 @@ class FakeSolver:
             "status": "success",
             "solver_info": {"name": "fake", "note": "placeholder solver for platform bring-up"},
             "stages": stage_infos,
+            "global_steps": global_steps,
             "warnings": [],
             "errors": [],
             "registry": [

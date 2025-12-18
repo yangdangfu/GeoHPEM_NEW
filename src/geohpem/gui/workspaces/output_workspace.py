@@ -31,10 +31,12 @@ class OutputWorkspace:
             QVBoxLayout,
             QWidget,
         )  # type: ignore
+        from geohpem.util.ids import new_uid
 
         self._Qt = Qt
         self._QMessageBox = QMessageBox
         self._QDoubleSpinBox = QDoubleSpinBox
+        self._new_uid = new_uid
 
         self.widget = QWidget()
         layout = QVBoxLayout(self.widget)
@@ -53,6 +55,9 @@ class OutputWorkspace:
         self.step.setEnabled(False)
         left_layout.addWidget(QLabel("Step"))
         left_layout.addWidget(self.step)
+        self.step_info = QLabel("")
+        self.step_info.setWordWrap(True)
+        left_layout.addWidget(self.step_info)
 
         self.field_mode = QComboBox()
         self.field_mode.addItem("Auto", "auto")
@@ -88,6 +93,21 @@ class OutputWorkspace:
         self.btn_export_img.setEnabled(False)
         left_layout.addWidget(self.btn_export_img)
 
+        left_layout.addWidget(QLabel("Profiles"))
+        self.profile_list = QListWidget()
+        self.profile_list.setEnabled(False)
+        left_layout.addWidget(self.profile_list, 1)
+
+        self.btn_profile_pick = QPushButton("Pick 2 points (viewport)")
+        self.btn_profile_pick.setEnabled(False)
+        left_layout.addWidget(self.btn_profile_pick)
+        self.btn_profile_plot = QPushButton("Plot selected")
+        self.btn_profile_plot.setEnabled(False)
+        left_layout.addWidget(self.btn_profile_plot)
+        self.btn_profile_remove = QPushButton("Remove selected")
+        self.btn_profile_remove.setEnabled(False)
+        left_layout.addWidget(self.btn_profile_remove)
+
         splitter.addWidget(left)
 
         # Right panel: viewer + probe readout
@@ -113,6 +133,7 @@ class OutputWorkspace:
         self._mesh: dict[str, Any] | None = None
         self._units = None  # UnitContext | None
         self._steps: list[int] = []
+        self._step_infos: dict[int, dict[str, Any]] = {}
         self._reg_items: list[dict[str, Any]] = []
         self._node_set_membership: dict[int, list[str]] = {}
         self._elem_set_membership: dict[str, dict[int, list[str]]] = {}  # cell_type -> local_id -> names
@@ -127,10 +148,20 @@ class OutputWorkspace:
         self.btn_profile.clicked.connect(self._on_profile_line)
         self.btn_history.clicked.connect(self._on_time_history)
         self.btn_export_img.clicked.connect(self._on_export_image)
+        self.btn_profile_pick.clicked.connect(self._start_profile_pick_mode)
+        self.btn_profile_plot.clicked.connect(self._plot_selected_profile)
+        self.btn_profile_remove.clicked.connect(self._remove_selected_profile)
+        self.profile_list.currentRowChanged.connect(self._on_profile_selection_changed)
+        self.profile_list.itemDoubleClicked.connect(lambda *_: self._plot_selected_profile())
 
         self._probe_history: list[dict[str, Any]] = []
         self._last_probe_pid: int | None = None
         self._last_cell_id: int | None = None
+
+        self._mode: str = "normal"  # normal|profile_pick
+        self._profile_pick_points: list[tuple[float, float, float]] = []
+        self._profiles: list[dict[str, Any]] = []
+        self._profile_actor = None
 
     def set_unit_context(self, units) -> None:  # noqa: ANN001
         """
@@ -152,7 +183,7 @@ class OutputWorkspace:
             loc = item.get("location", "?")
             self.registry_list.addItem(f"{name} ({loc})")
 
-        self._steps = available_steps_from_arrays(arrays)
+        self._steps, self._step_infos = self._infer_steps(meta, arrays)
         if self._steps:
             self.step.setEnabled(True)
             self.step.setRange(0, len(self._steps) - 1)
@@ -166,6 +197,34 @@ class OutputWorkspace:
         self.btn_profile.setEnabled(True)
         self.btn_history.setEnabled(True)
         self.btn_export_img.setEnabled(True)
+        self.profile_list.setEnabled(True)
+        self.btn_profile_pick.setEnabled(True)
+        self._refresh_profile_list()
+
+    def _infer_steps(self, meta: dict[str, Any], arrays: dict[str, Any]) -> tuple[list[int], dict[int, dict[str, Any]]]:
+        """
+        Prefer meta['global_steps'] when available, otherwise fall back to parsing array keys.
+        Returns (sorted_step_ids, step_info_by_id).
+        """
+        infos: dict[int, dict[str, Any]] = {}
+        gs = meta.get("global_steps")
+        if isinstance(gs, list) and gs:
+            step_ids: list[int] = []
+            for it in gs:
+                if not isinstance(it, dict):
+                    continue
+                sid = it.get("id")
+                try:
+                    sid_i = int(sid)
+                except Exception:
+                    continue
+                step_ids.append(sid_i)
+                infos[sid_i] = dict(it)
+            step_ids = sorted(set(step_ids))
+            if step_ids:
+                return step_ids, infos
+        steps = available_steps_from_arrays(arrays)
+        return steps, infos
 
     def _build_set_membership(self) -> None:
         self._node_set_membership = {}
@@ -331,6 +390,7 @@ class OutputWorkspace:
         step_id = self._selected_step_id()
         if reg is None or step_id is None:
             return
+        self._update_step_info(step_id)
 
         location = reg.get("location", "node")
         name = reg.get("name", "")
@@ -340,75 +400,13 @@ class OutputWorkspace:
         if not isinstance(name, str) or not name:
             return
 
-        # Build mesh grid
-        vtk_mesh = contract_mesh_to_pyvista(self._mesh)
-        grid = vtk_mesh.grid.copy()
-
-        # Load field array
-        arr = get_array_for(arrays=self._arrays, location=location, name=name, step=step_id)
-        if arr is None:
-            self.probe.setText(f"Missing array for {name} ({location}) step {step_id:06d}")
+        try:
+            grid, scalar_name, scalars_kwargs, unit_display, is_vector = self._build_grid_with_scalars(
+                reg, step_id, warp=bool(self.warp.isChecked())
+            )
+        except Exception as exc:
+            self.probe.setText(str(exc))
             return
-
-        scalar_name = name
-        mode = self.field_mode.currentData()
-        if arr.ndim == 2 and mode in ("auto", "mag"):
-            scalar = vector_magnitude(arr)
-            scalar_name = f"{name}_mag"
-        else:
-            scalar = np.asarray(arr).reshape(-1)
-
-        # Display unit conversion (scale values only; geometry remains in base units)
-        unit_display: str | None = None
-        if unit_base and self._units is not None:
-            from geohpem.units import conversion_factor, infer_kind_from_unit
-
-            kind = infer_kind_from_unit(unit_base)
-            if name == "u":
-                kind = "length"
-            if kind:
-                unit_display = self._units.display_unit(kind, unit_base)
-                if unit_display and unit_display != unit_base:
-                    scalar = scalar.astype(float, copy=False) * conversion_factor(unit_base, unit_display)
-        elif name == "u" and self._units is not None:
-            # displacement often has no registry unit; assume project length unit
-            ub = self._units.base_unit("length", None)
-            ud = self._units.display_unit("length", None)
-            if ub and ud and ub != ud:
-                from geohpem.units import conversion_factor
-
-                scalar = scalar.astype(float, copy=False) * conversion_factor(ub, ud)
-                unit_display = ud
-
-        # Attach scalars to points/cells
-        if location in ("node", "nodal"):
-            if scalar.shape[0] != grid.n_points:
-                self.probe.setText(f"Array size mismatch: {scalar.shape[0]} vs n_points {grid.n_points}")
-                return
-            grid.point_data.clear()
-            grid.point_data[scalar_name] = scalar
-            scalars_kwargs = {"scalars": scalar_name, "preference": "point"}
-        elif location in ("element", "elem"):
-            if scalar.shape[0] != grid.n_cells:
-                self.probe.setText(f"Array size mismatch: {scalar.shape[0]} vs n_cells {grid.n_cells}")
-                return
-            grid.cell_data.clear()
-            grid.cell_data[scalar_name] = scalar
-            scalars_kwargs = {"scalars": scalar_name, "preference": "cell"}
-        else:
-            self.probe.setText(f"Unsupported location for plotting: {location}")
-            return
-
-        # Warp by displacement (if available)
-        self.warp.setEnabled(True)
-        self.warp_scale.setEnabled(True)
-        if self.warp.isChecked():
-            u = get_array_for(arrays=self._arrays, location="node", name="u", step=step_id)
-            if u is not None and u.ndim == 2 and u.shape[0] == grid.n_points:
-                u3 = np.zeros((grid.n_points, 3), dtype=float)
-                u3[:, : min(2, u.shape[1])] = u[:, : min(2, u.shape[1])]
-                grid.point_data["u_vec"] = u3
-                grid = grid.warp_by_vector("u_vec", factor=float(self.warp_scale.value()))
 
         # Render
         self._viewer.clear()
@@ -424,12 +422,32 @@ class OutputWorkspace:
         self._viewer.render()
 
         # Enable field mode if vector
-        self.field_mode.setEnabled(bool(arr.ndim == 2))
+        self.field_mode.setEnabled(bool(is_vector))
 
         # Cache last grid for probing
         self._last_grid = grid  # type: ignore[attr-defined]
         self._last_scalar = scalar_name  # type: ignore[attr-defined]
         self._last_pref = scalars_kwargs.get("preference", "point")  # type: ignore[attr-defined]
+
+    def _update_step_info(self, step_id: int) -> None:
+        info = self._step_infos.get(int(step_id))
+        if not isinstance(info, dict):
+            self.step_info.setText(f"global_step_id={step_id:06d}")
+            return
+        parts = [f"global_step_id={int(step_id):06d}"]
+        if "stage_id" in info:
+            parts.append(f"stage={info.get('stage_id')}")
+        if "stage_step" in info:
+            try:
+                parts.append(f"stage_step={int(info.get('stage_step'))}")
+            except Exception:
+                pass
+        if "time" in info:
+            try:
+                parts.append(f"time={float(info.get('time')):.6g}")
+            except Exception:
+                pass
+        self.step_info.setText("  ".join(parts))
 
     def _on_probe(self, point) -> None:  # noqa: ANN001
         if self._viewer is None:
@@ -461,6 +479,8 @@ class OutputWorkspace:
             self._last_probe_pid = pid
             self._probe_history.append({"x": px, "y": py, "z": pz, "pid": pid})
             self._probe_history = self._probe_history[-10:]
+            if self._mode == "profile_pick":
+                self._capture_profile_pick_point(px, py, pz)
             node_sets = self._node_set_membership.get(pid, [])
             sets_txt = f" node_sets={node_sets}" if node_sets else ""
             if self._units is not None:
@@ -534,6 +554,287 @@ class OutputWorkspace:
         except Exception as exc:
             self.probe.setPlainText(f"Cell pick failed: {exc}")
 
+    def _build_grid_with_scalars(
+        self,
+        reg: dict[str, Any],
+        step_id: int,
+        *,
+        warp: bool,
+    ) -> tuple[Any, str, dict[str, Any], str | None, bool]:
+        """
+        Build a pyvista grid with the selected scalar attached.
+        Returns (grid, scalar_name, scalars_kwargs, unit_display_label).
+        """
+        if self._mesh is None or self._arrays is None:
+            raise RuntimeError("Missing mesh/results")
+
+        location = str(reg.get("location", "node"))
+        name = str(reg.get("name", ""))
+        unit_base = reg.get("unit")
+        if not isinstance(unit_base, str) or not unit_base:
+            unit_base = None
+        if not name:
+            raise RuntimeError("Invalid registry entry")
+
+        vtk_mesh = contract_mesh_to_pyvista(self._mesh)
+        grid = vtk_mesh.grid.copy()
+
+        arr = get_array_for(arrays=self._arrays, location=location, name=name, step=int(step_id))
+        if arr is None:
+            raise RuntimeError(f"Missing array for {name} ({location}) step {int(step_id):06d}")
+
+        scalar_name = name
+        mode = self.field_mode.currentData()
+        arr2 = np.asarray(arr)
+        is_vector = bool(arr2.ndim == 2)
+        if is_vector and mode in ("auto", "mag"):
+            scalar = vector_magnitude(arr)
+            scalar_name = f"{name}_mag"
+        else:
+            scalar = arr2.reshape(-1)
+
+        # Display unit conversion (scale values only; geometry remains in base units)
+        unit_display: str | None = None
+        if unit_base and self._units is not None:
+            from geohpem.units import conversion_factor, infer_kind_from_unit
+
+            kind = infer_kind_from_unit(unit_base)
+            if name == "u":
+                kind = "length"
+            if kind:
+                unit_display = self._units.display_unit(kind, unit_base)
+                if unit_display and unit_display != unit_base:
+                    scalar = scalar.astype(float, copy=False) * conversion_factor(unit_base, unit_display)
+        elif name == "u" and self._units is not None:
+            ub = self._units.base_unit("length", None)
+            ud = self._units.display_unit("length", None)
+            if ub and ud and ub != ud:
+                from geohpem.units import conversion_factor
+
+                scalar = scalar.astype(float, copy=False) * conversion_factor(ub, ud)
+                unit_display = ud
+
+        if location in ("node", "nodal"):
+            if scalar.shape[0] != grid.n_points:
+                raise RuntimeError(f"Array size mismatch: {scalar.shape[0]} vs n_points {grid.n_points}")
+            grid.point_data.clear()
+            grid.point_data[scalar_name] = scalar
+            scalars_kwargs = {"scalars": scalar_name, "preference": "point"}
+        elif location in ("element", "elem"):
+            if scalar.shape[0] != grid.n_cells:
+                raise RuntimeError(f"Array size mismatch: {scalar.shape[0]} vs n_cells {grid.n_cells}")
+            grid.cell_data.clear()
+            grid.cell_data[scalar_name] = scalar
+            scalars_kwargs = {"scalars": scalar_name, "preference": "cell"}
+        else:
+            raise RuntimeError(f"Unsupported location for plotting: {location}")
+
+        if warp:
+            u = get_array_for(arrays=self._arrays, location="node", name="u", step=int(step_id))
+            if u is not None and np.asarray(u).ndim == 2 and u.shape[0] == grid.n_points:
+                u3 = np.zeros((grid.n_points, 3), dtype=float)
+                u3[:, : min(2, u.shape[1])] = np.asarray(u)[:, : min(2, u.shape[1])]
+                grid.point_data["u_vec"] = u3
+                grid = grid.warp_by_vector("u_vec", factor=float(self.warp_scale.value()))
+
+        return grid, scalar_name, scalars_kwargs, unit_display or unit_base, is_vector
+
+    def _start_profile_pick_mode(self) -> None:
+        if self._viewer is None:
+            return
+        if self._meta is None:
+            return
+        if self._mode == "profile_pick":
+            # Toggle off
+            self._mode = "normal"
+            self._profile_pick_points = []
+            try:
+                self.btn_profile_pick.setText("Pick 2 points (viewport)")
+            except Exception:
+                pass
+            self.probe.setPlainText("Profile pick canceled.")
+            return
+        self._mode = "profile_pick"
+        self._profile_pick_points = []
+        try:
+            self.btn_profile_pick.setText("Cancel pick mode")
+        except Exception:
+            pass
+        self.probe.setPlainText(
+            "Profile pick mode:\n"
+            "  1) Left-click first point in viewport\n"
+            "  2) Left-click second point\n"
+            "  -> will create a profile and plot automatically.\n"
+            "Tip: click this button again to cancel."
+        )
+
+    def _capture_profile_pick_point(self, x: float, y: float, z: float) -> None:
+        if self._mode != "profile_pick":
+            return
+        self._profile_pick_points.append((float(x), float(y), float(z)))
+        if len(self._profile_pick_points) == 1:
+            self.probe.setPlainText("Profile pick mode: first point set, pick second point...")
+            return
+        if len(self._profile_pick_points) >= 2:
+            p1 = self._profile_pick_points[0]
+            p2 = self._profile_pick_points[1]
+            self._mode = "normal"
+            self._profile_pick_points = []
+            try:
+                self.btn_profile_pick.setText("Pick 2 points (viewport)")
+            except Exception:
+                pass
+            self._create_profile_from_points(p1, p2)
+
+    def _create_profile_from_points(self, p1: tuple[float, float, float], p2: tuple[float, float, float]) -> None:
+        ctx = self._current_field_context()
+        if ctx is None:
+            self._QMessageBox.information(self.widget, "Profile", "Select a field and render a step first.")
+            return
+        reg, step_id, scalar_name, _pref, unit_label = ctx
+
+        try:
+            grid, scalar_name2, _scalars_kwargs, unit_label2, _is_vec = self._build_grid_with_scalars(reg, step_id, warp=False)
+            scalar_name = scalar_name2
+            unit_label = unit_label2
+        except Exception as exc:
+            self._QMessageBox.critical(self.widget, "Profile Failed", str(exc))
+            return
+
+        try:
+            import pyvista as pv  # type: ignore
+
+            sampled = grid.sample_over_line(p1, p2, resolution=200)
+            dist = None
+            for key in ("Distance", "distance"):
+                if key in sampled.point_data:
+                    dist = np.asarray(sampled.point_data[key], dtype=float).ravel()
+                    break
+            if dist is None:
+                pts = np.asarray(sampled.points, dtype=float)
+                dist = np.sqrt(np.sum((pts[:, :3] - pts[0, :3]) ** 2, axis=1))
+
+            if scalar_name in sampled.point_data:
+                vals = np.asarray(sampled.point_data[scalar_name], dtype=float).ravel()
+            elif scalar_name in sampled.cell_data:
+                vals = np.asarray(sampled.cell_data[scalar_name], dtype=float).ravel()
+            else:
+                raise RuntimeError(f"Sampled data missing '{scalar_name}'")
+
+            # Overlay line
+            try:
+                line = pv.Line(p1, p2, resolution=1)
+                if self._profile_actor is not None:
+                    try:
+                        self._viewer.remove_actor(self._profile_actor)
+                    except Exception:
+                        pass
+                self._profile_actor = self._viewer.add_mesh(line, color="red", line_width=3)
+                self._viewer.render()
+            except Exception:
+                pass
+
+            uid = self._new_uid("profile")
+            prof = {
+                "uid": uid,
+                "name": f"profile_{len(self._profiles)+1}",
+                "p1": list(p1),
+                "p2": list(p2),
+                "reg": {"location": reg.get("location"), "name": reg.get("name")},
+                "step_id": int(step_id),
+                "scalar_name": scalar_name,
+                "unit": unit_label,
+                "dist": dist,
+                "vals": vals,
+            }
+            self._profiles.append(prof)
+            self._refresh_profile_list(select_uid=uid)
+            self._plot_profile(prof)
+        except Exception as exc:
+            self._QMessageBox.critical(self.widget, "Profile Failed", str(exc))
+
+    def _refresh_profile_list(self, *, select_uid: str | None = None) -> None:
+        self.profile_list.clear()
+        for p in self._profiles:
+            nm = str(p.get("name", "profile"))
+            step_id = int(p.get("step_id", 0))
+            reg = p.get("reg", {}) if isinstance(p.get("reg"), dict) else {}
+            label = f"{nm}  ({reg.get('name')}@{reg.get('location')} step {step_id:06d})"
+            self.profile_list.addItem(label)
+        self._on_profile_selection_changed(self.profile_list.currentRow())
+        if select_uid:
+            for i, p in enumerate(self._profiles):
+                if p.get("uid") == select_uid:
+                    self.profile_list.setCurrentRow(i)
+                    break
+
+    def _on_profile_selection_changed(self, row: int) -> None:
+        ok = 0 <= int(row) < len(self._profiles)
+        self.btn_profile_plot.setEnabled(bool(ok))
+        self.btn_profile_remove.setEnabled(bool(ok))
+
+    def _selected_profile(self) -> dict[str, Any] | None:
+        row = int(self.profile_list.currentRow())
+        if row < 0 or row >= len(self._profiles):
+            return None
+        p = self._profiles[row]
+        return p if isinstance(p, dict) else None
+
+    def _plot_selected_profile(self) -> None:
+        p = self._selected_profile()
+        if p is None:
+            return
+        self._plot_profile(p)
+
+    def _remove_selected_profile(self) -> None:
+        row = int(self.profile_list.currentRow())
+        if row < 0 or row >= len(self._profiles):
+            return
+        del self._profiles[row]
+        self._refresh_profile_list()
+
+    def _plot_profile(self, prof: dict[str, Any]) -> None:
+        # Overlay line for selected profile (best-effort).
+        if self._viewer is not None:
+            try:
+                import pyvista as pv  # type: ignore
+
+                p1 = tuple(float(x) for x in (prof.get("p1") or [0.0, 0.0, 0.0])[:3])
+                p2 = tuple(float(x) for x in (prof.get("p2") or [0.0, 0.0, 0.0])[:3])
+                line = pv.Line(p1, p2, resolution=1)
+                if self._profile_actor is not None:
+                    try:
+                        self._viewer.remove_actor(self._profile_actor)
+                    except Exception:
+                        pass
+                self._profile_actor = self._viewer.add_mesh(line, color="red", line_width=3)
+                self._viewer.render()
+            except Exception:
+                pass
+
+        from geohpem.gui.dialogs.plot_dialog import PlotDialog, PlotSeries
+
+        dist = np.asarray(prof.get("dist", []), dtype=float).ravel()
+        vals = np.asarray(prof.get("vals", []), dtype=float).ravel()
+        scalar_name = str(prof.get("scalar_name", "value"))
+        unit = prof.get("unit")
+        step_id = int(prof.get("step_id", 0))
+        title = f"Profile: {scalar_name} (step {step_id:06d})"
+        ylabel = scalar_name
+        if isinstance(unit, str) and unit:
+            ylabel = f"{scalar_name} [{unit}]"
+
+        dlg = PlotDialog(
+            self.widget,
+            title=title,
+            xlabel="Distance",
+            ylabel=ylabel,
+            series=[PlotSeries(x=dist, y=vals, label=None)],
+            default_csv_name=f"profile_{scalar_name}_step{step_id:06d}.csv",
+            default_png_name=f"profile_{scalar_name}_step{step_id:06d}.png",
+        )
+        dlg.exec()
+
     def _step_time_map(self) -> dict[int, float]:
         """
         Best-effort mapping from global step id -> time (float).
@@ -541,6 +842,21 @@ class OutputWorkspace:
         """
         if not self._meta:
             return {}
+        # Preferred: explicit mapping from meta['global_steps'].
+        gs = self._meta.get("global_steps")
+        if isinstance(gs, list) and gs:
+            out: dict[int, float] = {}
+            for it in gs:
+                if not isinstance(it, dict):
+                    continue
+                try:
+                    sid = int(it.get("id"))
+                    t = float(it.get("time"))
+                except Exception:
+                    continue
+                out[sid] = t
+            if out:
+                return out
         stages = self._meta.get("stages", [])
         if not isinstance(stages, list) or not stages:
             return {}

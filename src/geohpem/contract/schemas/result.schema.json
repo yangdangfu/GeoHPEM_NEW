@@ -9,10 +9,10 @@
     "status": { "enum": ["success", "failed", "canceled"] },
     "solver_info": { "type": "object" },
     "stages": { "type": "array" },
+    "global_steps": { "type": "array" },
     "warnings": { "type": "array" },
     "errors": { "type": "array" },
     "registry": { "type": "array" }
   },
   "additionalProperties": true
 }
-

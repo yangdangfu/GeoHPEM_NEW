@@ -9,6 +9,26 @@
 
 ---
 
+## 使用流程（强调合理性/适用性，GUI 要花功夫）
+目标是把“工程建模 → 求解 → 后处理/对标 → 归档复用”做成顺畅闭环，既适合科研快速迭代，也适合工程规范交付。
+
+**主流程（MVP 必须顺滑）**
+1) `File -> New Project...`（或 Open Project / Open Case Folder）
+2) 选择路线：
+   - Route A：`File -> Import Mesh...` → `Edit -> Manage Sets...`
+   - Route B：`Geometry` 画几何 → `Generate Mesh...`（自动生成 sets）
+3) `Model/Materials/Assignments/Stages` 配置（Properties 表单化）
+4) `Tools -> Validate Inputs... (F7)`：尽早发现 contract/schema/precheck 问题
+5) `Solve -> Run (...)`：后台运行 + Cancel + diagnostics zip
+6) Output 工作区：云图 + Probe/拾取 + 剖面线/时程曲线/导出图像（对标所需）
+7) `File -> Save/Save As...` 归档工程；必要时 `File -> Export Case Folder...` 给 solver 团队/批量回归
+8) 对标回归：`Tools -> Batch Run...` / `Tools -> Compare Outputs...` / `Tools -> Open Batch Report...`
+
+**GUI 重点（避免后期返工）**
+- 统一的“编辑-校验-运行-查看结果”节奏：每一步都有明确入口、可见状态与可恢复性（Recent Projects/Solvers、工作目录、诊断包路径）。
+- Output 交互必须“所见即所得”：时间轴、步号语义、probe/剖面/时程结果要可复用/可导出。
+- 可扩展：未来支持多几何、多区域、多场（u/p/应力/应变），不推翻现有 UI/数据结构。
+
 ## M0：基座（已完成）
 
 - [x] 架构设计文档：`docs/2025121714_GeoHPEM_软件架构设计.md`
@@ -71,6 +91,13 @@
   - DoD：点击取值（至少 node 标量）；显示当前位置与数值。
 - [x] Output 后处理（剖面线/时程曲线/导出图像，MVP）
   - DoD：支持 Profile line（线采样 + 曲线 + CSV 导出）；Time history（点/单元时程 + 曲线 + CSV 导出）；Viewport 截图导出 PNG。
+- [ ] Output UX 增强（GUI 花功夫，避免返工）
+  - DoD：交互式剖面线（视窗两点/拖拽创建）；Probe/曲线对象管理（可 pin/复用/导出）；时间轴标准化（global_steps），动画/时程不依赖猜测。
+  - [x] M5.ux.1：时间轴标准化（`result.json:global_steps`）并在 UI 显示 stage/time 信息
+  - [x] M5.ux.2：交互式剖面线（Pick 2 points）+ Profiles 列表管理（Plot/Remove）
+  - [ ] M5.ux.3：Probe Pin/复用：Pinned Nodes/Elements 列表 + Time history 可选来源（而非“最后一次拾取”）
+  - [ ] M5.ux.4：交互式剖面线（拖拽/编辑/多条 overlay）+ 保存到工程（随 project 保存）
+  - [ ] M5.ux.5：动画/批量导出：steps → PNG（可选 GIF/MP4）+ 可配置相机保持/重置策略
 
 ---
 
