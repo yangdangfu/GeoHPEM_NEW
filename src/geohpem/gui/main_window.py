@@ -111,6 +111,13 @@ class MainWindow:
         self._action_mesh_quality = QAction("Mesh Quality...", self._win)
         self._action_mesh_quality.triggered.connect(self._on_mesh_quality)
 
+        self._action_undo = QAction("Undo", self._win)
+        self._action_undo.setShortcut("Ctrl+Z")
+        self._action_undo.triggered.connect(self.model.undo)
+        self._action_redo = QAction("Redo", self._win)
+        self._action_redo.setShortcut("Ctrl+Y")
+        self._action_redo.triggered.connect(self.model.redo)
+
         self._action_about = QAction("About", self._win)
         self._action_about.triggered.connect(self._on_about)
 
@@ -131,6 +138,9 @@ class MainWindow:
         menu_file.addAction(self._action_open_results)
 
         menu_edit = self._win.menuBar().addMenu("Edit")
+        menu_edit.addAction(self._action_undo)
+        menu_edit.addAction(self._action_redo)
+        menu_edit.addSeparator()
         menu_edit.addAction(self._action_sets)
 
         menu_mesh = self._win.menuBar().addMenu("Mesh")
@@ -164,8 +174,10 @@ class MainWindow:
         self.model.request_changed.connect(self._refresh_tree)
         self.model.materials_changed.connect(lambda mats: self._refresh_tree(self.model.ensure_project().request))
         self.model.mesh_changed.connect(lambda m: self._refresh_tree(self.model.ensure_project().request))
+        self.model.undo_state_changed.connect(self._on_undo_state_changed)
 
         self.geometry_dock.bind_model(self.model)
+        self._on_undo_state_changed(False, False)
 
     @property
     def qt(self):
@@ -256,7 +268,20 @@ class MainWindow:
 
         output_ws = self.workspace_stack.get("output")
         if isinstance(output_ws, OutputWorkspace):
-            output_ws.set_result(meta, arrays)
+            mesh = None
+            state = self.model.state()
+            if state.project:
+                mesh = state.project.mesh
+            else:
+                # try load mesh from sibling mesh.npz
+                try:
+                    from geohpem.contract.io import read_case_folder
+
+                    req, m = read_case_folder(out_dir.parent)
+                    mesh = m
+                except Exception:
+                    mesh = None
+            output_ws.set_result(meta, arrays, mesh=mesh)
         self.log_dock.append_info(f"Opened output: {out_dir}")
         self.workspace_stack.set_workspace("output")
 
@@ -479,6 +504,10 @@ class MainWindow:
         if state.dirty:
             title += " *"
         self._win.setWindowTitle(title)
+
+    def _on_undo_state_changed(self, can_undo: bool, can_redo: bool) -> None:
+        self._action_undo.setEnabled(bool(can_undo))
+        self._action_redo.setEnabled(bool(can_redo))
 
     def _on_tree_selection(self, payload: dict[str, Any]) -> None:
         state = self.model.state()

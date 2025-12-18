@@ -95,8 +95,11 @@ class GeometryDock:
             def mousePressEvent(self, event) -> None:  # noqa: ANN001
                 # Middle-button pan (hand drag)
                 if event.button() == outer._Qt.MiddleButton:
-                    self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
-                    return super().mousePressEvent(event)
+                    self._panning = True
+                    self._pan_start = event.position().toPoint()
+                    self.setCursor(outer._Qt.ClosedHandCursor)
+                    event.accept()
+                    return
 
                 if outer._draw_mode:
                     btn = event.button()
@@ -115,15 +118,24 @@ class GeometryDock:
 
             def mouseReleaseEvent(self, event) -> None:  # noqa: ANN001
                 if event.button() == outer._Qt.MiddleButton:
-                    out = super().mouseReleaseEvent(event)
-                    self.setDragMode(QGraphicsView.DragMode.NoDrag)
-                    return out
+                    self._panning = False
+                    self.unsetCursor()
+                    event.accept()
+                    return
                 return super().mouseReleaseEvent(event)
 
             def mouseMoveEvent(self, event) -> None:  # noqa: ANN001
                 pos = event.position()
                 scene_pos = self.mapToScene(int(pos.x()), int(pos.y()))
                 outer.coord.setText(f"x={scene_pos.x():.4g}, y={(-scene_pos.y()):.4g}")
+                if getattr(self, "_panning", False):
+                    p = event.position().toPoint()
+                    delta = p - getattr(self, "_pan_start", p)
+                    self._pan_start = p
+                    self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - delta.x())
+                    self.verticalScrollBar().setValue(self.verticalScrollBar().value() - delta.y())
+                    event.accept()
+                    return
                 return super().mouseMoveEvent(event)
 
             def drawBackground(self, painter, rect) -> None:  # noqa: ANN001
@@ -251,7 +263,8 @@ class GeometryDock:
         verts = self._poly.vertices
         pen_edge = QPen(self._Qt.black)
         pen_edge.setWidth(2)
-        r = 4.0
+        pen_edge.setCosmetic(True)
+        r = 2.5
 
         # edges
         for i in range(len(verts)):
@@ -303,6 +316,7 @@ class GeometryDock:
                 self.setPos(x, y)
                 self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
                 self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges, True)
+                self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True)
 
             def itemChange(self, change, value):  # noqa: ANN001
                 if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
@@ -317,7 +331,10 @@ class GeometryDock:
         for i, (x, y) in enumerate(verts):
             it = VertexItem(i, float(x), float(-y), r, on_vertex_moved)
             it.setBrush(self._Qt.white)
-            it.setPen(pen_edge)
+            pen_v = QPen(self._Qt.black)
+            pen_v.setCosmetic(True)
+            pen_v.setWidth(2)
+            it.setPen(pen_v)
             self.scene.addItem(it)
             self._vertex_items.append(it)
 

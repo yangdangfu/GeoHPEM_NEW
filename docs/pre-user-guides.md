@@ -97,10 +97,14 @@ GUI 菜单：
 
 ## 10. 查看结果（Output 工作区 MVP）
 
-- Output 工作区会从 `result.json:registry` 动态列出可用结果项
-- 选择条目可查看其 `name/location/shape/unit/npz_pattern` 等元数据
+- Output 工作区会从 `result.json:registry` 动态列出可用结果项，并用 VTK 渲染网格与云图
+- 操作：
+  - 左侧选择字段（Registry）与步号（Step）
+  - 默认显示标量云图（先支持 nodal 标量，如 `p`）
+  - 勾选 `Warp by displacement u` 可按位移变形显示（若结果提供 `u`）
+  - 在渲染窗口中点击点可 Probe（显示近邻点的数值）
 
-> 说明：云图/剖面/曲线等将在后续里程碑实现（计划见 `docs/plans.md` 的 M6）。
+> 说明：剖面线/时程曲线等将在后续里程碑实现（计划见 `docs/plans.md` 的后续条目）。
 
 ## 11. 画几何 → pygmsh 网格化（M4）
 
