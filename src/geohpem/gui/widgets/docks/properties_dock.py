@@ -42,6 +42,9 @@ class PropertiesDock:
         # Page: model
         self._page_model = QWidget()
         model_layout = QVBoxLayout(self._page_model)
+        self._cap_hint_model = QLabel("")
+        self._cap_hint_model.setStyleSheet("color: #b45309;")  # amber-ish
+        model_layout.addWidget(self._cap_hint_model)
         model_form = QFormLayout()
         model_layout.addLayout(model_form)
 
@@ -67,6 +70,9 @@ class PropertiesDock:
         # Page: stage
         self._page_stage = QWidget()
         stage_layout = QVBoxLayout(self._page_stage)
+        self._cap_hint_stage = QLabel("")
+        self._cap_hint_stage.setStyleSheet("color: #b45309;")  # amber-ish
+        stage_layout.addWidget(self._cap_hint_stage)
         stage_form = QFormLayout()
         stage_layout.addLayout(stage_form)
 
@@ -91,6 +97,18 @@ class PropertiesDock:
         self._stage_output_json = QPlainTextEdit()
         self._stage_output_json.setPlaceholderText("Stage output_requests (JSON list)")
         stage_layout.addWidget(QLabel("Stage output_requests"))
+        # Small helper row for adding outputs based on solver capabilities.
+        out_bar = QWidget()
+        out_bar_l = QHBoxLayout(out_bar)
+        out_bar_l.setContentsMargins(0, 0, 0, 0)
+        self._btn_add_stage_output = QPushButton("Add...")
+        out_bar_l.addWidget(self._btn_add_stage_output)
+        out_bar_l.addStretch(1)
+        stage_layout.addWidget(out_bar)
+
+        self._cap_hint_outputs = QLabel("")
+        self._cap_hint_outputs.setStyleSheet("color: #b45309;")  # amber-ish
+        stage_layout.addWidget(self._cap_hint_outputs)
         stage_layout.addWidget(self._stage_output_json)
 
         self._stage_bcs_json = QPlainTextEdit()
@@ -136,13 +154,119 @@ class PropertiesDock:
 
         self._current_stage_index: int | None = None
         self._current_stage_uid: str | None = None
+        self._solver_caps: dict[str, Any] | None = None
         self._current_material_id: str | None = None
 
         self._btn_apply_model.clicked.connect(self._on_apply_model)
         self._btn_apply_stage.clicked.connect(self._on_apply_stage)
         self._btn_apply_material.clicked.connect(self._on_apply_material)
+        self._btn_add_stage_output.clicked.connect(self._on_add_stage_output)
 
         self.show_empty()
+
+    def set_solver_capabilities(self, caps: dict[str, Any] | None) -> None:
+        """
+        Update UI availability based on solver capabilities (best-effort).
+        """
+        self._solver_caps = caps
+        # Refresh enable/disable state for current pages.
+        self._apply_capabilities_to_model_combo()
+        self._apply_capabilities_to_stage_combo()
+
+    def _set_combo_item_enabled(self, combo, index: int, enabled: bool) -> None:  # noqa: ANN001
+        try:
+            model = combo.model()
+            if hasattr(model, "item"):
+                item = model.item(index)
+                if item is not None:
+                    item.setEnabled(bool(enabled))
+                    return
+        except Exception:
+            pass
+        try:
+            from PySide6.QtCore import Qt  # type: ignore
+
+            role = int(Qt.ItemDataRole.UserRole) - 1
+            if enabled:
+                flags = int(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+            else:
+                flags = int(Qt.ItemFlag.ItemIsSelectable)
+            combo.setItemData(index, flags, role)
+        except Exception:
+            # Not all models allow per-item enabled control; ignore.
+            return
+
+    def _apply_capabilities_to_model_combo(self) -> None:
+        caps = self._solver_caps or {}
+        allowed = caps.get("modes")
+        if not isinstance(allowed, list) or not allowed:
+            self._cap_hint_model.setText("")
+            for i in range(self._mode.count()):
+                self._set_combo_item_enabled(self._mode, i, True)
+            return
+        allow = {str(x) for x in allowed if isinstance(x, str)}
+        for i in range(self._mode.count()):
+            v = str(self._mode.itemData(i))
+            self._set_combo_item_enabled(self._mode, i, v in allow)
+        cur = str(self._mode.currentData())
+        if cur and cur not in allow:
+            self._cap_hint_model.setText(f"Current mode '{cur}' is not supported by selected solver.")
+        else:
+            self._cap_hint_model.setText("")
+
+    def _apply_capabilities_to_stage_combo(self) -> None:
+        caps = self._solver_caps or {}
+        allowed = caps.get("analysis_types")
+        if not isinstance(allowed, list) or not allowed:
+            self._cap_hint_stage.setText("")
+            for i in range(self._analysis_type.count()):
+                self._set_combo_item_enabled(self._analysis_type, i, True)
+            return
+        allow = {str(x) for x in allowed if isinstance(x, str)}
+        for i in range(self._analysis_type.count()):
+            v = str(self._analysis_type.itemData(i))
+            self._set_combo_item_enabled(self._analysis_type, i, v in allow)
+        cur = str(self._analysis_type.currentData())
+        if cur and cur not in allow:
+            self._cap_hint_stage.setText(f"Current analysis_type '{cur}' is not supported by selected solver.")
+        else:
+            self._cap_hint_stage.setText("")
+
+    def _allowed_output_names(self) -> set[str] | None:
+        caps = self._solver_caps or {}
+        names: set[str] = set()
+        for key in ("results", "fields"):
+            v = caps.get(key)
+            if isinstance(v, list):
+                for it in v:
+                    if isinstance(it, str) and it:
+                        names.add(it)
+        return names or None
+
+    def _validate_stage_outputs_text(self) -> None:
+        allowed = self._allowed_output_names()
+        if not allowed:
+            self._cap_hint_outputs.setText("")
+            return
+        try:
+            out_req = json.loads(self._stage_output_json.toPlainText() or "[]")
+        except Exception:
+            self._cap_hint_outputs.setText("Stage output_requests JSON is invalid.")
+            return
+        if not isinstance(out_req, list):
+            self._cap_hint_outputs.setText("Stage output_requests must be a JSON list.")
+            return
+        bad: list[str] = []
+        for it in out_req:
+            if not isinstance(it, dict):
+                continue
+            name = it.get("name")
+            if isinstance(name, str) and name and name not in allowed:
+                bad.append(name)
+        if bad:
+            self._cap_hint_outputs.setText(f"Some outputs are not supported by selected solver: {sorted(set(bad))}")
+        else:
+            self._cap_hint_outputs.setText("")
 
     def bind_apply_model(self, cb: Callable[[str, float, float], None]) -> None:
         self._apply_model_cb = cb
@@ -162,6 +286,7 @@ class PropertiesDock:
         idx = self._mode.findData(mode)
         if idx >= 0:
             self._mode.setCurrentIndex(idx)
+        self._apply_capabilities_to_model_combo()
         gravity = model.get("gravity", [0.0, -9.81])
         try:
             gx, gy = float(gravity[0]), float(gravity[1])
@@ -179,6 +304,7 @@ class PropertiesDock:
         idx = self._analysis_type.findData(at)
         if idx >= 0:
             self._analysis_type.setCurrentIndex(idx)
+        self._apply_capabilities_to_stage_combo()
         self._num_steps.setValue(int(stage.get("num_steps", 1)))
         self._dt.setValue(float(stage.get("dt", 1.0)))
 
@@ -187,6 +313,7 @@ class PropertiesDock:
             self._stage_output_json.setPlainText(json.dumps(out_req, indent=2, ensure_ascii=False))
         except Exception:
             self._stage_output_json.setPlainText("[]")
+        self._validate_stage_outputs_text()
 
         bcs = stage.get("bcs", [])
         try:
@@ -250,6 +377,29 @@ class PropertiesDock:
             "loads": loads,
         }
         self._apply_stage_cb(self._current_stage_index, patch)
+        self._validate_stage_outputs_text()
+
+    def _on_add_stage_output(self) -> None:
+        from PySide6.QtWidgets import QMessageBox  # type: ignore
+
+        if self._current_stage_index is None:
+            QMessageBox.information(self.dock, "Output Requests", "Select a stage first.")
+            return
+        from geohpem.gui.dialogs.output_request_dialog import OutputRequestDialog
+
+        dlg = OutputRequestDialog(self.dock, capabilities=self._solver_caps)
+        res = dlg.exec()
+        if res is None:
+            return
+        try:
+            out_req = json.loads(self._stage_output_json.toPlainText() or "[]")
+            if not isinstance(out_req, list):
+                out_req = []
+        except Exception:
+            out_req = []
+        out_req.extend(res.output_requests)
+        self._stage_output_json.setPlainText(json.dumps(out_req, indent=2, ensure_ascii=False))
+        self._validate_stage_outputs_text()
 
     def _on_apply_material(self) -> None:
         if self._current_material_id is None or not self._apply_material_cb:

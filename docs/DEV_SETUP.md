@@ -11,14 +11,15 @@
 ## 2) 运行（开发态）
 
 在仓库根目录：
-- CLI：`python -m geohpem about`
-- 生成示例：`python -m geohpem contract-example`
-- 运行假求解：`python -m geohpem run examples\\contract_v0_1_minimal --solver fake`
+- CLI（无需安装包）：`python geohpem_cli.py about`
+- 生成示例：`python geohpem_cli.py contract-example`
+- 运行假求解：`python geohpem_cli.py run examples\\contract_v0_1_minimal --solver fake`
 - GUI：`python main.py --open examples\\contract_v0_1_minimal`
 
 说明：
 - 当前 `python -m geohpem` 默认启动 GUI（等价于 `geohpem.main`）
 - CLI 入口为 `python -m geohpem.cli ...`
+- 若已做 editable install（`pip install -e .`），也可直接用 `python -m geohpem.cli ...`
 
 ## 3) 外部 solver 包接入（约定）
 

@@ -75,7 +75,7 @@ GUI 菜单：
   - `gravity`（gx/gy）
 - `Stages -> <stage>`
   - `analysis_type`、`num_steps`、`dt`
-  - `output_requests`（JSON list）
+  - `output_requests`（JSON list；可点 `Add...` 按所选 solver 的 capabilities 快速添加；不支持字段会提示 WARN）
   - `bcs`（JSON list，后续会做表单化）
   - `loads`（JSON list，后续会做表单化）
 - `Materials -> <material_id>`
@@ -101,8 +101,11 @@ GUI 菜单：
 
 - 运行：`Solve -> Run (...)`
   1) 弹出 Pre-check 窗口：有 ERROR 会阻止运行；WARN 允许继续
+     - 若所选 solver 的 `capabilities()` 声明不支持当前 `mode`/`analysis_type`，会直接给出 ERROR
   2) 后台运行，底部 Tasks 显示进度，Log 显示日志
   3) 输出写入工作目录的 `out/` 并自动切换到 Output 工作区
+  4) Tasks 面板支持 `Cancel`（best-effort：solver 需要在迭代中检查 `callbacks['should_cancel']`）
+  5) 若失败/取消，会在工程工作目录生成 `_diagnostics/diag_*.zip` 便于排查/转交 solver 团队
 
 ## 10. 查看结果（Output 工作区 MVP）
 
@@ -144,3 +147,14 @@ GUI 菜单：
   - 成功后会更新项目的 `mesh`，并根据边标签/区域名自动生成 sets：
     - `edge_set__<label>`
     - `elem_set__<region_name>__tri3`
+
+## 12. 批量跑算例（高级/工程化）
+
+用于回归/对标：对一个目录下的多个 case folder 批量运行 solver，并输出汇总报告。
+
+- 命令：`python -m geohpem.cli batch-run <cases_root> --solver fake`
+  - 开发态（无需安装包）也可用：`python geohpem_cli.py batch-run <cases_root> --solver fake`
+  - `<cases_root>`：包含多个 case folder 的目录（每个子目录含 `request.json + mesh.npz`）
+  - 输出：默认写到 `<cases_root>/batch_report.json`
+  - 失败会生成 `_diagnostics/diag_*.zip`（每个 case 自己的工作目录里）
+  - 可选对比：`--baseline <baseline_root>`（要求基准结果位于 `<baseline_root>/<case_name>/out`）

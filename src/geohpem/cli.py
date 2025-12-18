@@ -21,6 +21,16 @@ def _build_parser() -> argparse.ArgumentParser:
         default="fake",
         help="Solver backend: fake | python:<module> (default: fake)",
     )
+
+    batch = sub.add_parser("batch-run", help="Run many case folders under a root directory.")
+    batch.add_argument("root", help="Root folder containing multiple case folders (or a single case folder).")
+    batch.add_argument(
+        "--solver",
+        default="fake",
+        help="Solver backend: fake | python:<module> (default: fake)",
+    )
+    batch.add_argument("--baseline", default=None, help="Baseline root folder for optional comparisons.")
+    batch.add_argument("--report", default=None, help="Write a JSON report to this path (default: <root>/batch_report.json)")
     return parser
 
 
@@ -48,6 +58,25 @@ def main(argv: list[str] | None = None) -> int:
         from geohpem.app.run_case import run_case
 
         run_case(case_dir=args.case_dir, solver_selector=args.solver)
+        return 0
+
+    if args.cmd == "batch-run":
+        from pathlib import Path
+
+        from geohpem.app.case_runner import discover_case_folders, run_cases, write_case_run_report
+
+        root = Path(args.root)
+        cases = discover_case_folders(root)
+        if not cases:
+            raise SystemExit(f"No case folders found under: {root}")
+
+        baseline = Path(args.baseline) if args.baseline else None
+        records = run_cases(cases, solver_selector=args.solver, baseline_root=baseline)
+
+        report = Path(args.report) if args.report else (root / "batch_report.json")
+        write_case_run_report(records, report)
+        failed = sum(1 for r in records if r.status != "success")
+        print(f"Wrote report: {report} (cases={len(records)}, failed={failed})")
         return 0
 
     if args.cmd == "gui":

@@ -11,6 +11,7 @@ class FakeSolver:
         return {
             "name": "fake",
             "contract": {"min": "0.1", "max": "0.1"},
+            "modes": ["plane_strain", "axisymmetric"],
             "analysis_types": ["static", "dynamic", "seepage_transient", "consolidation_u_p"],
             "fields": ["u", "p"],
             "results": ["u", "p", "stress", "strain"],
@@ -84,4 +85,3 @@ class FakeSolver:
             ],
         }
         return meta, arrays
-

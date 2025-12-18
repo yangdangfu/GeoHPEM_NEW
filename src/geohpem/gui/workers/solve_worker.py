@@ -20,31 +20,53 @@ class SolveWorker:
             progress = Signal(int, str)
             log = Signal(str)
             output_ready = Signal(object)  # Path
+            failed = Signal(str, object)  # error_text, diag_zip_path (Path|None)
+            canceled = Signal(object)  # diag_zip_path (Path|None)
+            cancel_requested = Signal()
 
             def __init__(self, case_dir: Path, solver_selector: str) -> None:
                 super().__init__()
                 self._case_dir = case_dir
                 self._solver_selector = solver_selector
+                self._cancel = False
+                self._logs: list[str] = []
+
+                self.cancel_requested.connect(self._on_cancel_requested)
+
+            @Slot()
+            def _on_cancel_requested(self) -> None:
+                self._cancel = True
+                self.log.emit("Cancel requested...")
 
             @Slot()
             def run(self) -> None:
                 from geohpem.app.run_case import run_case
+                from geohpem.app.diagnostics import build_diagnostics_zip
+                import traceback
 
                 self.started.emit()
                 self.progress.emit(1, "Starting...")
                 self.log.emit(f"Running solver: {self._solver_selector}")
+                self._logs.append(f"Running solver: {self._solver_selector}")
 
                 def on_progress(p: float, message: str, stage_id: str, step: int) -> None:
                     percent = int(max(0.0, min(1.0, p)) * 100)
                     self.progress.emit(percent, f"{stage_id} step {step}: {message}")
 
+                def on_log(level: str, msg: str) -> None:
+                    line = f"{level}: {msg}"
+                    self._logs.append(line)
+                    self.log.emit(line)
+
                 callbacks: dict[str, Callable[..., Any]] = {
                     "on_progress": on_progress,
-                    "should_cancel": lambda: False,
-                    "on_log": lambda level, msg: self.log.emit(f"{level}: {msg}"),
+                    "should_cancel": lambda: bool(self._cancel),
+                    "on_log": on_log,
                 }
 
                 try:
+                    if self._cancel:
+                        raise RuntimeError("Cancelled")
                     out_dir = run_case(
                         str(self._case_dir),
                         solver_selector=self._solver_selector,
@@ -53,7 +75,36 @@ class SolveWorker:
                     self.progress.emit(100, "Completed")
                     self.output_ready.emit(out_dir)
                 except Exception as exc:
-                    self.log.emit(f"FAILED: {exc}")
+                    tb = traceback.format_exc()
+                    msg = str(exc)
+                    diag = None
+                    try:
+                        # Try capture solver capabilities for diagnostics (best-effort).
+                        caps = None
+                        try:
+                            from geohpem.solver_adapter.loader import load_solver
+
+                            caps = load_solver(self._solver_selector).capabilities()
+                        except Exception:
+                            caps = None
+                        diag = build_diagnostics_zip(
+                            Path(self._case_dir),
+                            solver_selector=self._solver_selector,
+                            capabilities=caps if isinstance(caps, dict) else None,
+                            error=msg,
+                            tb=tb,
+                            logs=self._logs,
+                            include_out=True,
+                        ).zip_path
+                    except Exception:
+                        diag = None
+
+                    if self._cancel or "cancel" in msg.lower():
+                        self.log.emit("CANCELED")
+                        self.canceled.emit(diag)
+                    else:
+                        self.log.emit(f"FAILED: {msg}")
+                        self.failed.emit(msg, diag)
                 finally:
                     self.finished.emit()
 
@@ -70,7 +121,17 @@ class SolveWorker:
         self.progress = self._worker.progress
         self.log = self._worker.log
         self.output_ready = self._worker.output_ready
+        self.failed = self._worker.failed
+        self.canceled = self._worker.canceled
 
     def start(self) -> None:
         self._thread.start()
 
+    def cancel(self) -> None:
+        """
+        Request cancellation (best-effort). The solver must respect callbacks['should_cancel'].
+        """
+        try:
+            self._worker.cancel_requested.emit()
+        except Exception:
+            pass

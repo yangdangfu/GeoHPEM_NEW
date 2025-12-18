@@ -80,6 +80,7 @@ class MainWindow:
         self.selection = SelectionModel()
         self._active_workers: list[object] = []
         self._unit_context = None  # UnitContext | None
+        self._solver_caps_cache: dict[str, dict[str, Any]] = {}
 
         self._action_new = QAction("New Project...", self._win)
         self._action_new.triggered.connect(self._on_new_project)
@@ -199,6 +200,7 @@ class MainWindow:
         self.selection.changed.connect(self._on_selection_changed)
 
         self._update_run_action_text()
+        self._apply_solver_capabilities(self._safe_get_solver_caps(self._settings.get_solver_selector()))
 
     @property
     def qt(self):
@@ -331,6 +333,28 @@ class MainWindow:
         if isinstance(output_ws, OutputWorkspace):
             output_ws.set_unit_context(self._unit_context)
 
+    def _safe_get_solver_caps(self, selector: str) -> dict[str, Any] | None:
+        try:
+            return self._get_solver_caps(selector)
+        except Exception:
+            return None
+
+    def _get_solver_caps(self, selector: str) -> dict[str, Any]:
+        selector = (selector or "").strip() or "fake"
+        if selector in self._solver_caps_cache:
+            return self._solver_caps_cache[selector]
+        from geohpem.solver_adapter.loader import load_solver
+
+        solver = load_solver(selector)
+        caps = solver.capabilities()
+        if not isinstance(caps, dict):
+            raise TypeError("solver.capabilities() must return a dict")
+        self._solver_caps_cache[selector] = caps
+        return caps
+
+    def _apply_solver_capabilities(self, caps: dict[str, Any] | None) -> None:
+        self.properties_dock.set_solver_capabilities(caps)
+
     def _update_run_action_text(self) -> None:
         selector = self._settings.get_solver_selector()
         label = selector
@@ -346,8 +370,14 @@ class MainWindow:
         res = dlg.exec()
         if res is None:
             return
+        try:
+            caps = self._get_solver_caps(res.solver_selector)
+        except Exception as exc:
+            self._QMessageBox.critical(self._win, "Solver", f"Failed to load solver '{res.solver_selector}':\n{exc}")
+            return
         self._settings.set_solver_selector(res.solver_selector)
         self._update_run_action_text()
+        self._apply_solver_capabilities(caps)
         self.log_dock.append_info(f"Selected solver: {res.solver_selector}")
 
     def _on_display_units(self) -> None:
@@ -495,7 +525,14 @@ class MainWindow:
                 return
             from geohpem.app.precheck import precheck_request_mesh
 
-            issues = precheck_request_mesh(state.project.request, state.project.mesh)
+            solver_selector = self._settings.get_solver_selector()
+            try:
+                caps = self._get_solver_caps(solver_selector)
+            except Exception as exc:
+                self._QMessageBox.critical(self._win, "Run", f"Failed to load solver '{solver_selector}':\n{exc}")
+                return
+
+            issues = precheck_request_mesh(state.project.request, state.project.mesh, capabilities=caps)
             dlg = PrecheckDialog(self._win, issues)
             if not dlg.exec():
                 return
@@ -504,7 +541,6 @@ class MainWindow:
 
             from geohpem.gui.workers.solve_worker import SolveWorker
 
-            solver_selector = self._settings.get_solver_selector()
             worker = SolveWorker(case_dir=state.work_case_dir, solver_selector=solver_selector)
             # Keep strong reference during run to prevent GC-related crashes.
             self._active_workers.append(worker)
@@ -512,9 +548,33 @@ class MainWindow:
             self.tasks_dock.attach_worker(worker)
             self.log_dock.attach_worker(worker)
             worker.output_ready.connect(self.open_output_folder)
+            if hasattr(worker, "failed"):
+                worker.failed.connect(self._on_solver_failed)  # type: ignore[attr-defined]
+            if hasattr(worker, "canceled"):
+                worker.canceled.connect(self._on_solver_canceled)  # type: ignore[attr-defined]
             worker.start()
         except Exception as exc:
             self._QMessageBox.critical(self._win, "Run Failed", str(exc))
+
+    def _on_solver_failed(self, error_text: str, diag_path) -> None:  # noqa: ANN001
+        msg = f"Solver failed:\n{error_text}"
+        if diag_path:
+            try:
+                msg += f"\n\nDiagnostics:\n{diag_path}"
+            except Exception:
+                pass
+        self._QMessageBox.critical(self._win, "Solve Failed", msg)
+        self.log_dock.append_info(msg)
+
+    def _on_solver_canceled(self, diag_path) -> None:  # noqa: ANN001
+        msg = "Solve canceled."
+        if diag_path:
+            try:
+                msg += f"\n\nDiagnostics:\n{diag_path}"
+            except Exception:
+                pass
+        self._QMessageBox.information(self._win, "Solve", msg)
+        self.log_dock.append_info(msg)
 
     def _on_manage_sets(self) -> None:
         state = self.model.state()

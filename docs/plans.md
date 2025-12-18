@@ -116,14 +116,19 @@
 
 - [x] Solver Manager（选择/显示 capabilities，缓存）
   - DoD：GUI 可选择 solver（fake / python:<module>），可检查并展示 `solver.capabilities()`，运行时使用所选 solver。
-- [ ] capabilities 驱动 UI 灰置/提示（mode/analysis_type/输出字段）
-- [ ] 运行监视增强（取消协作、错误码映射、诊断包 zip）
+- [x] capabilities 驱动 UI 灰置/提示（mode/analysis_type/输出字段，MVP）
+  - DoD：根据 capabilities 灰置 `mode` 与 `analysis_type` 的不支持选项；Run 前 precheck 会对不支持项给出 ERROR 并阻止运行；`output_requests` 中不支持字段给出 WARN，并提供 “Add Output Requests...” 快捷添加。
+- [x] 运行监视增强（取消 + 诊断包 zip，MVP）
+  - DoD：Tasks 面板可 Cancel（best-effort）；失败/取消时自动生成 `_diagnostics/diag_*.zip` 并在弹窗与 Log 中提示路径。
+- [ ] 错误码映射（可选，后续增强）
+  - DoD：将 solver 的错误类型/错误码映射为标准化错误列表，并支持“一键打包上传”。
 
 ---
 
 ## M10：对标与回归（工程化保障）
 
-- [ ] 批量跑算例（Case Runner）
+- [x] 批量跑算例（Case Runner，MVP）
+  - DoD：`python geohpem_cli.py batch-run <root> --solver ...` 可批量运行并输出 `batch_report.json`（含成功/失败/耗时/诊断包路径）；可选 `--baseline <root>` 写入末步数组差异统计。
 - [ ] 结果对比（差值云图/曲线/统计）
 - [ ] 基准性能记录（耗时/内存）
 
