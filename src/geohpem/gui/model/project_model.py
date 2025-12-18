@@ -203,6 +203,52 @@ class ProjectModel:
         self.undo_state_changed.emit(self.undo_stack.can_undo(), self.undo_stack.can_redo())
         self.set_dirty(True)
 
+    def update_request_and_mesh(
+        self,
+        *,
+        request: dict[str, Any],
+        mesh: dict[str, Any],
+        name: str = "Edit Project",
+        merge_key: str | None = None,
+    ) -> None:
+        """
+        Atomically update request+mesh in one undo step.
+
+        Useful when a UI action creates/renames sets (touches mesh) and also updates request.sets_meta (labels/uid).
+        """
+        import copy
+
+        project = self.ensure_project()
+        before_req = copy.deepcopy(project.request)
+        before_mesh = {k: np.asarray(v).copy() for k, v in project.mesh.items()}
+        after_req = copy.deepcopy(request)
+        after_mesh = {k: np.asarray(v).copy() for k, v in mesh.items()}
+
+        def _apply(req: dict[str, Any], m: dict[str, Any]) -> None:
+            project.request = req
+            project.mesh = m
+            try:
+                from geohpem.project.normalize import ensure_request_ids
+
+                ensure_request_ids(project.request, project.mesh)
+            except Exception:
+                pass
+            self.request_changed.emit(project.request)
+            self.mesh_changed.emit(project.mesh)
+            self.stages_changed.emit(project.request.get("stages", []))
+            self.materials_changed.emit(project.request.get("materials", {}))
+            self.assignments_changed.emit(project.request.get("assignments", []))
+
+        def _undo() -> None:
+            _apply(copy.deepcopy(before_req), {k: np.asarray(v).copy() for k, v in before_mesh.items()})
+
+        def _redo() -> None:
+            _apply(copy.deepcopy(after_req), {k: np.asarray(v).copy() for k, v in after_mesh.items()})
+
+        self.undo_stack.push_and_redo(UndoCommand(name=name, undo=_undo, redo=_redo), merge_key=merge_key)
+        self.undo_state_changed.emit(self.undo_stack.can_undo(), self.undo_stack.can_redo())
+        self.set_dirty(True)
+
     def update_model(self, mode: str, gx: float, gy: float) -> None:
         from geohpem.domain.request_ops import set_model
 

@@ -64,11 +64,18 @@ def save_geohpem(path: str | Path, project: ProjectData) -> Path:
         np.savez_compressed(result_buf, **project.result_arrays)
         result_npz_bytes = result_buf.getvalue()
 
+    ui_state_bytes: bytes | None = None
+    if project.ui_state is not None:
+        ui_state_bytes = json.dumps(project.ui_state, indent=2, ensure_ascii=False).encode("utf-8")
+
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(out_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("manifest.json", json.dumps(manifest, indent=2, ensure_ascii=False).encode("utf-8"))
         zf.writestr("request.json", json.dumps(project.request, indent=2, ensure_ascii=False).encode("utf-8"))
         zf.writestr("mesh.npz", mesh_bytes)
+
+        if ui_state_bytes is not None:
+            zf.writestr("ui_state.json", ui_state_bytes)
 
         if result_json_bytes is not None and result_npz_bytes is not None:
             zf.writestr("out/result.json", result_json_bytes)
@@ -94,6 +101,15 @@ def load_geohpem(path: str | Path) -> ProjectData:
 
         result_meta = None
         result_arrays = None
+        ui_state: dict[str, Any] | None = None
+        try:
+            ui_state = json.loads(zf.read("ui_state.json").decode("utf-8"))
+            if not isinstance(ui_state, dict):
+                ui_state = None
+        except KeyError:
+            ui_state = None
+        except Exception:
+            ui_state = None
         try:
             result_json_bytes = zf.read("out/result.json")
             result_npz_bytes = zf.read("out/result.npz")
@@ -112,4 +128,5 @@ def load_geohpem(path: str | Path) -> ProjectData:
         result_meta=result_meta,
         result_arrays=result_arrays,
         manifest=manifest,
+        ui_state=ui_state,
     )

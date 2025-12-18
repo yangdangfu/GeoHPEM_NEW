@@ -13,4 +13,4 @@ class ProjectData:
     result_meta: dict[str, Any] | None = None
     result_arrays: dict[str, np.ndarray] | None = None
     manifest: dict[str, Any] | None = None
-
+    ui_state: dict[str, Any] | None = None

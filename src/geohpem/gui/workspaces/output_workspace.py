@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -15,7 +16,7 @@ from geohpem.viz.vtk_convert import (
 
 class OutputWorkspace:
     def __init__(self) -> None:
-        from PySide6.QtCore import Qt  # type: ignore
+        from PySide6.QtCore import QObject, Qt, Signal  # type: ignore
         from PySide6.QtWidgets import (
             QDoubleSpinBox,
             QCheckBox,
@@ -33,10 +34,17 @@ class OutputWorkspace:
         )  # type: ignore
         from geohpem.util.ids import new_uid
 
+        class _Signals(QObject):
+            ui_state_changed = Signal()
+
+        self._signals = _Signals()
+        self.ui_state_changed = self._signals.ui_state_changed
+
         self._Qt = Qt
         self._QMessageBox = QMessageBox
         self._QDoubleSpinBox = QDoubleSpinBox
         self._new_uid = new_uid
+        self._is_2d_view = True
 
         self.widget = QWidget()
         layout = QVBoxLayout(self.widget)
@@ -93,6 +101,10 @@ class OutputWorkspace:
         self.btn_export_img.setEnabled(False)
         left_layout.addWidget(self.btn_export_img)
 
+        self.btn_export_steps = QPushButton("Export steps -> PNG...")
+        self.btn_export_steps.setEnabled(False)
+        left_layout.addWidget(self.btn_export_steps)
+
         left_layout.addWidget(QLabel("Profiles"))
         self.profile_list = QListWidget()
         self.profile_list.setEnabled(False)
@@ -107,6 +119,16 @@ class OutputWorkspace:
         self.btn_profile_remove = QPushButton("Remove selected")
         self.btn_profile_remove.setEnabled(False)
         left_layout.addWidget(self.btn_profile_remove)
+
+        self.btn_profile_edit = QPushButton("Edit selected (drag)")
+        self.btn_profile_edit.setEnabled(False)
+        left_layout.addWidget(self.btn_profile_edit)
+        self.btn_profile_edit_finish = QPushButton("Finish edit")
+        self.btn_profile_edit_finish.setEnabled(False)
+        left_layout.addWidget(self.btn_profile_edit_finish)
+        self.btn_profile_edit_cancel = QPushButton("Cancel edit")
+        self.btn_profile_edit_cancel.setEnabled(False)
+        left_layout.addWidget(self.btn_profile_edit_cancel)
 
         left_layout.addWidget(QLabel("Pins"))
         self.pin_list = QListWidget()
@@ -177,9 +199,13 @@ class OutputWorkspace:
         self.btn_profile.clicked.connect(self._on_profile_line)
         self.btn_history.clicked.connect(self._on_time_history)
         self.btn_export_img.clicked.connect(self._on_export_image)
+        self.btn_export_steps.clicked.connect(self._on_export_steps_png)
         self.btn_profile_pick.clicked.connect(self._start_profile_pick_mode)
         self.btn_profile_plot.clicked.connect(self._plot_selected_profile)
         self.btn_profile_remove.clicked.connect(self._remove_selected_profile)
+        self.btn_profile_edit.clicked.connect(self._start_profile_edit)
+        self.btn_profile_edit_finish.clicked.connect(self._finish_profile_edit)
+        self.btn_profile_edit_cancel.clicked.connect(self._cancel_profile_edit)
         self.profile_list.currentRowChanged.connect(self._on_profile_selection_changed)
         self.profile_list.itemDoubleClicked.connect(lambda *_: self._plot_selected_profile())
         self.pin_list.currentRowChanged.connect(self._on_pin_selection_changed)
@@ -196,8 +222,10 @@ class OutputWorkspace:
         self._mode: str = "normal"  # normal|profile_pick
         self._profile_pick_points: list[tuple[float, float, float]] = []
         self._profiles: list[dict[str, Any]] = []
-        self._profile_actor = None
+        self._profile_widget = None
+        self._profile_edit_backup: dict[str, Any] | None = None
         self._pins: list[dict[str, Any]] = []
+        self._ui_state: dict[str, Any] | None = None
 
     def set_unit_context(self, units) -> None:  # noqa: ANN001
         """
@@ -233,6 +261,7 @@ class OutputWorkspace:
         self.btn_profile.setEnabled(True)
         self.btn_history.setEnabled(True)
         self.btn_export_img.setEnabled(True)
+        self.btn_export_steps.setEnabled(True)
         self.profile_list.setEnabled(True)
         self.btn_profile_pick.setEnabled(True)
         self._refresh_profile_list()
@@ -240,6 +269,76 @@ class OutputWorkspace:
         self.btn_pin_node.setEnabled(True)
         self.btn_pin_elem.setEnabled(True)
         self._refresh_pin_list()
+        self._apply_ui_state_if_ready()
+
+    def set_ui_state(self, ui_state: dict[str, Any]) -> None:
+        """
+        Load per-project UI state (profiles/pins/view preferences) into this workspace.
+        Safe to call before/after set_result().
+        """
+        self._ui_state = ui_state if isinstance(ui_state, dict) else {}
+        self._apply_ui_state_if_ready()
+
+    def get_ui_state(self) -> dict[str, Any]:
+        """
+        Return a JSON-serializable UI state dict to be persisted in ProjectData.ui_state.
+        """
+        def _clean_profile(p: dict[str, Any]) -> dict[str, Any]:
+            out: dict[str, Any] = {}
+            for k in ("uid", "name", "p1", "p2", "reg", "step_id"):
+                if k in p:
+                    out[k] = p[k]
+            return out
+
+        def _clean_pin(pin: dict[str, Any]) -> dict[str, Any]:
+            out: dict[str, Any] = {}
+            for k in ("uid", "kind", "pid", "cell_id", "cell_type", "local_id", "label"):
+                if k in pin:
+                    out[k] = pin[k]
+            return out
+
+        return {
+            "output": {
+                "profiles": [_clean_profile(p) for p in self._profiles if isinstance(p, dict)],
+                "pins": [_clean_pin(p) for p in self._pins if isinstance(p, dict)],
+            }
+        }
+
+    def _apply_ui_state_if_ready(self) -> None:
+        """
+        Apply cached ui_state to widgets; best-effort.
+        """
+        if self._ui_state is None:
+            return
+        out = self._ui_state.get("output") if isinstance(self._ui_state, dict) else None
+        if not isinstance(out, dict):
+            return
+        profs = out.get("profiles")
+        pins = out.get("pins")
+        if isinstance(profs, list):
+            self._profiles = [p for p in profs if isinstance(p, dict)]
+            try:
+                # Ensure uids exist
+                for p in self._profiles:
+                    if not p.get("uid"):
+                        p["uid"] = self._new_uid("profile")
+            except Exception:
+                pass
+            self._refresh_profile_list()
+        if isinstance(pins, list):
+            self._pins = [p for p in pins if isinstance(p, dict)]
+            try:
+                for p in self._pins:
+                    if not p.get("uid"):
+                        p["uid"] = self._new_uid("pin")
+            except Exception:
+                pass
+            self._refresh_pin_list()
+        # Re-render overlays if we already have a view.
+        try:
+            self._render()
+        except Exception:
+            pass
 
     def _infer_steps(self, meta: dict[str, Any], arrays: dict[str, Any]) -> tuple[list[int], dict[int, dict[str, Any]]]:
         """
@@ -313,6 +412,7 @@ class OutputWorkspace:
 
         self._viewer = QtInteractor(self._viewer_host)
         self._viewer_host_layout.addWidget(self._viewer)
+        self._apply_2d_view()
 
         # probe picking
         def on_pick(*args, **kwargs):  # noqa: ANN001
@@ -358,9 +458,25 @@ class OutputWorkspace:
         except Exception:
             # Some versions may not expose enable_cell_picking; point probe still works.
             pass
+        # Some picking helpers may reset the interactor style; enforce our 2D interaction again.
+        self._apply_2d_view()
         self._viewer.set_background("white")
         self.btn_reset.setEnabled(True)
         self.btn_export_img.setEnabled(True)
+
+    def _apply_2d_view(self) -> None:
+        """
+        Configure the VTK viewer for 2D-only interaction (pan/zoom, no rotation).
+        """
+        if not self._is_2d_view or self._viewer is None:
+            return
+        plotter = getattr(self._viewer, "plotter", self._viewer)
+        try:
+            from geohpem.viz.vtk_interaction import apply_2d_interaction
+
+            apply_2d_interaction(plotter)
+        except Exception:
+            return
 
     def shutdown(self) -> None:
         """
@@ -425,6 +541,9 @@ class OutputWorkspace:
         if self._mesh is None:
             self.probe.setText("Mesh not available (open project/case with output).")
             return
+        if self._mode == "profile_edit":
+            # Avoid clearing/rebuilding the plotter while a VTK widget is active.
+            return
 
         reg = self._selected_reg()
         step_id = self._selected_step_id()
@@ -458,7 +577,9 @@ class OutputWorkspace:
         else:
             title = f"{scalar_name} (step {step_id:06d})"
         self._viewer.add_scalar_bar(title=title)
-        self._viewer.reset_camera()
+        self._add_profile_overlays()
+        if not bool(getattr(self, "_export_keep_camera", False)):
+            self._viewer.reset_camera()
         self._viewer.render()
 
         # Enable field mode if vector
@@ -468,6 +589,29 @@ class OutputWorkspace:
         self._last_grid = grid  # type: ignore[attr-defined]
         self._last_scalar = scalar_name  # type: ignore[attr-defined]
         self._last_pref = scalars_kwargs.get("preference", "point")  # type: ignore[attr-defined]
+
+    def _add_profile_overlays(self) -> None:
+        """
+        Draw all profile lines as view overlays (best-effort).
+        """
+        if self._viewer is None:
+            return
+        try:
+            import pyvista as pv  # type: ignore
+
+            selected = self._selected_profile()
+            selected_uid = selected.get("uid") if isinstance(selected, dict) else None
+            for p in self._profiles:
+                if not isinstance(p, dict):
+                    continue
+                p1 = tuple(float(x) for x in (p.get("p1") or [0.0, 0.0, 0.0])[:3])
+                p2 = tuple(float(x) for x in (p.get("p2") or [0.0, 0.0, 0.0])[:3])
+                uid = p.get("uid")
+                color = "red" if (uid and uid == selected_uid) else "#555555"
+                line = pv.Line(p1, p2, resolution=1)
+                self._viewer.add_mesh(line, color=color, line_width=3 if color == "red" else 2, pickable=False)
+        except Exception:
+            return
 
     def _update_step_info(self, step_id: int) -> None:
         info = self._step_infos.get(int(step_id))
@@ -763,19 +907,6 @@ class OutputWorkspace:
             else:
                 raise RuntimeError(f"Sampled data missing '{scalar_name}'")
 
-            # Overlay line
-            try:
-                line = pv.Line(p1, p2, resolution=1)
-                if self._profile_actor is not None:
-                    try:
-                        self._viewer.remove_actor(self._profile_actor)
-                    except Exception:
-                        pass
-                self._profile_actor = self._viewer.add_mesh(line, color="red", line_width=3)
-                self._viewer.render()
-            except Exception:
-                pass
-
             uid = self._new_uid("profile")
             prof = {
                 "uid": uid,
@@ -792,6 +923,14 @@ class OutputWorkspace:
             self._profiles.append(prof)
             self._refresh_profile_list(select_uid=uid)
             self._plot_profile(prof)
+            try:
+                self.ui_state_changed.emit()
+            except Exception:
+                pass
+            try:
+                self._render()
+            except Exception:
+                pass
         except Exception as exc:
             self._QMessageBox.critical(self.widget, "Profile Failed", str(exc))
 
@@ -814,6 +953,9 @@ class OutputWorkspace:
         ok = 0 <= int(row) < len(self._profiles)
         self.btn_profile_plot.setEnabled(bool(ok))
         self.btn_profile_remove.setEnabled(bool(ok))
+        self.btn_profile_edit.setEnabled(bool(ok) and self._mode == "normal")
+        self.btn_profile_edit_finish.setEnabled(False)
+        self.btn_profile_edit_cancel.setEnabled(False)
 
     def _selected_profile(self) -> dict[str, Any] | None:
         row = int(self.profile_list.currentRow())
@@ -834,30 +976,27 @@ class OutputWorkspace:
             return
         del self._profiles[row]
         self._refresh_profile_list()
+        try:
+            self.ui_state_changed.emit()
+        except Exception:
+            pass
 
     def _plot_profile(self, prof: dict[str, Any]) -> None:
-        # Overlay line for selected profile (best-effort).
-        if self._viewer is not None:
-            try:
-                import pyvista as pv  # type: ignore
-
-                p1 = tuple(float(x) for x in (prof.get("p1") or [0.0, 0.0, 0.0])[:3])
-                p2 = tuple(float(x) for x in (prof.get("p2") or [0.0, 0.0, 0.0])[:3])
-                line = pv.Line(p1, p2, resolution=1)
-                if self._profile_actor is not None:
-                    try:
-                        self._viewer.remove_actor(self._profile_actor)
-                    except Exception:
-                        pass
-                self._profile_actor = self._viewer.add_mesh(line, color="red", line_width=3)
-                self._viewer.render()
-            except Exception:
-                pass
-
         from geohpem.gui.dialogs.plot_dialog import PlotDialog, PlotSeries
 
         dist = np.asarray(prof.get("dist", []), dtype=float).ravel()
         vals = np.asarray(prof.get("vals", []), dtype=float).ravel()
+        if dist.size == 0 or vals.size == 0:
+            try:
+                dist, vals, scalar_name2, unit2 = self._recompute_profile_series(prof)
+                prof["dist"] = dist
+                prof["vals"] = vals
+                if scalar_name2:
+                    prof["scalar_name"] = scalar_name2
+                if unit2:
+                    prof["unit"] = unit2
+            except Exception:
+                pass
         scalar_name = str(prof.get("scalar_name", "value"))
         unit = prof.get("unit")
         step_id = int(prof.get("step_id", 0))
@@ -876,6 +1015,177 @@ class OutputWorkspace:
             default_png_name=f"profile_{scalar_name}_step{step_id:06d}.png",
         )
         dlg.exec()
+
+    def _recompute_profile_series(self, prof: dict[str, Any]) -> tuple[np.ndarray, np.ndarray, str | None, str | None]:
+        """
+        Re-sample the result field over the profile line.
+        Returns (dist, vals, scalar_name, unit_label).
+        """
+        if self._arrays is None or self._mesh is None:
+            raise RuntimeError("No result loaded")
+        reg_ref = prof.get("reg") if isinstance(prof.get("reg"), dict) else {}
+        location = str(reg_ref.get("location", "node"))
+        name = str(reg_ref.get("name", ""))
+        if not name:
+            raise RuntimeError("Profile missing reg.name")
+        step_id = int(prof.get("step_id", 0))
+        p1 = tuple(float(x) for x in (prof.get("p1") or [0.0, 0.0, 0.0])[:3])
+        p2 = tuple(float(x) for x in (prof.get("p2") or [0.0, 0.0, 0.0])[:3])
+
+        reg = None
+        if self._meta is not None:
+            for it in self._meta.get("registry", []):
+                if not isinstance(it, dict):
+                    continue
+                if str(it.get("location", "")) == location and str(it.get("name", "")) == name:
+                    reg = it
+                    break
+        if reg is None:
+            reg = {"location": location, "name": name}
+
+        grid, scalar_name, _scalars_kwargs, unit_label, _is_vec = self._build_grid_with_scalars(reg, step_id, warp=False)
+        sampled = grid.sample_over_line(p1, p2, resolution=200)
+        dist = None
+        for key in ("Distance", "distance"):
+            if key in sampled.point_data:
+                dist = np.asarray(sampled.point_data[key], dtype=float).ravel()
+                break
+        if dist is None:
+            pts = np.asarray(sampled.points, dtype=float)
+            dist = np.sqrt(np.sum((pts[:, :3] - pts[0, :3]) ** 2, axis=1))
+
+        if scalar_name in sampled.point_data:
+            vals = np.asarray(sampled.point_data[scalar_name], dtype=float).ravel()
+        elif scalar_name in sampled.cell_data:
+            vals = np.asarray(sampled.cell_data[scalar_name], dtype=float).ravel()
+        else:
+            raise RuntimeError(f"Sampled data missing '{scalar_name}'")
+        return dist, vals, scalar_name, unit_label
+
+    def _start_profile_edit(self) -> None:
+        if self._viewer is None:
+            return
+        if self._mode != "normal":
+            return
+        prof = self._selected_profile()
+        if prof is None:
+            return
+        p1 = tuple(float(x) for x in (prof.get("p1") or [0.0, 0.0, 0.0])[:3])
+        p2 = tuple(float(x) for x in (prof.get("p2") or [0.0, 0.0, 0.0])[:3])
+        self._profile_edit_backup = {"uid": prof.get("uid"), "p1": list(p1), "p2": list(p2)}
+
+        self._mode = "profile_edit"
+        try:
+            self.probe.setPlainText("Profile edit: drag the two endpoints, then click Finish/Cancel.")
+        except Exception:
+            pass
+        try:
+            self.registry_list.setEnabled(False)
+            self.step.setEnabled(False)
+            self.field_mode.setEnabled(False)
+            self.warp.setEnabled(False)
+            self.warp_scale.setEnabled(False)
+            self.btn_profile_edit.setEnabled(False)
+            self.btn_profile_edit_finish.setEnabled(True)
+            self.btn_profile_edit_cancel.setEnabled(True)
+        except Exception:
+            pass
+
+        def cb(a, b, *_args, **_kwargs):  # noqa: ANN001
+            try:
+                prof["p1"] = [float(a[0]), float(a[1]), float(a[2]) if len(a) >= 3 else 0.0]
+                prof["p2"] = [float(b[0]), float(b[1]), float(b[2]) if len(b) >= 3 else 0.0]
+            except Exception:
+                return
+
+        try:
+            plotter = getattr(self._viewer, "plotter", self._viewer)
+            self._profile_widget = plotter.add_line_widget(  # type: ignore[misc]
+                cb,
+                use_vertices=False,
+                pass_widget=False,
+                interaction_event="end",
+                color="red",
+            )
+            try:
+                if hasattr(self._profile_widget, "SetPoint1"):
+                    self._profile_widget.SetPoint1(*p1)  # type: ignore[misc]
+                if hasattr(self._profile_widget, "SetPoint2"):
+                    self._profile_widget.SetPoint2(*p2)  # type: ignore[misc]
+            except Exception:
+                pass
+        except Exception as exc:
+            self._mode = "normal"
+            self._profile_widget = None
+            self._profile_edit_backup = None
+            self._QMessageBox.critical(self.widget, "Profile Edit Failed", str(exc))
+            try:
+                self._render()
+            except Exception:
+                pass
+
+    def _finish_profile_edit(self) -> None:
+        if self._mode != "profile_edit":
+            return
+        self._teardown_profile_widget()
+        self._mode = "normal"
+        self._profile_edit_backup = None
+        try:
+            self.ui_state_changed.emit()
+        except Exception:
+            pass
+        try:
+            self.registry_list.setEnabled(True)
+            self.step.setEnabled(True)
+            self.warp.setEnabled(True)
+            self.warp_scale.setEnabled(True)
+        except Exception:
+            pass
+        try:
+            self._render()
+        except Exception:
+            pass
+        self._on_profile_selection_changed(self.profile_list.currentRow())
+
+    def _cancel_profile_edit(self) -> None:
+        if self._mode != "profile_edit":
+            return
+        backup = self._profile_edit_backup
+        self._teardown_profile_widget()
+        self._mode = "normal"
+        if isinstance(backup, dict):
+            uid = backup.get("uid")
+            for p in self._profiles:
+                if isinstance(p, dict) and p.get("uid") == uid:
+                    p["p1"] = backup.get("p1")
+                    p["p2"] = backup.get("p2")
+                    break
+        self._profile_edit_backup = None
+        try:
+            self.registry_list.setEnabled(True)
+            self.step.setEnabled(True)
+            self.warp.setEnabled(True)
+            self.warp_scale.setEnabled(True)
+        except Exception:
+            pass
+        try:
+            self._render()
+        except Exception:
+            pass
+        self._on_profile_selection_changed(self.profile_list.currentRow())
+
+    def _teardown_profile_widget(self) -> None:
+        w = self._profile_widget
+        self._profile_widget = None
+        if w is None:
+            return
+        try:
+            if hasattr(w, "Off"):
+                w.Off()  # type: ignore[misc]
+            elif hasattr(w, "SetEnabled"):
+                w.SetEnabled(0)  # type: ignore[misc]
+        except Exception:
+            pass
 
     def _refresh_pin_list(self, *, select_uid: str | None = None) -> None:
         self.pin_list.clear()
@@ -918,6 +1228,10 @@ class OutputWorkspace:
         pin = {"uid": uid, "kind": "node", "name": f"node_{len([p for p in self._pins if p.get('kind')=='node'])+1}", "pid": int(self._last_probe_pid), "x": float(px), "y": float(py)}
         self._pins.append(pin)
         self._refresh_pin_list(select_uid=uid)
+        try:
+            self.ui_state_changed.emit()
+        except Exception:
+            pass
 
     def _pin_last_cell(self) -> None:
         if self._last_cell_id is None or not isinstance(self._last_cell_info, dict):
@@ -928,6 +1242,10 @@ class OutputWorkspace:
         pin = {"uid": uid, "kind": "element", "name": f"elem_{len([p for p in self._pins if p.get('kind')=='element'])+1}", **info}
         self._pins.append(pin)
         self._refresh_pin_list(select_uid=uid)
+        try:
+            self.ui_state_changed.emit()
+        except Exception:
+            pass
 
     def _remove_selected_pin(self) -> None:
         row = int(self.pin_list.currentRow())
@@ -935,6 +1253,10 @@ class OutputWorkspace:
             return
         del self._pins[row]
         self._refresh_pin_list()
+        try:
+            self.ui_state_changed.emit()
+        except Exception:
+            pass
 
     def _step_time_map(self) -> dict[int, float]:
         """
@@ -1040,6 +1362,105 @@ class OutputWorkspace:
             self._QMessageBox.information(self.widget, "Export Image", f"Saved:\n{file}")
         except Exception as exc:
             self._QMessageBox.critical(self.widget, "Export Image Failed", str(exc))
+
+    def _on_export_steps_png(self) -> None:
+        """
+        Export the currently selected field over all steps as a PNG sequence.
+        """
+        if self._viewer is None or self._meta is None or self._arrays is None or self._mesh is None:
+            return
+        ctx = self._current_field_context()
+        if ctx is None:
+            self._QMessageBox.information(self.widget, "Export Steps", "Select a field and render a step first.")
+            return
+        _reg, _step_id, scalar_name, _pref, _unit_label = ctx
+
+        from PySide6.QtCore import Qt  # type: ignore
+        from PySide6.QtWidgets import QFileDialog, QInputDialog, QProgressDialog  # type: ignore
+
+        folder = QFileDialog.getExistingDirectory(self.widget, "Export Steps (PNG)", "")
+        if not folder:
+            return
+
+        prefix, ok = QInputDialog.getText(self.widget, "Export Steps", "Filename prefix", text=str(scalar_name or "field"))
+        if not ok:
+            return
+        prefix = (prefix or "field").strip() or "field"
+
+        cam = None
+        try:
+            cam = getattr(self._viewer, "camera_position", None)
+        except Exception:
+            cam = None
+
+        prog = QProgressDialog("Exporting PNG sequence...", "Cancel", 0, max(len(self._steps), 1), self.widget)
+        prog.setWindowModality(Qt.WindowModality.ApplicationModal)
+        prog.setMinimumDuration(0)
+        prog.show()
+
+        old_idx = int(self.step.value())
+        self._export_keep_camera = True  # type: ignore[attr-defined]
+        try:
+            # prevent user interaction changing the view while exporting
+            self.registry_list.setEnabled(False)
+            self.step.setEnabled(False)
+            self.field_mode.setEnabled(False)
+            self.warp.setEnabled(False)
+            self.warp_scale.setEnabled(False)
+
+            self.step.blockSignals(True)
+            for i, step_id in enumerate(self._steps):
+                prog.setValue(i)
+                prog.setLabelText(f"step {int(step_id):06d} ({i+1}/{len(self._steps)})")
+                if prog.wasCanceled():
+                    break
+                self.step.setValue(int(i))
+                self._render()
+                try:
+                    if cam is not None and hasattr(self._viewer, "camera_position"):
+                        self._viewer.camera_position = cam  # type: ignore[attr-defined]
+                        self._viewer.render()
+                except Exception:
+                    pass
+                out = Path(folder) / f"{prefix}_step{int(step_id):06d}.png"
+                v = self._viewer
+                if hasattr(v, "screenshot"):
+                    v.screenshot(str(out))  # type: ignore[misc]
+                else:
+                    plotter = getattr(v, "plotter", None)
+                    if plotter is None or not hasattr(plotter, "screenshot"):
+                        raise RuntimeError("Viewer does not support screenshot()")
+                    plotter.screenshot(str(out))  # type: ignore[misc]
+        except Exception as exc:
+            self._QMessageBox.critical(self.widget, "Export Steps Failed", str(exc))
+        finally:
+            try:
+                self.step.blockSignals(False)
+            except Exception:
+                pass
+            try:
+                self._export_keep_camera = False  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            try:
+                self.registry_list.setEnabled(True)
+                self.step.setEnabled(True)
+                self.warp.setEnabled(True)
+                self.warp_scale.setEnabled(True)
+            except Exception:
+                pass
+            try:
+                self.step.setValue(old_idx)
+            except Exception:
+                pass
+            try:
+                self._render()
+            except Exception:
+                pass
+            try:
+                prog.close()
+            except Exception:
+                pass
 
     def _on_profile_line(self) -> None:
         if self._viewer is None:

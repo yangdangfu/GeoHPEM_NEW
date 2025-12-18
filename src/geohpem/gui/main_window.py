@@ -278,6 +278,7 @@ class MainWindow:
                 input_ws.validate_requested.connect(self._on_validate_inputs)
                 input_ws.run_requested.connect(self._on_run_solver)
                 input_ws.switch_output_requested.connect(lambda: self._set_workspace("output"))
+                input_ws.create_set_requested.connect(self._on_create_set_from_preview)
 
                 def _push_input_preview(*_args) -> None:  # noqa: ANN001
                     st = self.model.state()
@@ -291,6 +292,14 @@ class MainWindow:
                 # Keep the center preview in sync with current in-memory project data.
                 self.model.request_changed.connect(_push_input_preview)
                 self.model.mesh_changed.connect(_push_input_preview)
+        except Exception:
+            pass
+
+        # Capture Output workspace UI state into the project (profiles/pins/view settings).
+        try:
+            output_ws = self.workspace_stack.get("output")
+            if isinstance(output_ws, OutputWorkspace) and hasattr(output_ws, "ui_state_changed"):
+                output_ws.ui_state_changed.connect(self._on_output_ui_state_changed)
         except Exception:
             pass
 
@@ -384,6 +393,82 @@ class MainWindow:
         except Exception:
             pass
 
+    def _on_output_ui_state_changed(self) -> None:
+        """
+        Persist Output-side UI state (profiles/pins) into the current ProjectData.ui_state.
+        """
+        state = self.model.state()
+        if not state.project:
+            return
+        try:
+            output_ws = self.workspace_stack.get("output")
+            if not isinstance(output_ws, OutputWorkspace):
+                return
+            ui_state = output_ws.get_ui_state()
+            if not isinstance(ui_state, dict):
+                return
+            if state.project.ui_state == ui_state:
+                return
+            state.project.ui_state = ui_state
+            self.model.set_dirty(True)
+        except Exception:
+            return
+
+    def _on_create_set_from_preview(self, payload) -> None:  # noqa: ANN001
+        """
+        Create node/element sets from Input Mesh Preview selection.
+        """
+        state = self.model.state()
+        if not state.project:
+            return
+        if not isinstance(payload, dict):
+            return
+        kind = str(payload.get("kind", ""))
+        name = str(payload.get("name", "")).strip()
+        key = str(payload.get("key", "")).strip()
+        ids = payload.get("ids", [])
+        pairs = payload.get("pairs", [])
+        if not name or not key:
+            return
+
+        try:
+            from geohpem.contract.io import safe_npz_key
+
+            safe_npz_key(key)
+        except Exception as exc:
+            self._QMessageBox.critical(self._win, "Create Set Failed", str(exc))
+            return
+
+        import numpy as np
+
+        from geohpem.domain.mesh_ops import add_edge_set, add_elem_set, add_node_set
+        from geohpem.domain.request_ops import set_set_label
+
+        base_mesh = state.project.mesh
+        if kind == "node":
+            arr = np.unique(np.asarray(list(ids), dtype=np.int64).reshape(-1))
+            new_mesh = add_node_set(base_mesh, name, arr)
+            label = name
+        elif kind == "edge":
+            arr = np.asarray(list(pairs), dtype=np.int64).reshape(-1, 2)
+            new_mesh = add_edge_set(base_mesh, name, arr)
+            label = name
+        elif kind == "elem":
+            ct = str(payload.get("cell_type", "")).strip() or "tri3"
+            arr = np.unique(np.asarray(list(ids), dtype=np.int64).reshape(-1))
+            new_mesh = add_elem_set(base_mesh, name, ct, arr)
+            label = f"{name} ({ct})"
+        else:
+            return
+        new_request = set_set_label(state.project.request, key, label)
+
+        try:
+            self.model.update_request_and_mesh(request=new_request, mesh=new_mesh, name=f"Create Set {name}")
+            self.log_dock.append_info(f"Created set: {key} ({len(new_mesh.get(key, []))} ids)")
+        except Exception as exc:
+            self._QMessageBox.critical(self._win, "Create Set Failed", str(exc))
+            return
+
     def _load_project_data(self, project: ProjectData, display_path: Path | None) -> None:
         workdir = materialize_to_workdir(project)
         project_file = display_path if (display_path and display_path.suffix.lower() == DEFAULT_EXT) else None
@@ -398,6 +483,14 @@ class MainWindow:
             work_case_dir=workdir,
             dirty=False,
         )
+
+        # Restore per-project UI state (best-effort).
+        try:
+            output_ws = self.workspace_stack.get("output")
+            if isinstance(output_ws, OutputWorkspace):
+                output_ws.set_ui_state(project.ui_state or {})
+        except Exception:
+            pass
 
         # Drive the tree by the materialized case dir.
         self.project_dock.set_case(workdir, request=project.request, mesh=project.mesh)

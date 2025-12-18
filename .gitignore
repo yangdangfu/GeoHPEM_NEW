@@ -31,3 +31,6 @@ examples/
 
 # reference directories
 GeoHPEM_reference/
+
+# Local sandbox / generated test cases
+_Projects/

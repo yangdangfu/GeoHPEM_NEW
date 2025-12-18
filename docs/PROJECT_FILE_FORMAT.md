@@ -14,6 +14,7 @@ project.geohpem  (zip)
   manifest.json
   request.json
   mesh.npz
+  ui_state.json       (可选：GUI 状态/后处理对象)
   out/
     result.json        (可选)
     result.npz         (可选)
@@ -36,3 +37,6 @@ project.geohpem  (zip)
 - 输入：`request.json + mesh.npz`
 - 输出：`out/result.json + out/result.npz`（可选）
 
+## ui_state.json（可选）
+
+用于保存 **GUI 状态与后处理对象**（例如 Output 工作区的 Profiles/Pins、视图偏好等），不属于 solver 的输入 Contract，也不会导出到 case folder。

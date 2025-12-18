@@ -92,13 +92,13 @@
   - DoD：点击取值（至少 node 标量）；显示当前位置与数值。
 - [x] Output 后处理（剖面线/时程曲线/导出图像，MVP）
   - DoD：支持 Profile line（线采样 + 曲线 + CSV 导出）；Time history（点/单元时程 + 曲线 + CSV 导出）；Viewport 截图导出 PNG。
-- [ ] Output UX 增强（GUI 花功夫，避免返工）
+- [x] Output UX 增强（GUI 花功夫，避免返工）
   - DoD：交互式剖面线（视窗两点/拖拽创建）；Probe/曲线对象管理（可 pin/复用/导出）；时间轴标准化（global_steps），动画/时程不依赖猜测。
   - [x] M5.ux.1：时间轴标准化（`result.json:global_steps`）并在 UI 显示 stage/time 信息
 - [x] M5.ux.2：交互式剖面线（Pick 2 points）+ Profiles 列表管理（Plot/Remove）
 - [x] M5.ux.3：Probe Pin/复用：Pinned Nodes/Elements 列表 + Time history 可选来源（而非“最后一次拾取”）
-- [ ] M5.ux.4：交互式剖面线（拖拽/编辑/多条 overlay）+ 保存到工程（随 project 保存）
-- [ ] M5.ux.5：动画/批量导出：steps → PNG（可选 GIF/MP4）+ 可配置相机保持/重置策略
+- [x] M5.ux.4：交互式剖面线（拖拽/编辑/多条 overlay）+ 保存到工程（随 project 保存：`ui_state.json`）
+- [x] M5.ux.5：批量导出（MVP）：steps → PNG（保持当前相机视角；GIF/MP4 后续可选）
 
 ---
 
@@ -115,6 +115,24 @@
   - DoD：Input（Qt2D）能拾取顶点/边并显示其 uid；Output（VTK）能拾取节点/单元并显示所属 sets 与数值（若有）。
 - [x] 迁移旧数据（无 id 的 request）到带 id 的结构（第一版）
   - DoD：加载 `.geohpem`/case folder 时自动补齐 `uid`（保存时写入工程文件）。
+
+---
+
+## M12：交互选集与“从图形创建 sets”（强烈建议尽早补齐）
+
+> 目标：把“手工输入索引创建 set”升级为“拾取/累积选择 → 一键生成 sets”，显著提升建模效率与可用性。
+- [x] M12.1：Input Mesh Preview 选择缓存（node/element）
+  - DoD：能将“最后一次拾取”的 node/cell 加入选择列表；支持清空；显示数量与类型。
+- [x] M12.2：从选择一键创建 sets（写入 mesh + sets_meta）
+  - DoD：支持 `node_set__<name>` 与 `elem_set__<name>__<cell_type>`；自动生成/更新 `request.sets_meta` 的 label；Undo/Redo 可回退。
+- [x] M12.3：选择高亮与快速校验
+  - DoD：创建后可在 Preview 下拉中直接高亮新 set；precheck 对“引用不存在 set”给出更靠前的提示。
+- [x] M12.4：从拾取创建 edge sets（用于边界条件/荷载）
+  - DoD：支持“最后两次拾取节点组成一条边”→累积多条边→一键创建 `edge_set__<name>`，并可在 Preview 中高亮/显示。
+- [x] M12.5：框选/刷选（矩形选择）以批量选择节点/单元（Input Mesh Preview）
+  - DoD：支持 Box select nodes / Box select elements；支持“替换/追加”与“刷选模式（保持激活）”；与 selection 叠加显示与 Create set 打通。
+- [ ] M12.6：沿边刷选（polyline）/按边界提取整条边界（工程常用）
+  - DoD：支持沿边连续点选形成 polyline 并吸附到边界；一键提取整条边界生成 `edge_set__*`（可选：同时生成对应的 node_set）；优先覆盖“底/顶/左/右”等常用边界。
 
 ---
 

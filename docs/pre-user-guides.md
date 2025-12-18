@@ -2,7 +2,7 @@
 
 本指南描述当前仓库“已经能做什么、怎么操作”。当前阶段重点是 **导入网格 → 配置阶段 → 运行（fake solver）→ Output 云图/探针 → 保存工程**。
 
-> 说明：Output 已接入 VTK（PyVistaQt）云图渲染与 Probe，并提供 Profile line / Time history / 导出截图（PNG）；动画批量导出等仍在后续里程碑完善。
+> 说明：Output 已接入 VTK（PyVistaQt）云图渲染与 Probe，并提供 Profile line / Time history / 导出截图（PNG）/ steps→PNG 批量导出；GIF/MP4 等仍在后续里程碑完善。
 
 ## 1. 环境准备
 
@@ -69,7 +69,17 @@ GUI 菜单：
       - Edge set：输入边的节点对，如 `0-1,1-2,2-3` 或 `0 1; 1 2; 2 3`
       - Element set：选择 tri3/quad4，输入单元索引，如 `0,2,3-20`
 
-> 说明：Input 工作区中央已接入 Mesh Preview（高亮 sets + 点击拾取信息），但目前还不支持“从图形选择生成 set”，后续会补齐。
+也可以从图形拾取创建（更高效，MVP：逐个拾取）：
+- Input 工作区中央 `Mesh Preview`：
+  - 点击拾取 node/cell（会显示 pid 或 local_id）
+  - 若要创建边界边（edge set）：连续拾取 2 次节点后点 `Add edge (last 2 picks)`，可累积多条边
+  - `Add picked node/cell` 累积选择
+  - 框选/刷选（批量选择）：
+    - `Box nodes` / `Box elems`：在视窗中拖拽矩形框选（建议配合 `Brush` 连续多次框选）
+    - `Replace`：勾选后每次框选会替换当前选择；不勾选则追加
+  - `Create node/edge/elem set...` 一键生成 sets，并自动在 Preview 下拉中可高亮查看
+
+> 说明：Input 工作区中央已接入 Mesh Preview（高亮 sets + 点击拾取信息），并支持“拾取→累积选择→一键创建 node/elem sets”（MVP：逐个拾取；框选/刷选后续补齐）。
 
 ## 7. 编辑建模数据（Input 工作区 MVP）
 
@@ -144,6 +154,8 @@ GUI 菜单：
     - 对 nodal 字段：先 Probe 一个点（确定 pid）或 `Pin last probe (node)`；对 element 字段：先 pick 一个单元（确定 cell_id）或 `Pin last cell (element)`
     - 自动弹出曲线窗口（横轴优先用 time，否则用 step），支持 `Export CSV...`
   - `Export image...`：导出当前视窗截图（PNG）
+  - `Export steps -> PNG...`：将当前字段对所有 steps 批量导出为 PNG 序列（默认保持当前相机视角）
+  - Profiles 列表：支持 `Edit selected (drag)` 在视窗中拖拽端点调整剖面线（Finish/Cancel），并在云图上叠加显示多条剖面线
   - `View -> Display Units...` 可切换显示单位（目前最小支持：长度/压强；不改变底层数据）
 
 ## 11. 画几何 → pygmsh 网格化（M4）

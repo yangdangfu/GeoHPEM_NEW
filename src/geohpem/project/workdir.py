@@ -37,5 +37,5 @@ def update_project_from_workdir(project: ProjectData, case_dir: Path) -> Project
         result_meta=meta,
         result_arrays={k: np.asarray(v) for k, v in arrays.items()},
         manifest=project.manifest,
+        ui_state=project.ui_state,
     )
-

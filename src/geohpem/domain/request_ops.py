@@ -198,3 +198,20 @@ def set_geometry(request: dict[str, Any], geometry: dict[str, Any] | None) -> di
     else:
         req["geometry"] = geometry
     return req
+
+
+def set_set_label(request: dict[str, Any], set_key: str, label: str) -> dict[str, Any]:
+    """
+    Update request.sets_meta[set_key].label (UI-only metadata).
+    """
+    req = copy.deepcopy(request)
+    sm = req.setdefault("sets_meta", {})
+    if not isinstance(sm, dict):
+        sm = {}
+        req["sets_meta"] = sm
+    meta = sm.get(set_key)
+    if not isinstance(meta, dict):
+        meta = {}
+        sm[set_key] = meta
+    meta["label"] = str(label)
+    return req
