@@ -214,6 +214,8 @@ class MainWindow:
 
         menu_solve = self._win.menuBar().addMenu("Solve")
         menu_solve.addAction(self._action_select_solver)
+        self._menu_recent_solvers = QMenu("Recent Solvers", self._win)
+        menu_solve.addMenu(self._menu_recent_solvers)
         menu_solve.addAction(self._action_run)
 
         menu_help = self._win.menuBar().addMenu("Help")
@@ -251,6 +253,7 @@ class MainWindow:
 
         self._update_run_action_text()
         self._apply_solver_capabilities(self._safe_get_solver_caps(self._settings.get_solver_selector()))
+        self._rebuild_recent_solvers_menu()
         self._shutdown_done = False
 
     @property
@@ -470,6 +473,7 @@ class MainWindow:
         self._settings.set_solver_selector(res.solver_selector)
         self._update_run_action_text()
         self._apply_solver_capabilities(caps)
+        self._rebuild_recent_solvers_menu()
         self.log_dock.append_info(f"Selected solver: {res.solver_selector}")
 
     def _on_batch_run(self) -> None:
@@ -811,6 +815,41 @@ class MainWindow:
             act.triggered.connect(lambda checked=False, pp=p: self.open_case_folder(pp) if pp.is_dir() else self.open_project_file(pp))
             self._menu_recent.addAction(act)
 
+    def _rebuild_recent_solvers_menu(self) -> None:
+        from PySide6.QtGui import QAction  # type: ignore
+
+        if not hasattr(self, "_menu_recent_solvers"):
+            return
+
+        self._menu_recent_solvers.clear()
+        cur = self._settings.get_solver_selector()
+        items = self._settings.get_recent_solvers()
+        if not items:
+            act = QAction("(Empty)", self._win)
+            act.setEnabled(False)
+            self._menu_recent_solvers.addAction(act)
+            return
+
+        for s in items:
+            act = QAction(s, self._win)
+            act.setCheckable(True)
+            act.setChecked(s == cur)
+            act.triggered.connect(lambda checked=False, ss=s: self._select_solver_quick(ss))
+            self._menu_recent_solvers.addAction(act)
+
+    def _select_solver_quick(self, selector: str) -> None:
+        selector = (selector or "").strip() or "fake"
+        try:
+            caps = self._get_solver_caps(selector)
+        except Exception as exc:
+            self._QMessageBox.critical(self._win, "Solver", f"Failed to load solver '{selector}':\n{exc}")
+            return
+        self._settings.set_solver_selector(selector)
+        self._update_run_action_text()
+        self._apply_solver_capabilities(caps)
+        self._rebuild_recent_solvers_menu()
+        self.log_dock.append_info(f"Selected solver: {selector}")
+
     def _on_model_changed(self, state) -> None:  # noqa: ANN001
         title = "GeoHPEM - Untitled"
         if state.display_path:
@@ -822,6 +861,11 @@ class MainWindow:
     def _on_undo_state_changed(self, can_undo: bool, can_redo: bool) -> None:
         self._action_undo.setEnabled(bool(can_undo))
         self._action_redo.setEnabled(bool(can_redo))
+
+        undo_name = self.model.undo_stack.peek_undo_name()
+        redo_name = self.model.undo_stack.peek_redo_name()
+        self._action_undo.setText(f"Undo {undo_name}" if undo_name else "Undo")
+        self._action_redo.setText(f"Redo {redo_name}" if redo_name else "Redo")
 
     def _on_tree_selection(self, payload: dict[str, Any]) -> None:
         t = str(payload.get("type", ""))

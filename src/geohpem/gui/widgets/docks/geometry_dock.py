@@ -275,7 +275,7 @@ class GeometryDock:
             from geohpem.project.normalize import ensure_request_ids
 
             ensure_request_ids(req2, self._model.state().project.mesh)
-            self._model.update_request(req2)
+            self._model.update_request(req2, merge_key="geometry_edit")
 
     def _redraw(self) -> None:
         from PySide6.QtCore import QPointF  # type: ignore

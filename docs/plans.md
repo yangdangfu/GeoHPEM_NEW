@@ -69,6 +69,8 @@
   - DoD：能显示网格；能渲染标量场（先 `p`）；有 colorbar；支持变形（按 `u` 缩放，若存在）。
 - [x] 探针（Probe）与基本拾取
   - DoD：点击取值（至少 node 标量）；显示当前位置与数值。
+- [x] Output 后处理（剖面线/时程曲线/导出图像，MVP）
+  - DoD：支持 Profile line（线采样 + 曲线 + CSV 导出）；Time history（点/单元时程 + 曲线 + CSV 导出）；Viewport 截图导出 PNG。
 
 ---
 
@@ -119,7 +121,7 @@
       - DoD：`Tools -> Validate Inputs...` 提供 precheck + schema 校验；`Solve -> Run` 运行前同样校验；`File -> Export Case Folder...` 与保存/运行前均自动 normalize（ids/sets_meta）。
 - [x] Undo/Redo（基础版，已实现）
   - DoD：至少覆盖 model/gravity、stage 增删改、material 改、geometry 改、mesh 改。
-- [ ] Undo/Redo（增强：细粒度 + 合并策略）
+- [x] Undo/Redo（增强：细粒度 + 合并策略）
   - DoD：拖拽顶点/批量编辑可合并为单条命令；Redo/Undo 状态与菜单/工具栏一致。
 
 ---
@@ -132,7 +134,7 @@
   - DoD：根据 capabilities 灰置 `mode` 与 `analysis_type` 的不支持选项；Run 前 precheck 会对不支持项给出 ERROR 并阻止运行；`output_requests` 中不支持字段给出 WARN，并提供 “Add Output Requests...” 快捷添加。
 - [x] 运行监视增强（取消 + 诊断包 zip，MVP）
   - DoD：Tasks 面板可 Cancel（best-effort）；失败/取消时自动生成 `_diagnostics/diag_*.zip` 并在弹窗与 Log 中提示路径。
-- [ ] 错误码映射（可选，后续增强）
+- [x] 错误码映射（可选，后续增强）
   - DoD：将 solver 的错误类型/错误码映射为标准化错误列表，并支持“一键打包上传”。
 
 ---
@@ -154,8 +156,8 @@
 
 ## M11：交付与插件化（长期）
 
-- [ ] solver submodule 接入规范文档（给 solver 团队）
-- [ ] 多 solver 并存与选择（FEM/HPEM/实验分支）
+- [x] solver submodule 接入规范文档（给 solver 团队）：`docs/SOLVER_SUBMODULE_INTEGRATION.md`
+- [x] 多 solver 并存与选择（FEM/HPEM/实验分支，MVP：Recent Solvers 快捷切换）
 - [ ] 打包与发布（conda/zip/installer，待定）
 
 ---

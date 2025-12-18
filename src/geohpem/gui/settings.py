@@ -90,6 +90,28 @@ class SettingsStore:
 
     # ---- Solver preferences ----
 
+    def get_recent_solvers(self) -> list[str]:
+        raw = self._q.value("recent_solvers", [], type=list)
+        out: list[str] = []
+        for item in raw:
+            s = str(item).strip()
+            if not s:
+                continue
+            if s not in out:
+                out.append(s)
+        # Always allow fake as a baseline.
+        if "fake" not in out:
+            out.append("fake")
+        return out[:10]
+
+    def add_recent_solver(self, selector: str) -> None:
+        selector = str(selector).strip()
+        if not selector:
+            return
+        items = [s for s in self.get_recent_solvers() if s != selector]
+        items.insert(0, selector)
+        self._q.setValue("recent_solvers", items[:10])
+
     def get_solver_selector(self) -> str:
         raw = self._q.value("solver_selector", "fake")
         if not isinstance(raw, str) or not raw.strip():
@@ -97,4 +119,6 @@ class SettingsStore:
         return raw.strip()
 
     def set_solver_selector(self, selector: str) -> None:
-        self._q.setValue("solver_selector", str(selector))
+        selector = str(selector).strip() or "fake"
+        self._q.setValue("solver_selector", selector)
+        self.add_recent_solver(selector)

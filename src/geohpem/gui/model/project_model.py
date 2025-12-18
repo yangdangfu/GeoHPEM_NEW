@@ -132,7 +132,7 @@ class ProjectModel:
         self.materials_changed.emit(project.request.get("materials", {}))
         self.assignments_changed.emit(project.request.get("assignments", []))
 
-    def _with_request_undo(self, name: str, mutator: Callable[[], None]) -> None:
+    def _with_request_undo(self, name: str, mutator: Callable[[], None], *, merge_key: str | None = None) -> None:
         before = self._clone_request()
         mutator()
         after = self._clone_request()
@@ -145,11 +145,11 @@ class ProjectModel:
         def _redo() -> None:
             self._set_request_no_undo(copy.deepcopy(after))
 
-        self.undo_stack.push_and_redo(UndoCommand(name=name, undo=_undo, redo=_redo))
+        self.undo_stack.push_and_redo(UndoCommand(name=name, undo=_undo, redo=_redo), merge_key=merge_key)
         self.undo_state_changed.emit(self.undo_stack.can_undo(), self.undo_stack.can_redo())
         self.set_dirty(True)
 
-    def update_request(self, new_request: dict[str, Any]) -> None:
+    def update_request(self, new_request: dict[str, Any], *, merge_key: str | None = None) -> None:
         def mut() -> None:
             project = self.ensure_project()
             project.request = new_request
@@ -160,7 +160,7 @@ class ProjectModel:
             except Exception:
                 pass
 
-        self._with_request_undo("Edit Request", mut)
+        self._with_request_undo("Edit Request", mut, merge_key=merge_key)
 
     def update_assignments(self, assignments: list[dict[str, Any]]) -> None:
         from geohpem.domain.request_ops import set_assignments

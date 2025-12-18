@@ -94,6 +94,7 @@ GUI 菜单：
 
 - 菜单：`Edit -> Undo / Redo`
 - 快捷键：`Ctrl+Z` / `Ctrl+Y`
+- 提示：菜单项会显示可撤销动作名；几何连续拖拽编辑会自动合并为更少的 undo 步。
 
 ## 8. 网格质量检查（M3）
 
@@ -106,6 +107,7 @@ GUI 菜单：
 - 选择 solver：`Solve -> Select Solver...`
   - `Fake`：内置的假 solver，用于跑通流程与 UI
   - `Python module`：通过 `python:<module>` 加载外部 solver 包（未来将以 submodule 方式集成）
+  - 快速切换：`Solve -> Recent Solvers`（保存最近使用的 solver selector）
 
 - 运行：`Solve -> Run (...)`
   1) 弹出 Pre-check 窗口：包含 contract 基础校验 +（可选）jsonschema 校验 + precheck；有 ERROR 会阻止运行；WARN 允许继续
@@ -126,9 +128,14 @@ GUI 菜单：
   - 勾选 `Warp by displacement u` 可按位移变形显示（若结果提供 `u`）
   - 在渲染窗口中点击点可 Probe（显示近邻点的数值 + 所属 node sets）
   - 选中单元（若版本支持 cell picking）会显示单元类型/编号 + 所属 element sets
+  - `Profile line...`：剖面线（线采样）
+    - 建议先在视窗里连续点两次（得到 2 次 Probe），再点 `Use last two picks` 自动填入端点
+    - 自动弹出曲线窗口，支持 `Export CSV...` 与 `Save Plot Image...`
+  - `Time history...`：时程曲线
+    - 对 nodal 字段：先 Probe 一个点（确定 pid）；对 element 字段：先 pick 一个单元（确定 cell_id）
+    - 自动弹出曲线窗口（横轴优先用 time，否则用 step），支持 `Export CSV...`
+  - `Export image...`：导出当前视窗截图（PNG）
   - `View -> Display Units...` 可切换显示单位（目前最小支持：长度/压强；不改变底层数据）
-
-> 说明：剖面线/时程曲线等将在后续里程碑实现（计划见 `docs/plans.md` 的后续条目）。
 
 ## 11. 画几何 → pygmsh 网格化（M4）
 
@@ -173,6 +180,7 @@ GUI 菜单：
 GUI 入口（MVP）：
 - `Tools -> Batch Run...`：选择 cases root / solver / baseline / report，并显示进度与日志（Cancel 为 best-effort）。
 - `Tools -> Open Batch Report...`：打开 `batch_report.json`，以表格方式浏览 success/failed/canceled、耗时、内存、最大差值，并可一键打开 case/out/diagnostics。
+  - 报告会记录 `error_code`（若失败/取消），便于对标/回归统计与归因。
 
 ## 13. 结果对比（差值云图/曲线，MVP）
 

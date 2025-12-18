@@ -38,6 +38,8 @@ def build_diagnostics_zip(
     *,
     solver_selector: str,
     capabilities: dict[str, Any] | None = None,
+    error_code: str | None = None,
+    error_details: dict[str, Any] | None = None,
     error: str | None = None,
     tb: str | None = None,
     logs: list[str] | None = None,
@@ -61,6 +63,10 @@ def build_diagnostics_zip(
     }
     if capabilities is not None:
         meta["capabilities"] = capabilities
+    if error_code:
+        meta["error_code"] = error_code
+    if error_details is not None:
+        meta["error_details"] = error_details
     if error:
         meta["error"] = error
     if tb:
@@ -118,4 +124,3 @@ def build_diagnostics_zip(
             pass
 
     return DiagnosticsInfo(zip_path=zip_path)
-

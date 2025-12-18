@@ -16,6 +16,8 @@ class BatchReportRecord:
     rss_end_mb: float | None
     out_dir: Path | None
     diagnostics_zip: Path | None
+    error_code: str | None
+    error: str | None
     compare_max_linf: float | None
     compare_max_l2: float | None
 
@@ -72,6 +74,8 @@ def parse_batch_report(path: Path) -> list[BatchReportRecord]:
                 rss_end_mb=_to_float(r.get("rss_end_mb")),
                 out_dir=_to_path(r.get("out_dir")),
                 diagnostics_zip=_to_path(r.get("diagnostics_zip")),
+                error_code=str(r.get("error_code")) if isinstance(r.get("error_code"), str) else None,
+                error=str(r.get("error")) if isinstance(r.get("error"), str) else None,
                 compare_max_linf=max_linf,
                 compare_max_l2=max_l2,
             )
@@ -140,11 +144,12 @@ class BatchReportDialog:
         layout.addWidget(self._summary)
 
         self._table = QTableWidget()
-        self._table.setColumnCount(10)
+        self._table.setColumnCount(13)
         self._table.setHorizontalHeaderLabels(
             [
                 "case",
                 "status",
+                "error_code",
                 "elapsed_s",
                 "rss_start_mb",
                 "rss_end_mb",
@@ -153,6 +158,8 @@ class BatchReportDialog:
                 "max_l2",
                 "out_dir",
                 "diagnostics",
+                "solver",
+                "error",
             ]
         )
         self._table.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -235,17 +242,20 @@ class BatchReportDialog:
         for row, r in enumerate(self._records_view):
             set_item(row, 0, r.case_dir.name)
             set_item(row, 1, r.status)
-            set_item(row, 2, f"{r.elapsed_s:.4g}" if r.elapsed_s is not None else "")
-            set_item(row, 3, f"{r.rss_start_mb:.4g}" if r.rss_start_mb is not None else "")
-            set_item(row, 4, f"{r.rss_end_mb:.4g}" if r.rss_end_mb is not None else "")
+            set_item(row, 2, r.error_code or "")
+            set_item(row, 3, f"{r.elapsed_s:.4g}" if r.elapsed_s is not None else "")
+            set_item(row, 4, f"{r.rss_start_mb:.4g}" if r.rss_start_mb is not None else "")
+            set_item(row, 5, f"{r.rss_end_mb:.4g}" if r.rss_end_mb is not None else "")
             if r.rss_start_mb is not None and r.rss_end_mb is not None:
-                set_item(row, 5, f"{(r.rss_end_mb - r.rss_start_mb):.4g}")
+                set_item(row, 6, f"{(r.rss_end_mb - r.rss_start_mb):.4g}")
             else:
-                set_item(row, 5, "")
-            set_item(row, 6, f"{r.compare_max_linf:.4g}" if r.compare_max_linf is not None else "")
-            set_item(row, 7, f"{r.compare_max_l2:.4g}" if r.compare_max_l2 is not None else "")
-            set_item(row, 8, str(r.out_dir) if r.out_dir else "")
-            set_item(row, 9, str(r.diagnostics_zip) if r.diagnostics_zip else "")
+                set_item(row, 6, "")
+            set_item(row, 7, f"{r.compare_max_linf:.4g}" if r.compare_max_linf is not None else "")
+            set_item(row, 8, f"{r.compare_max_l2:.4g}" if r.compare_max_l2 is not None else "")
+            set_item(row, 9, str(r.out_dir) if r.out_dir else "")
+            set_item(row, 10, str(r.diagnostics_zip) if r.diagnostics_zip else "")
+            set_item(row, 11, r.solver_selector)
+            set_item(row, 12, (r.error or "")[:300])
 
         self._table.resizeColumnsToContents()
 

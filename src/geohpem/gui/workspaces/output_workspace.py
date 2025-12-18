@@ -17,6 +17,7 @@ class OutputWorkspace:
     def __init__(self) -> None:
         from PySide6.QtCore import Qt  # type: ignore
         from PySide6.QtWidgets import (
+            QDoubleSpinBox,
             QCheckBox,
             QComboBox,
             QFormLayout,
@@ -33,6 +34,7 @@ class OutputWorkspace:
 
         self._Qt = Qt
         self._QMessageBox = QMessageBox
+        self._QDoubleSpinBox = QDoubleSpinBox
 
         self.widget = QWidget()
         layout = QVBoxLayout(self.widget)
@@ -74,6 +76,18 @@ class OutputWorkspace:
         self.btn_reset.setEnabled(False)
         left_layout.addWidget(self.btn_reset)
 
+        self.btn_profile = QPushButton("Profile line...")
+        self.btn_profile.setEnabled(False)
+        left_layout.addWidget(self.btn_profile)
+
+        self.btn_history = QPushButton("Time history...")
+        self.btn_history.setEnabled(False)
+        left_layout.addWidget(self.btn_history)
+
+        self.btn_export_img = QPushButton("Export image...")
+        self.btn_export_img.setEnabled(False)
+        left_layout.addWidget(self.btn_export_img)
+
         splitter.addWidget(left)
 
         # Right panel: viewer + probe readout
@@ -110,6 +124,13 @@ class OutputWorkspace:
         self.warp.stateChanged.connect(self._render)
         self.warp_scale.valueChanged.connect(self._render)
         self.btn_reset.clicked.connect(self._reset_view)
+        self.btn_profile.clicked.connect(self._on_profile_line)
+        self.btn_history.clicked.connect(self._on_time_history)
+        self.btn_export_img.clicked.connect(self._on_export_image)
+
+        self._probe_history: list[dict[str, Any]] = []
+        self._last_probe_pid: int | None = None
+        self._last_cell_id: int | None = None
 
     def set_unit_context(self, units) -> None:  # noqa: ANN001
         """
@@ -142,6 +163,9 @@ class OutputWorkspace:
 
         self._ensure_viewer()
         self._render()
+        self.btn_profile.setEnabled(True)
+        self.btn_history.setEnabled(True)
+        self.btn_export_img.setEnabled(True)
 
     def _build_set_membership(self) -> None:
         self._node_set_membership = {}
@@ -237,6 +261,7 @@ class OutputWorkspace:
             pass
         self._viewer.set_background("white")
         self.btn_reset.setEnabled(True)
+        self.btn_export_img.setEnabled(True)
 
     def shutdown(self) -> None:
         """
@@ -433,6 +458,9 @@ class OutputWorkspace:
             val = None
             if pref == "point" and scalar_name in grid.point_data:
                 val = float(grid.point_data[scalar_name][pid])
+            self._last_probe_pid = pid
+            self._probe_history.append({"x": px, "y": py, "z": pz, "pid": pid})
+            self._probe_history = self._probe_history[-10:]
             node_sets = self._node_set_membership.get(pid, [])
             sets_txt = f" node_sets={node_sets}" if node_sets else ""
             if self._units is not None:
@@ -489,6 +517,7 @@ class OutputWorkspace:
 
         if cell_id is None or cell_id < 0 or cell_id >= grid.n_cells:
             return
+        self._last_cell_id = int(cell_id)
 
         try:
             ctype_code = int(grid.cell_data["__cell_type_code"][cell_id])
@@ -504,3 +533,334 @@ class OutputWorkspace:
             )
         except Exception as exc:
             self.probe.setPlainText(f"Cell pick failed: {exc}")
+
+    def _step_time_map(self) -> dict[int, float]:
+        """
+        Best-effort mapping from global step id -> time (float).
+        For fake solver, meta["stages"][*]["times"] exists and steps are sequential.
+        """
+        if not self._meta:
+            return {}
+        stages = self._meta.get("stages", [])
+        if not isinstance(stages, list) or not stages:
+            return {}
+        out: dict[int, float] = {}
+        step_counter = 0
+        for st in stages:
+            if not isinstance(st, dict):
+                continue
+            times = st.get("times", [])
+            if not isinstance(times, list):
+                continue
+            for t in times:
+                step_counter += 1
+                try:
+                    out[int(step_counter)] = float(t)
+                except Exception:
+                    continue
+        return out
+
+    def _current_field_context(self) -> tuple[dict[str, Any], int, str, str, str | None] | None:
+        """
+        Returns (reg, step_id, scalar_name, preference, unit_label_for_plot).
+        """
+        reg = self._selected_reg()
+        step_id = self._selected_step_id()
+        if reg is None or step_id is None:
+            return None
+        scalar_name = getattr(self, "_last_scalar", None)
+        pref = getattr(self, "_last_pref", None)
+        if not isinstance(scalar_name, str) or not scalar_name:
+            return None
+        if not isinstance(pref, str) or not pref:
+            return None
+
+        unit_label = self._field_unit_label(reg, str(reg.get("name", "")))
+        return reg, int(step_id), str(scalar_name), str(pref), unit_label
+
+    def _field_unit_label(self, reg: dict[str, Any], field_name: str) -> str | None:
+        """
+        Best-effort unit label consistent with the viewer (display units when configured).
+        """
+        unit_base = reg.get("unit")
+        if not isinstance(unit_base, str) or not unit_base:
+            unit_base = None
+
+        # Follow the same convention as _render for displacement.
+        if field_name == "u" and self._units is not None:
+            ud = self._units.display_unit("length", None)
+            return ud or unit_base
+
+        if unit_base and self._units is not None:
+            try:
+                from geohpem.units import infer_kind_from_unit
+
+                kind = infer_kind_from_unit(unit_base)
+                if kind:
+                    return self._units.display_unit(kind, unit_base) or unit_base
+            except Exception:
+                return unit_base
+        return unit_base
+
+    def _on_export_image(self) -> None:
+        if self._viewer is None:
+            return
+        from PySide6.QtWidgets import QFileDialog  # type: ignore
+
+        file, _ = QFileDialog.getSaveFileName(self.widget, "Export Image", "view.png", "PNG (*.png);;All Files (*)")
+        if not file:
+            return
+        try:
+            v = self._viewer
+            # QtInteractor may expose screenshot() directly or via .plotter
+            if hasattr(v, "screenshot"):
+                v.screenshot(file)  # type: ignore[misc]
+            else:
+                plotter = getattr(v, "plotter", None)
+                if plotter is None or not hasattr(plotter, "screenshot"):
+                    raise RuntimeError("Viewer does not support screenshot()")
+                plotter.screenshot(file)  # type: ignore[misc]
+            self._QMessageBox.information(self.widget, "Export Image", f"Saved:\n{file}")
+        except Exception as exc:
+            self._QMessageBox.critical(self.widget, "Export Image Failed", str(exc))
+
+    def _on_profile_line(self) -> None:
+        if self._viewer is None:
+            return
+        ctx = self._current_field_context()
+        if ctx is None:
+            self._QMessageBox.information(self.widget, "Profile Line", "Select a field and render a step first.")
+            return
+        reg, step_id, scalar_name, pref, unit_label = ctx
+        grid = getattr(self, "_last_grid", None)
+        if grid is None:
+            return
+
+        from PySide6.QtWidgets import (  # type: ignore
+            QCheckBox,
+            QDialog,
+            QDialogButtonBox,
+            QFormLayout,
+            QHBoxLayout,
+            QLabel,
+            QPushButton,
+            QSpinBox,
+            QVBoxLayout,
+            QWidget,
+        )
+
+        dialog = QDialog(self.widget)
+        dialog.setWindowTitle("Profile Line")
+        dialog.resize(520, 260)
+        layout = QVBoxLayout(dialog)
+
+        note = QLabel("Tip: use two point picks (left-click) then 'Use last two picks'.")
+        layout.addWidget(note)
+
+        form = QFormLayout()
+        layout.addLayout(form)
+
+        def spin() -> Any:
+            s = self._QDoubleSpinBox()
+            s.setDecimals(6)
+            s.setRange(-1e12, 1e12)
+            s.setSingleStep(0.1)
+            return s
+
+        x1 = spin()
+        y1 = spin()
+        x2 = spin()
+        y2 = spin()
+        form.addRow("x1", x1)
+        form.addRow("y1", y1)
+        form.addRow("x2", x2)
+        form.addRow("y2", y2)
+
+        samples = QSpinBox()
+        samples.setRange(2, 5000)
+        samples.setValue(200)
+        form.addRow("samples", samples)
+
+        chk_overlay = QCheckBox("Show line overlay in viewport")
+        chk_overlay.setChecked(True)
+        form.addRow("", chk_overlay)
+
+        btn_row = QWidget()
+        bl = QHBoxLayout(btn_row)
+        bl.setContentsMargins(0, 0, 0, 0)
+        btn_last2 = QPushButton("Use last two picks")
+        bl.addWidget(btn_last2)
+        bl.addStretch(1)
+        layout.addWidget(btn_row)
+
+        def apply_last2() -> None:
+            if len(self._probe_history) < 2:
+                return
+            a = self._probe_history[-2]
+            b = self._probe_history[-1]
+            x1.setValue(float(a.get("x", 0.0)))
+            y1.setValue(float(a.get("y", 0.0)))
+            x2.setValue(float(b.get("x", 0.0)))
+            y2.setValue(float(b.get("y", 0.0)))
+
+        btn_last2.clicked.connect(apply_last2)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        layout.addWidget(buttons)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+
+        if dialog.exec() != QDialog.Accepted:
+            return
+
+        p1 = (float(x1.value()), float(y1.value()), 0.0)
+        p2 = (float(x2.value()), float(y2.value()), 0.0)
+        n = int(samples.value())
+
+        try:
+            import pyvista as pv  # type: ignore
+
+            sampled = grid.sample_over_line(p1, p2, resolution=max(n - 1, 1))
+            # VTK usually provides 'Distance' array for sample_over_line
+            dist = None
+            for key in ("Distance", "distance"):
+                if key in sampled.point_data:
+                    dist = np.asarray(sampled.point_data[key], dtype=float).ravel()
+                    break
+            if dist is None:
+                pts = np.asarray(sampled.points, dtype=float)
+                dist = np.zeros((pts.shape[0],), dtype=float)
+                if pts.shape[0] > 1:
+                    d = np.sqrt(np.sum((pts[:, :3] - pts[0, :3]) ** 2, axis=1))
+                    dist = d
+
+            if scalar_name in sampled.point_data:
+                vals = np.asarray(sampled.point_data[scalar_name], dtype=float).ravel()
+            elif scalar_name in sampled.cell_data:
+                vals = np.asarray(sampled.cell_data[scalar_name], dtype=float).ravel()
+            else:
+                raise RuntimeError(f"Sampled data missing '{scalar_name}'")
+
+            if chk_overlay.isChecked():
+                line = pv.Line(p1, p2, resolution=1)
+                try:
+                    if hasattr(self, "_profile_actor") and getattr(self, "_profile_actor") is not None:
+                        try:
+                            self._viewer.remove_actor(getattr(self, "_profile_actor"))
+                        except Exception:
+                            pass
+                    actor = self._viewer.add_mesh(line, color="red", line_width=3)
+                    self._profile_actor = actor
+                    self._viewer.render()
+                except Exception:
+                    pass
+
+            # Plot
+            from geohpem.gui.dialogs.plot_dialog import PlotDialog, PlotSeries
+
+            ylabel = scalar_name
+            if unit_label:
+                ylabel = f"{scalar_name} [{unit_label}]"
+            dlg = PlotDialog(
+                self.widget,
+                title=f"Profile: {scalar_name} (step {step_id:06d})",
+                xlabel="Distance",
+                ylabel=ylabel,
+                series=[PlotSeries(x=dist, y=vals, label=None)],
+                default_csv_name=f"profile_{scalar_name}_step{step_id:06d}.csv",
+                default_png_name=f"profile_{scalar_name}_step{step_id:06d}.png",
+            )
+            dlg.exec()
+        except Exception as exc:
+            self._QMessageBox.critical(self.widget, "Profile Line Failed", str(exc))
+
+    def _on_time_history(self) -> None:
+        if self._mesh is None or self._arrays is None:
+            return
+        reg = self._selected_reg()
+        if reg is None:
+            self._QMessageBox.information(self.widget, "Time History", "Select a field first.")
+            return
+
+        location = str(reg.get("location", "node"))
+        name = str(reg.get("name", ""))
+        if not name:
+            return
+
+        # Choose index for sampling
+        if location in ("node", "nodal"):
+            pid = self._last_probe_pid
+            if pid is None:
+                self._QMessageBox.information(self.widget, "Time History", "Probe a point first (left-click) to pick a node.")
+                return
+        elif location in ("element", "elem"):
+            cid = self._last_cell_id
+            if cid is None:
+                self._QMessageBox.information(self.widget, "Time History", "Pick a cell first (click on mesh) to pick an element.")
+                return
+        else:
+            self._QMessageBox.information(self.widget, "Time History", f"Unsupported location: {location}")
+            return
+
+        # Build time axis (best-effort)
+        time_map = self._step_time_map()
+        xs: list[float] = []
+        ys: list[float] = []
+
+        unit_label = self._field_unit_label(reg, name)
+
+        for step_id in self._steps:
+            arr = get_array_for(arrays=self._arrays, location=location, name=name, step=step_id)
+            if arr is None:
+                continue
+            mode = self.field_mode.currentData()
+            if np.asarray(arr).ndim == 2 and mode in ("auto", "mag"):
+                scalar = vector_magnitude(arr)
+                scalar_name = f"{name}_mag"
+            else:
+                scalar = np.asarray(arr).reshape(-1)
+                scalar_name = name
+
+            # unit conversion consistent with viewer
+            if unit_label and self._units is not None:
+                # If reg provides base unit, try convert to display.
+                base = reg.get("unit") if isinstance(reg.get("unit"), str) else None
+                if isinstance(base, str) and base and base != unit_label:
+                    try:
+                        from geohpem.units import conversion_factor
+
+                        scalar = scalar.astype(float, copy=False) * conversion_factor(base, unit_label)
+                    except Exception:
+                        pass
+
+            try:
+                if location in ("node", "nodal"):
+                    v = float(np.asarray(scalar)[int(pid)])  # type: ignore[arg-type]
+                else:
+                    v = float(np.asarray(scalar)[int(cid)])  # type: ignore[arg-type]
+            except Exception:
+                continue
+
+            xs.append(float(time_map.get(int(step_id), float(step_id))))
+            ys.append(v)
+
+        if not xs:
+            self._QMessageBox.information(self.widget, "Time History", "No data available for this field.")
+            return
+
+        from geohpem.gui.dialogs.plot_dialog import PlotDialog, PlotSeries
+
+        xlabel = "Time" if any(k in time_map for k in self._steps) else "Step"
+        ylabel = scalar_name
+        if unit_label:
+            ylabel = f"{scalar_name} [{unit_label}]"
+        dlg = PlotDialog(
+            self.widget,
+            title=f"Time history: {scalar_name}",
+            xlabel=xlabel,
+            ylabel=ylabel,
+            series=[PlotSeries(x=np.asarray(xs, dtype=float), y=np.asarray(ys, dtype=float), label=None)],
+            default_csv_name=f"history_{scalar_name}.csv",
+            default_png_name=f"history_{scalar_name}.png",
+        )
+        dlg.exec()

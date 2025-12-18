@@ -43,6 +43,7 @@ class SolveWorker:
                 from geohpem.app.run_case import run_case
                 from geohpem.app.diagnostics import build_diagnostics_zip
                 from geohpem.app.errors import CancelledError
+                from geohpem.app.error_mapping import map_exception
                 import traceback
 
                 self.started.emit()
@@ -76,7 +77,8 @@ class SolveWorker:
                     self.progress.emit(100, "Completed")
                     self.output_ready.emit(out_dir)
                 except CancelledError as exc:
-                    msg = str(exc)
+                    info = map_exception(exc)
+                    msg = f"[{info.code}] {info.message}"
                     tb = traceback.format_exc()
                     diag = None
                     try:
@@ -91,6 +93,8 @@ class SolveWorker:
                             Path(self._case_dir),
                             solver_selector=self._solver_selector,
                             capabilities=caps if isinstance(caps, dict) else None,
+                            error_code=info.code,
+                            error_details=info.details,
                             error=msg,
                             tb=tb,
                             logs=self._logs,
@@ -102,7 +106,8 @@ class SolveWorker:
                     self.canceled.emit(diag)
                 except Exception as exc:
                     tb = traceback.format_exc()
-                    msg = str(exc)
+                    info = map_exception(exc)
+                    msg = f"[{info.code}] {info.message}"
                     diag = None
                     try:
                         # Try capture solver capabilities for diagnostics (best-effort).
@@ -117,6 +122,8 @@ class SolveWorker:
                             Path(self._case_dir),
                             solver_selector=self._solver_selector,
                             capabilities=caps if isinstance(caps, dict) else None,
+                            error_code=info.code,
+                            error_details=info.details,
                             error=msg,
                             tb=tb,
                             logs=self._logs,

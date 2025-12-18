@@ -8,6 +8,7 @@ from typing import Any, Callable, Iterable
 
 from geohpem.app.diagnostics import build_diagnostics_zip
 from geohpem.app.errors import CancelledError
+from geohpem.app.error_mapping import map_exception
 from geohpem.app.run_case import run_case
 from geohpem.contract.io import read_result_folder
 
@@ -21,6 +22,7 @@ class CaseRunRecord:
     rss_start_mb: float | None
     rss_end_mb: float | None
     out_dir: Path | None
+    error_code: str | None
     error: str | None
     diagnostics_zip: Path | None
     compare: dict[str, Any] | None
@@ -155,18 +157,44 @@ def run_cases(
                 rss1 = None
         except CancelledError as exc:
             status = "canceled"
-            err = str(exc)
+            info = map_exception(exc)
+            err = f"[{info.code}] {info.message}"
+            code = info.code
             try:
-                diag = build_diagnostics_zip(case_dir, solver_selector=solver_selector, error=err, tb=None, logs=None).zip_path
+                import traceback
+
+                diag = build_diagnostics_zip(
+                    case_dir,
+                    solver_selector=solver_selector,
+                    error_code=code,
+                    error_details=info.details,
+                    error=err,
+                    tb=traceback.format_exc(),
+                    logs=None,
+                ).zip_path
             except Exception:
                 diag = None
         except Exception as exc:
             status = "failed"
-            err = str(exc)
+            info = map_exception(exc)
+            err = f"[{info.code}] {info.message}"
+            code = info.code
             try:
-                diag = build_diagnostics_zip(case_dir, solver_selector=solver_selector, error=err, tb=None, logs=None).zip_path
+                import traceback
+
+                diag = build_diagnostics_zip(
+                    case_dir,
+                    solver_selector=solver_selector,
+                    error_code=code,
+                    error_details=info.details,
+                    error=err,
+                    tb=traceback.format_exc(),
+                    logs=None,
+                ).zip_path
             except Exception:
                 diag = None
+        else:
+            code = None
         elapsed = float(time.perf_counter() - t0)
         records.append(
             CaseRunRecord(
@@ -177,6 +205,7 @@ def run_cases(
                 rss_start_mb=rss0,
                 rss_end_mb=rss1,
                 out_dir=out_dir,
+                error_code=code,
                 error=err,
                 diagnostics_zip=diag,
                 compare=cmp,
@@ -201,6 +230,7 @@ def write_case_run_report(records: list[CaseRunRecord], out_path: Path) -> Path:
                 "rss_start_mb": r.rss_start_mb,
                 "rss_end_mb": r.rss_end_mb,
                 "out_dir": str(r.out_dir) if r.out_dir else None,
+                "error_code": r.error_code,
                 "error": r.error,
                 "diagnostics_zip": str(r.diagnostics_zip) if r.diagnostics_zip else None,
                 "compare": r.compare,
