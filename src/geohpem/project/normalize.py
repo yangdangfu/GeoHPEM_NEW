@@ -23,6 +23,16 @@ def ensure_request_ids(request: dict[str, Any], mesh: dict[str, Any] | None = No
         for s in stages:
             if isinstance(s, dict) and not s.get("uid"):
                 s["uid"] = new_uid("stage")
+            # stage inner objects
+            if not isinstance(s, dict):
+                continue
+            for key, prefix in (("bcs", "bc"), ("loads", "load"), ("output_requests", "outreq")):
+                items = s.get(key)
+                if not isinstance(items, list):
+                    continue
+                for it in items:
+                    if isinstance(it, dict) and not it.get("uid"):
+                        it["uid"] = new_uid(prefix)
 
     # materials
     mats = request.get("materials")
@@ -30,6 +40,13 @@ def ensure_request_ids(request: dict[str, Any], mesh: dict[str, Any] | None = No
         for _mid, m in mats.items():
             if isinstance(m, dict) and not m.get("uid"):
                 m["uid"] = new_uid("mat")
+
+    # global output requests (optional)
+    out_reqs = request.get("output_requests")
+    if isinstance(out_reqs, list):
+        for it in out_reqs:
+            if isinstance(it, dict) and not it.get("uid"):
+                it["uid"] = new_uid("outreq")
 
     # geometry: polygon2d
     geo = request.get("geometry")
@@ -73,4 +90,3 @@ def find_stage_index_by_uid(request: dict[str, Any], uid: str) -> int | None:
         if isinstance(s, dict) and s.get("uid") == uid:
             return i
     return None
-

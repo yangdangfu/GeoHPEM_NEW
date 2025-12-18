@@ -209,6 +209,7 @@ class GeometryDock:
 
         self._model: ProjectModel | None = None
         self._poly: Polygon2D | None = None
+        self._selected: tuple[str, int] | None = None  # ("vertex"/"edge", index)
 
         self._vertex_items: list[Any] = []
         self._edge_items: list[Any] = []
@@ -238,6 +239,7 @@ class GeometryDock:
 
     def _set_polygon(self, poly: Polygon2D | None, *, push_to_model: bool) -> None:
         self._poly = poly
+        self._selected = None
         self._redraw()
         if poly is None:
             self.info.setText("Polygon2D: not set")
@@ -275,6 +277,8 @@ class GeometryDock:
             x2, y2 = verts[(i + 1) % len(verts)]
             li = QGraphicsLineItem(x1, -y1, x2, -y2)
             li.setPen(pen_edge)
+            li.setData(self._Qt.UserRole, ("edge", i))
+            li.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
             self.scene.addItem(li)
             self._edge_items.append(li)
 
@@ -304,6 +308,8 @@ class GeometryDock:
                     # Commit to request (will rebuild scene once).
                     self._set_polygon(self._poly, push_to_model=True)
 
+        outer = self
+
         class VertexItem(QGraphicsEllipseItem):
             def __init__(
                 self,
@@ -320,6 +326,8 @@ class GeometryDock:
                 self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
                 self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges, True)
                 self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True)
+                self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
+                self.setData(outer._Qt.UserRole, ("vertex", idx))
 
             def itemChange(self, change, value):  # noqa: ANN001
                 if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
@@ -330,6 +338,10 @@ class GeometryDock:
                 out = super().mouseReleaseEvent(event)
                 self._cb(self._idx, self.scenePos(), True)
                 return out
+
+            def mousePressEvent(self, event) -> None:  # noqa: ANN001
+                outer._select(("vertex", self._idx))
+                return super().mousePressEvent(event)
 
         for i, (x, y) in enumerate(verts):
             it = VertexItem(i, float(x), float(-y), r, on_vertex_moved)
@@ -342,6 +354,55 @@ class GeometryDock:
             self._vertex_items.append(it)
 
         self.scene.setSceneRect(self.scene.itemsBoundingRect().adjusted(-20, -20, 20, 20))
+        self.scene.selectionChanged.connect(self._on_scene_selection_changed)
+        self._apply_selection_style()
+
+    def _on_scene_selection_changed(self) -> None:
+        items = self.scene.selectedItems()
+        if not items:
+            self._selected = None
+            self._apply_selection_style()
+            return
+        payload = items[0].data(self._Qt.UserRole)
+        if isinstance(payload, tuple) and len(payload) == 2 and payload[0] in ("vertex", "edge"):
+            self._select((str(payload[0]), int(payload[1])))
+        else:
+            self._selected = None
+            self._apply_selection_style()
+
+    def _select(self, sel: tuple[str, int] | None) -> None:
+        self._selected = sel
+        self._apply_selection_style()
+        if not self._poly or sel is None:
+            return
+        kind, idx = sel
+        if kind == "vertex":
+            vid = (self._poly.vertex_ids or [None] * len(self._poly.vertices))[idx]
+            x, y = self._poly.vertices[idx]
+            self.info.setText(f"Vertex {idx}: uid={vid} x={x:.4g} y={y:.4g}")
+        elif kind == "edge":
+            eid = (self._poly.edge_ids or [None] * len(self._poly.vertices))[idx]
+            label = self._poly.normalized_edge_groups()[idx]
+            x1, y1 = self._poly.vertices[idx]
+            x2, y2 = self._poly.vertices[(idx + 1) % len(self._poly.vertices)]
+            self.info.setText(f"Edge {idx}: uid={eid} label={label} ({x1:.4g},{y1:.4g})->({x2:.4g},{y2:.4g})")
+
+    def _apply_selection_style(self) -> None:
+        from PySide6.QtGui import QPen  # type: ignore
+
+        sel = self._selected
+        for i, li in enumerate(self._edge_items):
+            pen = QPen(self._Qt.black)
+            pen.setCosmetic(True)
+            pen.setWidth(3 if sel == ("edge", i) else 2)
+            pen.setColor(self._Qt.red if sel == ("edge", i) else self._Qt.black)
+            li.setPen(pen)
+        for i, it in enumerate(self._vertex_items):
+            pen = QPen(self._Qt.black)
+            pen.setCosmetic(True)
+            pen.setWidth(3 if sel == ("vertex", i) else 2)
+            pen.setColor(self._Qt.red if sel == ("vertex", i) else self._Qt.black)
+            it.setPen(pen)
 
     def _create_rectangle(self) -> None:
         poly = Polygon2D(

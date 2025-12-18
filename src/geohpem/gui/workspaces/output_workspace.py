@@ -6,6 +6,7 @@ import numpy as np
 
 from geohpem.viz.vtk_convert import (
     available_steps_from_arrays,
+    cell_type_code_to_name,
     contract_mesh_to_pyvista,
     get_array_for,
     vector_magnitude,
@@ -22,6 +23,7 @@ class OutputWorkspace:
             QLabel,
             QListWidget,
             QMessageBox,
+            QPlainTextEdit,
             QPushButton,
             QSpinBox,
             QSplitter,
@@ -78,7 +80,10 @@ class OutputWorkspace:
         right = QWidget()
         right_layout = QVBoxLayout(right)
         self._right_layout = right_layout
-        self.probe = QLabel("Probe: (click a point to read value)")
+        self.probe = QPlainTextEdit()
+        self.probe.setReadOnly(True)
+        self.probe.setMaximumHeight(110)
+        self.probe.setPlainText("Probe: left-click in the viewport to read value.")
         right_layout.addWidget(self.probe)
 
         self._viewer = None  # QtInteractor
@@ -94,6 +99,9 @@ class OutputWorkspace:
         self._mesh: dict[str, Any] | None = None
         self._steps: list[int] = []
         self._reg_items: list[dict[str, Any]] = []
+        self._node_set_membership: dict[int, list[str]] = {}
+        self._elem_set_membership: dict[str, dict[int, list[str]]] = {}  # cell_type -> local_id -> names
+        self._sets_label_by_key: dict[str, str] = {}
 
         self.registry_list.currentRowChanged.connect(self._render)
         self.step.valueChanged.connect(self._render)
@@ -106,6 +114,7 @@ class OutputWorkspace:
         self._meta = meta
         self._arrays = arrays
         self._mesh = mesh
+        self._build_set_membership()
 
         self._reg_items = [i for i in meta.get("registry", []) if isinstance(i, dict)]
         self.registry_list.clear()
@@ -126,6 +135,40 @@ class OutputWorkspace:
         self._ensure_viewer()
         self._render()
 
+    def _build_set_membership(self) -> None:
+        self._node_set_membership = {}
+        self._elem_set_membership = {}
+        self._sets_label_by_key = {}
+        if not self._mesh or not self._meta:
+            return
+        mesh = self._mesh
+        # Optional request-provided label map via sets_meta (UI-only)
+        # We don't have request here, so we use key itself as label.
+
+        # Node sets
+        for k, arr in mesh.items():
+            if not k.startswith("node_set__"):
+                continue
+            name = k.split("__", 1)[1]
+            nodes = np.asarray(arr, dtype=np.int64).reshape(-1)
+            for nid in nodes:
+                self._node_set_membership.setdefault(int(nid), []).append(name)
+
+        # Element sets (per cell type)
+        for k, arr in mesh.items():
+            if not k.startswith("elem_set__"):
+                continue
+            rest = k.split("__", 1)[1]
+            parts = rest.split("__")
+            if len(parts) < 2:
+                continue
+            name = parts[0]
+            cell_type = parts[1]
+            ids = np.asarray(arr, dtype=np.int64).reshape(-1)
+            by_id = self._elem_set_membership.setdefault(cell_type, {})
+            for cid in ids:
+                by_id.setdefault(int(cid), []).append(name)
+
     def _ensure_viewer(self) -> None:
         if self._viewer is not None:
             return
@@ -141,10 +184,49 @@ class OutputWorkspace:
         self._viewer_host_layout.addWidget(self._viewer)
 
         # probe picking
-        def on_pick(point):  # noqa: ANN001
+        def on_pick(*args, **kwargs):  # noqa: ANN001
+            # pyvista callback signature varies; we try to extract a point-like object.
+            point = None
+            if args:
+                point = args[0]
+            if point is None and "point" in kwargs:
+                point = kwargs["point"]
             self._on_probe(point)
 
-        self._viewer.enable_point_picking(callback=on_pick, show_message=False, use_mesh=True, show_point=True)
+        # Avoid deprecated `use_mesh`; use_picker=True enables picker-based picking.
+        try:
+            self._viewer.enable_point_picking(
+                callback=on_pick,
+                show_message=False,
+                left_clicking=True,
+                use_picker=True,
+                show_point=True,
+            )
+        except TypeError:
+            # Backward compatibility with older pyvista versions
+            self._viewer.enable_point_picking(
+                callback=on_pick,
+                show_message=False,
+                left_clicking=True,
+                show_point=True,
+                use_mesh=True,  # deprecated in newer versions
+            )
+
+        # cell picking (extract cell id via picker when available)
+        def on_cell_pick(*args, **kwargs):  # noqa: ANN001
+            self._on_cell_pick(args, kwargs)
+
+        try:
+            self._viewer.enable_cell_picking(  # type: ignore[attr-defined]
+                callback=on_cell_pick,
+                show=False,
+                through=False,
+                show_message=False,
+                start=True,
+            )
+        except Exception:
+            # Some versions may not expose enable_cell_picking; point probe still works.
+            pass
         self._viewer.set_background("white")
         self.btn_reset.setEnabled(True)
 
@@ -259,11 +341,84 @@ class OutputWorkspace:
         if grid is None or not scalar_name:
             return
         try:
+            if point is None:
+                return
+            # Normalize point into a 3-tuple
+            if hasattr(point, "GetPickPosition"):
+                point = point.GetPickPosition()
+            if isinstance(point, np.ndarray):
+                point = point.tolist()
+            if isinstance(point, (list, tuple)) and len(point) >= 2:
+                px = float(point[0])
+                py = float(point[1])
+                pz = float(point[2]) if len(point) >= 3 else 0.0
+            else:
+                return
             # Find closest point
-            pid = int(grid.find_closest_point(point))
+            pid = int(grid.find_closest_point((px, py, pz)))
             val = None
             if pref == "point" and scalar_name in grid.point_data:
                 val = float(grid.point_data[scalar_name][pid])
-            self.probe.setText(f"Probe: x={point[0]:.4g}, y={point[1]:.4g} -> {scalar_name}={val}")
+            node_sets = self._node_set_membership.get(pid, [])
+            sets_txt = f" node_sets={node_sets}" if node_sets else ""
+            self.probe.setPlainText(
+                f"Probe:\n"
+                f"  pid={pid}\n"
+                f"  x={px:.6g}, y={py:.6g}\n"
+                f"  {scalar_name}={val}\n"
+                f"  {sets_txt.strip() if sets_txt else 'node_sets=[]'}"
+            )
         except Exception as exc:
-            self.probe.setText(f"Probe failed: {exc}")
+            self.probe.setPlainText(f"Probe failed: {exc}")
+
+    def _on_cell_pick(self, args, kwargs) -> None:  # noqa: ANN001
+        grid = getattr(self, "_last_grid", None)
+        if grid is None:
+            return
+
+        cell_id: int | None = None
+        # Try various callback signatures and picker fields.
+        for a in args:
+            if isinstance(a, int):
+                cell_id = int(a)
+                break
+            if hasattr(a, "cell_id"):
+                try:
+                    cell_id = int(getattr(a, "cell_id"))
+                    break
+                except Exception:
+                    pass
+        if cell_id is None and "cell_id" in kwargs:
+            try:
+                cell_id = int(kwargs["cell_id"])
+            except Exception:
+                cell_id = None
+
+        # Try plotter picker
+        if cell_id is None and self._viewer is not None:
+            try:
+                picker = getattr(self._viewer, "picker", None)
+                if picker is not None and hasattr(picker, "GetCellId"):
+                    cid = int(picker.GetCellId())
+                    if cid >= 0:
+                        cell_id = cid
+            except Exception:
+                cell_id = None
+
+        if cell_id is None or cell_id < 0 or cell_id >= grid.n_cells:
+            return
+
+        try:
+            ctype_code = int(grid.cell_data["__cell_type_code"][cell_id])
+            local_id = int(grid.cell_data["__cell_local_id"][cell_id])
+            ctype = cell_type_code_to_name(ctype_code) or str(ctype_code)
+            elem_sets = self._elem_set_membership.get(ctype, {}).get(local_id, [])
+            self.probe.setPlainText(
+                "Cell pick:\n"
+                f"  cell_id={cell_id}\n"
+                f"  type={ctype}\n"
+                f"  local_id={local_id}\n"
+                f"  elem_sets={elem_sets}"
+            )
+        except Exception as exc:
+            self.probe.setPlainText(f"Cell pick failed: {exc}")

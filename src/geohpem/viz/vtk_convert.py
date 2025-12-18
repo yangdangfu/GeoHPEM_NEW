@@ -48,22 +48,30 @@ def contract_mesh_to_pyvista(mesh: dict[str, Any]) -> VtkMesh:
 
     cells_parts: list[np.ndarray] = []
     celltypes_parts: list[np.ndarray] = []
+    cell_type_code_parts: list[np.ndarray] = []
+    cell_local_id_parts: list[np.ndarray] = []
 
     # VTK cell types
     VTK_TRIANGLE = 5
     VTK_QUAD = 9
+    TYPE_TRI3 = 1
+    TYPE_QUAD4 = 2
 
     if "cells_tri3" in mesh:
         tri = np.asarray(mesh["cells_tri3"], dtype=np.int64)
         if tri.size:
             cells_parts.append(_vtk_cells_from_conn(tri))
             celltypes_parts.append(np.full((tri.shape[0],), VTK_TRIANGLE, dtype=np.uint8))
+            cell_type_code_parts.append(np.full((tri.shape[0],), TYPE_TRI3, dtype=np.int32))
+            cell_local_id_parts.append(np.arange(tri.shape[0], dtype=np.int32))
 
     if "cells_quad4" in mesh:
         quad = np.asarray(mesh["cells_quad4"], dtype=np.int64)
         if quad.size:
             cells_parts.append(_vtk_cells_from_conn(quad))
             celltypes_parts.append(np.full((quad.shape[0],), VTK_QUAD, dtype=np.uint8))
+            cell_type_code_parts.append(np.full((quad.shape[0],), TYPE_QUAD4, dtype=np.int32))
+            cell_local_id_parts.append(np.arange(quad.shape[0], dtype=np.int32))
 
     if not cells_parts:
         # empty grid
@@ -73,7 +81,14 @@ def contract_mesh_to_pyvista(mesh: dict[str, Any]) -> VtkMesh:
     cells = np.concatenate(cells_parts)
     celltypes = np.concatenate(celltypes_parts)
     grid = pv.UnstructuredGrid(cells, celltypes, points3)
+    # Add mapping so we can map picked VTK cells back to Contract cell blocks.
+    grid.cell_data["__cell_type_code"] = np.concatenate(cell_type_code_parts)
+    grid.cell_data["__cell_local_id"] = np.concatenate(cell_local_id_parts)
     return VtkMesh(grid=grid, n_points=int(points3.shape[0]), n_cells=int(grid.n_cells))
+
+
+def cell_type_code_to_name(code: int) -> str | None:
+    return {1: "tri3", 2: "quad4"}.get(int(code))
 
 
 def available_steps_from_arrays(arrays: dict[str, Any]) -> list[int]:
@@ -113,4 +128,3 @@ def vector_magnitude(v: np.ndarray) -> np.ndarray:
     if v.ndim != 2:
         raise ValueError("vector must be 2D (N,dim)")
     return np.sqrt(np.sum(v * v, axis=1))
-

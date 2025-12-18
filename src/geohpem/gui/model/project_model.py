@@ -3,13 +3,12 @@ from __future__ import annotations
 import copy
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
-import copy
 import numpy as np
 
-from geohpem.project.types import ProjectData
 from geohpem.gui.model.undo_stack import UndoCommand, UndoStack
+from geohpem.project.types import ProjectData
 
 
 @dataclass(slots=True)
