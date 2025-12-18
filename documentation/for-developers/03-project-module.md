@@ -57,6 +57,7 @@ project.geohpem (ZIP)
 ├── manifest.json      # Package metadata
 ├── request.json       # Analysis configuration
 ├── mesh.npz           # Mesh data
+├── ui_state.json      # GUI state (profiles, pins) - optional
 └── out/               # Results (optional)
     ├── result.json
     └── result.npz
@@ -97,12 +98,14 @@ class ProjectData:
         result_meta: Result metadata (optional, from solver)
         result_arrays: Result arrays (optional, from solver)
         manifest: Package metadata (optional, for .geohpem files)
+        ui_state: GUI state (profiles, pins) - persisted in .geohpem
     """
     request: dict[str, Any]
     mesh: dict[str, np.ndarray]
     result_meta: dict[str, Any] | None = None
     result_arrays: dict[str, np.ndarray] | None = None
     manifest: dict[str, Any] | None = None
+    ui_state: dict[str, Any] | None = None
 ```
 
 ### Package Functions (`package.py`)
@@ -128,6 +131,7 @@ def save_geohpem(path: str | Path, project: ProjectData) -> Path:
         - Automatically ensures request IDs before saving
         - Validates request against basic schema
         - Compresses all data in ZIP format
+        - Includes ui_state.json if project.ui_state is set
     """
 
 def load_geohpem(path: str | Path) -> ProjectData:
@@ -138,7 +142,7 @@ def load_geohpem(path: str | Path) -> ProjectData:
         path: Path to .geohpem file
     
     Returns:
-        Loaded ProjectData
+        Loaded ProjectData (including ui_state if present)
     
     Raises:
         FileNotFoundError: If file doesn't exist
@@ -147,6 +151,7 @@ def load_geohpem(path: str | Path) -> ProjectData:
     Notes:
         - Applies migrations to older format versions
         - Ensures stable IDs after loading
+        - Loads ui_state.json if present in archive
     """
 
 def normalize_project_path(path: str | Path) -> Path:
@@ -408,5 +413,5 @@ Stage and material indices can change (e.g., when deleting a stage). Stable UIDs
 
 ---
 
-Last updated: 2024-12-18 (v2 - added stage inner object UIDs)
+Last updated: 2024-12-18 (v3 - added ui_state for profiles/pins persistence)
 

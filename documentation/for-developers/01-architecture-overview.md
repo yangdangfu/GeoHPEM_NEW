@@ -144,7 +144,7 @@ Supporting services for mesh, visualization, and solver integration.
 | Module | Responsibility |
 |--------|----------------|
 | `mesh/` | Mesh import (meshio), conversion, quality analysis |
-| `viz/` | Contract mesh → PyVista conversion, result array extraction, cell type mapping |
+| `viz/` | Contract mesh → PyVista conversion, result array extraction, cell type mapping, 2D interaction |
 | `solver_adapter/` | Solver loading, fake solver for testing |
 | `geometry/` | 2D geometry primitives (Polygon2D) |
 | `domain/` | Pure domain operations (mesh_ops, request_ops) |
@@ -157,6 +157,15 @@ Supporting services for mesh, visualization, and solver integration.
 - `cell_type_code_to_name(code)`: Map internal cell type code to Contract name (1→"tri3", 2→"quad4")
 - `available_steps_from_arrays(arrays)`: Extract step IDs from result array keys
 - `get_array_for(arrays, location, name, step)`: Retrieve specific result array
+
+**2D Interaction** (`viz/vtk_interaction.py`):
+- `apply_2d_interaction(plotter)`: Configure PyVista/VTK plotter for 2D-only interaction
+  - Disables 3D rotation
+  - Middle mouse = pan
+  - Mouse wheel = zoom
+  - Left mouse = reserved for picking
+  - Right mouse = reserved for context menu
+  - Sets parallel projection and XY view
 - `vector_magnitude(v)`: Compute magnitude of vector field
 
 ---
@@ -347,5 +356,5 @@ raise SystemExit(main())
 
 ---
 
-Last updated: 2024-12-18 (v6 - domain ops, widget editors, error mapping, plot dialog, undo merge)
+Last updated: 2024-12-18 (v7 - InputWorkspace, profiles/pins, ui_state persistence, 2D interaction)
 

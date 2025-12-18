@@ -141,6 +141,9 @@ def set_global_output_requests(request: dict, output_requests: list[dict]) -> di
 ```python
 def set_geometry(request: dict, geometry: dict | None) -> dict:
     """Set or remove request.geometry."""
+
+def set_set_label(request: dict, set_key: str, label: str) -> dict:
+    """Update request.sets_meta[set_key].label (UI-only metadata)."""
 ```
 
 ---
@@ -228,5 +231,5 @@ def update_stage(self, stage_uid: str, patch: dict) -> None:
 
 ---
 
-Last updated: 2024-12-18 (v1 - initial domain module documentation)
+Last updated: 2024-12-18 (v2 - added set_set_label)
 

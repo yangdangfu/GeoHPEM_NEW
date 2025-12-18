@@ -215,5 +215,5 @@ from geohpem.project.types import ProjectData
 
 ---
 
-Last updated: 2024-12-18 (v6 - domain ops, widget editors, batch report dialog, plot dialog)
+Last updated: 2024-12-18 (v7 - InputWorkspace, profiles/pins, ui_state persistence)
 

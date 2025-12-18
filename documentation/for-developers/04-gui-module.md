@@ -367,17 +367,63 @@ class WorkspaceStack:
 
 ### InputWorkspace (`workspaces/input_workspace.py`)
 
-Editing view for model setup:
+Comprehensive input editing workspace with mesh preview and selection tools:
 
 ```python
 class InputWorkspace:
-    """
-    MVP placeholder - will contain:
-    - Mesh visualization
-    - Interactive editing tools
-    - BC/Load visualization
-    """
+    # Signals for MainWindow integration
+    new_project_requested = Signal()
+    open_project_requested = Signal()
+    open_case_requested = Signal()
+    import_mesh_requested = Signal()
+    validate_requested = Signal()
+    run_requested = Signal()
+    switch_output_requested = Signal()
+    create_set_requested = Signal(object)  # payload dict
 ```
+
+**Dashboard (Left Panel)**:
+- **Status**: Project name, solver, dirty state
+- **Quick Actions**: New, Open Project, Open Case, Import Mesh, Validate (F7), Run, Go to Output
+- **Workflow Checklist**: Step-by-step guidance for users
+- **Tips**: Best practices for modeling workflow
+
+**Mesh Preview (Right Panel)**:
+- PyVista-based 3D/2D mesh visualization
+- **Highlight set dropdown**: Select node/edge/element set to highlight
+- **Fit button**: Reset camera to mesh extents
+
+**Selection System**:
+- **Pick node**: Left-click to select single node (shows ID, coordinates, set membership)
+- **Pick cell**: Click cell to select element (shows type, local ID, set membership)
+- **Box nodes**: Rectangle selection for multiple nodes
+- **Box elems**: Rectangle selection for multiple elements
+- **Brush mode**: Keep box selection active for repeated drags
+- **Replace mode**: Clear previous selection when boxing
+
+**Selection Actions**:
+- **Add picked node**: Add last clicked node to selection
+- **Add edge (last 2 picks)**: Create edge from two consecutive picks
+- **Add picked cell**: Add last clicked cell to selection
+- **Clear**: Clear all selections
+
+**Set Creation**:
+- **Create node set...**: Prompt for name, emit `create_set_requested`
+- **Create edge set...**: Prompt for name, emit `create_set_requested`
+- **Create elem set...**: Prompt for name, emit `create_set_requested`
+
+**Internal State**:
+```python
+_sel_nodes: set[int]                    # Selected node IDs
+_sel_edges: set[tuple[int, int]]        # Selected edges as node pairs
+_sel_elems: dict[str, set[int]]         # {cell_type: {local_ids}}
+_box_mode: str | None                   # None | "node" | "cell"
+_last_probe_pid: int | None             # Last clicked node ID
+_last_cell: tuple[str, int] | None      # (cell_type, local_id)
+_last_probe_pid_history: list[int]      # Last 2 picks for edge creation
+```
+
+**2D View**: Uses `viz/vtk_interaction.py` for 2D-only interaction (no rotation).
 
 ### OutputWorkspace (`workspaces/output_workspace.py`)
 
@@ -408,7 +454,7 @@ class OutputWorkspace:
 - `shutdown()` is called by `MainWindow._shutdown_before_close()` before Qt window closes
 - Properly disposes VTK plotter to avoid OpenGL context errors
 
-**Post-Processing Features** (M8):
+**Post-Processing Features**:
 - **Profile Line**: Extract field values along a user-defined line segment
   - Dialog to set start/end coordinates or "Use last two picks"
   - Configurable sample count
@@ -419,14 +465,59 @@ class OutputWorkspace:
   - Auto-maps step IDs to time values when available
   - Opens `PlotDialog` with time/step vs value plot
 - **Export Image**: Screenshot current viewport to PNG
+- **Export Steps -> PNG**: Batch export all steps as numbered PNG files
+
+**Profile Management** (persistent):
+- **Profile List**: Named profile lines stored in project
+- **Pick 2 Points**: Interactive viewport picking to create profiles
+- **Plot Selected**: Re-plot any saved profile
+- **Edit Selected (drag)**: Drag profile endpoints in viewport
+- **Remove Selected**: Delete profile from project
+
+**Pin Management** (persistent):
+- **Pin List**: Saved probe locations (nodes/elements)
+- **Pin Last Probe (node)**: Save last clicked node as pin
+- **Pin Last Cell (element)**: Save last clicked cell as pin
+- **Remove Pin**: Delete pin from project
+
+**UI State Persistence**:
+```python
+def set_ui_state(self, ui_state: dict[str, Any]) -> None:
+    """Load per-project UI state (profiles/pins) from ProjectData.ui_state."""
+
+def get_ui_state(self) -> dict[str, Any]:
+    """Return JSON-serializable UI state for ProjectData.ui_state."""
+```
+
+Stored structure:
+```json
+{
+  "output": {
+    "profiles": [{"uid": "...", "name": "...", "p1": [x,y,z], "p2": [x,y,z], "reg": {...}, "step_id": 1}],
+    "pins": [{"uid": "...", "kind": "node|element", "pid": 0, "cell_id": 0, "cell_type": "tri3", "local_id": 0, "label": "..."}]
+  }
+}
+```
 
 **Internal State**:
 ```python
 _probe_history: list[dict]     # Last 10 probe picks (x, y, z, pid)
 _last_probe_pid: int | None    # Last picked point ID (for time history)
 _last_cell_id: int | None      # Last picked cell ID (for element history)
-_profile_actor: Any            # Line overlay actor (for removal on next profile)
+_last_probe_xyz: tuple | None  # Last picked coordinates
+_last_cell_info: dict | None   # Last picked cell details
+_profiles: list[dict]          # Saved profile lines
+_pins: list[dict]              # Saved probe pins
+_mode: str                     # "normal" | "profile_pick" | "profile_edit"
 ```
+
+**2D View Interaction**:
+Uses `viz/vtk_interaction.py` to configure VTK for 2D-only interaction:
+- No 3D rotation
+- Middle mouse = pan
+- Mouse wheel = zoom
+- Left mouse = picking (no camera interaction)
+- Right mouse = reserved for context menu
 
 **Set Membership Tracking**:
 ```python
@@ -944,5 +1035,5 @@ menu_edit.addAction(self._action_my)
 
 ---
 
-Last updated: 2024-12-18 (v7 - widget editors, batch report dialog, plot dialog, undo merge, profile/history)
+Last updated: 2024-12-18 (v8 - InputWorkspace selection, profiles/pins persistence, 2D interaction)
 
