@@ -58,6 +58,7 @@ src/geohpem/
 ├── __main__.py          # Entry point for `python -m geohpem`
 ├── cli.py               # CLI parser (subcommands: about, gui, run, contract-example)
 ├── main.py              # Simple GUI launcher
+├── units.py             # Unit conversion and display unit management
 ├── app/                 # Application layer (precheck, run_case)
 ├── contract/            # Solver contract (I/O, validation, schemas)
 ├── domain/              # Domain models
@@ -68,7 +69,7 @@ src/geohpem/
 │   ├── model/           # State management (project, selection, undo)
 │   ├── workspaces/      # Input/Output workspaces
 │   ├── widgets/         # Dock widgets
-│   ├── dialogs/         # Modal dialogs
+│   ├── dialogs/         # Modal dialogs (incl. units_dialog.py)
 │   └── workers/         # Background workers
 ├── mesh/                # Mesh I/O and quality
 ├── post/                # Post-processing (TBD)
@@ -116,6 +117,7 @@ GeoHPEM is a geotechnical simulation platform with the following key characteris
 | [05-mesh-module.md](05-mesh-module.md) | Mesh handling and conversion |
 | [06-solver-adapter-module.md](06-solver-adapter-module.md) | Solver loading and fake solver |
 | [07-app-module.md](07-app-module.md) | Application layer services |
+| [08-units-module.md](08-units-module.md) | Unit conversion and display units |
 
 ---
 
@@ -205,5 +207,5 @@ from geohpem.project.types import ProjectData
 
 ---
 
-Last updated: 2024-12-18
+Last updated: 2024-12-18 (v3 - added units module)
 

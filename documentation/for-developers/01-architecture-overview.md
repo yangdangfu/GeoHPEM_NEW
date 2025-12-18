@@ -141,6 +141,7 @@ Supporting services for mesh, visualization, and solver integration.
 | `viz/` | Contract mesh → PyVista conversion, result array extraction, cell type mapping |
 | `solver_adapter/` | Solver loading, fake solver for testing |
 | `geometry/` | 2D geometry primitives (Polygon2D) |
+| `units.py` | Unit conversion system and display unit management |
 | `util/` | ID generation, logging configuration |
 
 **Viz Module Key Functions** (`viz/vtk_convert.py`):
@@ -333,5 +334,5 @@ raise SystemExit(main())
 
 ---
 
-Last updated: 2024-12-18 (v2 - added viz module details)
+Last updated: 2024-12-18 (v3 - added units module)
 

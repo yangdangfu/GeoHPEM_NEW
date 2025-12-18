@@ -365,6 +365,12 @@ _node_set_membership: dict[int, list[str]]  # node_id -> set names
 _elem_set_membership: dict[str, dict[int, list[str]]]  # cell_type -> local_id -> set names
 ```
 
+**Unit Support**:
+- `set_unit_context(units)`: Set UnitContext for display conversion
+- Scalar bar shows values in display units with unit label
+- Probe readout converts coordinates to display units
+- Result values (displacement, pressure) converted based on registry unit info
+
 ---
 
 ## Dock Widgets
@@ -439,9 +445,14 @@ _selected: tuple[str, int] | None  # ("vertex"/"edge", index) or None
 
 **Methods**:
 - `bind_model(model)`: Connect to ProjectModel for geometry updates
+- `set_unit_context(units)`: Set UnitContext for coordinate display conversion
 - `_set_polygon(poly, push_to_model)`: Update displayed polygon
 - `_select(sel)`: Set selection and update highlighting
 - `_apply_selection_style()`: Update visual styles based on selection
+
+**Unit Support**:
+- Coordinates and vertex/edge info display in user-selected display units
+- Mouse position readout converts from base to display units
 
 ---
 
@@ -474,6 +485,20 @@ Set management:
 - View all sets (node/edge/element)
 - Edit set labels
 - Delete sets
+
+### UnitsDialog (`dialogs/units_dialog.py`)
+
+Display unit preferences:
+- Select display units for length (mm, cm, m, km)
+- Select display units for pressure (Pa, kPa, MPa, GPa)
+- "Project" option uses the project's declared unit system
+- Changes are persisted in user settings
+
+```python
+@dataclass(frozen=True, slots=True)
+class UnitsDialogResult:
+    display_units: dict[str, str]  # {"length": "mm", "pressure": "kPa", ...}
+```
 
 ---
 
@@ -574,5 +599,5 @@ menu_edit.addAction(self._action_my)
 
 ---
 
-Last updated: 2024-12-18 (v2 - enhanced probing, geometry selection)
+Last updated: 2024-12-18 (v3 - added UnitsDialog, unit context support)
 
