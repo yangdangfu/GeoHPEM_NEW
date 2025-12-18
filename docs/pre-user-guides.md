@@ -158,3 +158,6 @@ GUI 菜单：
   - 输出：默认写到 `<cases_root>/batch_report.json`
   - 失败会生成 `_diagnostics/diag_*.zip`（每个 case 自己的工作目录里）
   - 可选对比：`--baseline <baseline_root>`（要求基准结果位于 `<baseline_root>/<case_name>/out`）
+
+GUI 入口（MVP）：
+- `Tools -> Batch Run...`：选择 cases root / solver / baseline / report，并显示进度与日志（Cancel 为 best-effort）。

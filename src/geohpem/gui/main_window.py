@@ -6,6 +6,7 @@ from typing import Any
 from geohpem.contract.io import read_result_folder
 from geohpem.contract.io import write_case_folder
 from geohpem.gui.dialogs.import_mesh_dialog import ImportMeshDialog
+from geohpem.gui.dialogs.batch_run_dialog import BatchRunDialog
 from geohpem.gui.dialogs.mesh_quality_dialog import MeshQualityDialog
 from geohpem.gui.dialogs.precheck_dialog import PrecheckDialog
 from geohpem.gui.dialogs.sets_dialog import SetsDialog
@@ -103,6 +104,9 @@ class MainWindow:
         self._action_units = QAction("Display Units...", self._win)
         self._action_units.triggered.connect(self._on_display_units)
 
+        self._action_batch_run = QAction("Batch Run...", self._win)
+        self._action_batch_run.triggered.connect(self._on_batch_run)
+
         self._action_import_mesh = QAction("Import Mesh...", self._win)
         self._action_import_mesh.triggered.connect(self._on_import_mesh)
 
@@ -165,6 +169,9 @@ class MainWindow:
 
         menu_view = self._win.menuBar().addMenu("View")
         menu_view.addAction(self._action_units)
+
+        menu_tools = self._win.menuBar().addMenu("Tools")
+        menu_tools.addAction(self._action_batch_run)
 
         menu_solve = self._win.menuBar().addMenu("Solve")
         menu_solve.addAction(self._action_select_solver)
@@ -379,6 +386,10 @@ class MainWindow:
         self._update_run_action_text()
         self._apply_solver_capabilities(caps)
         self.log_dock.append_info(f"Selected solver: {res.solver_selector}")
+
+    def _on_batch_run(self) -> None:
+        dlg = BatchRunDialog(self._win, solver_selector=self._settings.get_solver_selector())
+        dlg.exec()
 
     def _on_display_units(self) -> None:
         state = self.model.state()

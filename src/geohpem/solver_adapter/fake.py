@@ -23,12 +23,22 @@ class FakeSolver:
         mesh: dict[str, Any],
         callbacks: dict[str, Any] | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
+        from geohpem.app.errors import CancelledError
+
         points = np.asarray(mesh["points"])
         n = points.shape[0]
 
         def cb_progress(p: float, msg: str, stage_id: str, step: int) -> None:
             if callbacks and (fn := callbacks.get("on_progress")):
                 fn(p, msg, stage_id, step)
+
+        def should_cancel() -> bool:
+            if callbacks and (fn := callbacks.get("should_cancel")):
+                try:
+                    return bool(fn())
+                except Exception:
+                    return False
+            return False
 
         stages = request["stages"]
         total_steps = sum(int(s.get("num_steps", 1)) for s in stages)
@@ -43,6 +53,8 @@ class FakeSolver:
             num_steps = int(stage.get("num_steps", 1))
             times = []
             for step in range(num_steps):
+                if should_cancel():
+                    raise CancelledError("Cancelled by user")
                 step_counter += 1
                 p = step_counter / total_steps
                 cb_progress(p, "fake solving...", stage_id, step)

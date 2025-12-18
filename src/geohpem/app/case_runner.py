@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterable
 
 from geohpem.app.diagnostics import build_diagnostics_zip
+from geohpem.app.errors import CancelledError
 from geohpem.app.run_case import run_case
 from geohpem.contract.io import read_result_folder
 
@@ -14,7 +15,7 @@ from geohpem.contract.io import read_result_folder
 @dataclass(frozen=True, slots=True)
 class CaseRunRecord:
     case_dir: Path
-    status: str  # success|failed|skipped
+    status: str  # success|failed|canceled|skipped
     solver_selector: str
     elapsed_s: float
     out_dir: Path | None
@@ -130,11 +131,19 @@ def run_cases(
         try:
             if on_progress:
                 on_progress(i, total, case_dir, "running")
-            out_dir = run_case(str(case_dir), solver_selector=solver_selector, callbacks=None)
+            callbacks = {"should_cancel": (should_cancel or (lambda: False))}
+            out_dir = run_case(str(case_dir), solver_selector=solver_selector, callbacks=callbacks)
             if baseline_root is not None:
                 base_out = Path(baseline_root) / case_dir.name / "out"
                 if base_out.exists():
                     cmp = _compare_out_dirs(out_dir, base_out)
+        except CancelledError as exc:
+            status = "canceled"
+            err = str(exc)
+            try:
+                diag = build_diagnostics_zip(case_dir, solver_selector=solver_selector, error=err, tb=None, logs=None).zip_path
+            except Exception:
+                diag = None
         except Exception as exc:
             status = "failed"
             err = str(exc)
