@@ -46,6 +46,8 @@ class SolverDialog:
 
         self._type = QComboBox()
         self._type.addItem("Fake (built-in)", "fake")
+        self._type.addItem("Reference Elastic (built-in)", "ref_elastic")
+        self._type.addItem("Reference Seepage (built-in)", "ref_seepage")
         self._type.addItem("Python module (python:<module>)", "python")
         form.addRow("Solver", self._type)
 
@@ -84,6 +86,14 @@ class SolverDialog:
             self._type.setCurrentIndex(self._type.findData("fake"))
             self._module.setText("")
             return
+        if selector == "ref_elastic":
+            self._type.setCurrentIndex(self._type.findData("ref_elastic"))
+            self._module.setText("")
+            return
+        if selector == "ref_seepage":
+            self._type.setCurrentIndex(self._type.findData("ref_seepage"))
+            self._module.setText("")
+            return
         if selector.startswith("python:"):
             self._type.setCurrentIndex(self._type.findData("python"))
             self._module.setText(selector.split("python:", 1)[1].strip())
@@ -98,8 +108,8 @@ class SolverDialog:
 
     def _selector(self) -> str:
         t = str(self._type.currentData())
-        if t == "fake":
-            return "fake"
+        if t in ("fake", "ref_elastic", "ref_seepage"):
+            return t
         module = self._module.text().strip()
         return f"python:{module}"
 
@@ -139,4 +149,3 @@ class SolverDialog:
             self._QMessageBox.information(self._dialog, "Solver", "Please enter a python module name.")
             return None
         return SolverDialogResult(solver_selector=selector)
-

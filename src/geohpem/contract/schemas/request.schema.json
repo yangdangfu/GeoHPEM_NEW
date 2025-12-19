@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://geohpem.local/schema/request-0.1.json",
+  "$id": "https://geohpem.local/schema/request.json",
   "title": "GeoHPEM SolveRequest",
   "type": "object",
   "required": ["schema_version", "model", "stages"],
   "properties": {
-    "schema_version": { "const": "0.1" },
+    "schema_version": { "enum": ["0.1", "0.2"] },
     "unit_system": {
       "type": "object",
       "additionalProperties": { "type": "string" }
@@ -15,7 +15,7 @@
       "required": ["dimension", "mode"],
       "properties": {
         "dimension": { "const": 2 },
-        "mode": { "enum": ["plane_strain", "axisymmetric"] },
+        "mode": { "enum": ["plane_strain", "plane_stress", "axisymmetric"] },
         "gravity": {
           "type": "array",
           "items": { "type": "number" },
@@ -47,4 +47,3 @@
   },
   "additionalProperties": true
 }
-

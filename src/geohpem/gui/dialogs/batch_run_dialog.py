@@ -48,7 +48,7 @@ class BatchRunDialog:
 
         self._solver = QLineEdit()
         self._solver.setText(solver_selector)
-        self._solver.setPlaceholderText("fake | python:<module>")
+        self._solver.setPlaceholderText("fake | ref_elastic | ref_seepage | python:<module>")
         form.addRow("Solver", self._solver)
 
         self._use_baseline = QCheckBox("Compare with baseline root")

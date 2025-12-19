@@ -90,8 +90,9 @@ def precheck_request_mesh(
 ) -> list[PrecheckIssue]:
     issues: list[PrecheckIssue] = []
 
-    if request.get("schema_version") != "0.1":
-        issues.append(_issue("ERROR", "REQ_SCHEMA", "request.schema_version must be '0.1'"))
+    schema_version = str(request.get("schema_version", ""))
+    if schema_version not in ("0.1", "0.2"):
+        issues.append(_issue("ERROR", "REQ_SCHEMA", "request.schema_version must be '0.1' or '0.2'"))
 
     if capabilities:
         contract = capabilities.get("contract")
@@ -114,8 +115,9 @@ def precheck_request_mesh(
     else:
         if model.get("dimension") != 2:
             issues.append(_issue("ERROR", "REQ_DIM", "request.model.dimension must be 2"))
-        if model.get("mode") not in ("plane_strain", "axisymmetric"):
-            issues.append(_issue("ERROR", "REQ_MODE", "request.model.mode must be 'plane_strain' or 'axisymmetric'"))
+        allowed_modes = ("plane_strain", "axisymmetric") if schema_version == "0.1" else ("plane_strain", "plane_stress", "axisymmetric")
+        if model.get("mode") not in allowed_modes:
+            issues.append(_issue("ERROR", "REQ_MODE", f"request.model.mode must be one of {list(allowed_modes)}"))
         if capabilities:
             modes = capabilities.get("modes")
             if isinstance(modes, list) and modes:

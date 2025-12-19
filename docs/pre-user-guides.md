@@ -10,6 +10,9 @@
 - `docs/tutorials/02_Tutorial_ImportMesh_To_Post.md`
 - `docs/tutorials/03_Tutorial_OpenCase_Output_Advanced.md`
 
+参考求解器（给 solver 团队的可运行模板）：
+- `docs/REFERENCE_SOLVERS.md`
+
 ## 1. 环境准备
 
 - 推荐使用 conda 环境：`environment.yml`
@@ -29,6 +32,11 @@
 推荐的“更接近实际”的测试算例（已包含多阶段/多 sets/element 字段）：
 - `_Projects/cases/realistic_case_01`
   - 生成脚本：`python scripts/make_realistic_case.py`（会同时生成 `out/` 结果，便于直接测试 Output）
+- `_Projects/cases/reference_elastic_01` / `_Projects/cases/reference_seepage_01`
+  - 生成脚本：`python scripts/make_reference_cases.py`（生成 request+mesh）
+  - 运行求解（写出 `out/`）：
+    - `python geohpem_cli.py run _Projects/cases/reference_elastic_01 --solver ref_elastic`
+    - `python geohpem_cli.py run _Projects/cases/reference_seepage_01 --solver ref_seepage`
 
 ## 3. 新建工程
 

@@ -12,6 +12,13 @@
 ## 使用流程（强调合理性/适用性，GUI 要花功夫）
 目标是把“工程建模 → 求解 → 后处理/对标 → 归档复用”做成顺畅闭环，既适合科研快速迭代，也适合工程规范交付。
 
+**范围澄清（重要）**
+- 本项目不追求复刻 PLAXIS 的全部功能；只需要“类似 FEM 的流程”与工程化体验：建模数据准备 → 调用 solver → 后处理。
+- 最终 solver 将是自研 **PFEM / HPEM（Particle Finite Element Method / Hybrid Element Particle Method）**；平台要做到：
+  - Contract / API 设计从一开始就能承载 PFEM/HPEM 的真实输入与输出（可以分小步落地，但不走“先做一个临时简化契约、再推翻重来”的路线）。
+  - GUI/Domain 的数据结构与交互围绕“可驱动 solver、可对标输出”组织，不做无意义的功能堆叠。
+- 开发阶段**不要求跨版本兼容**：工程文件/contract/schema 可以迭代变更；但要预留扩展点（例如 schema_version 字段、migrations 入口），等正式版再收敛兼容策略。
+
 **主流程（MVP 必须顺滑）**
 1) `File -> New Project...`（或 Open Project / Open Case Folder）
 2) 选择路线：
@@ -44,7 +51,7 @@
 - [x] `.geohpem` 单文件包：`docs/PROJECT_FILE_FORMAT.md`、`src/geohpem/project/package.py`
   - DoD：Open/Save/Save As 可用；可选保存 `out/` 结果。
 - [x] 版本迁移框架（migrations）：`src/geohpem/project/migrations/*`
-  - DoD：具备迁移入口；对未知版本给出明确错误。
+  - DoD：具备迁移入口（预留）；开发期可不承诺跨版本加载成功，正式版再定义兼容策略。
 - [x] 最近项目与恢复入口：`src/geohpem/gui/settings.py`
   - DoD：Open Recent 可用；启动询问是否恢复上次会话；关闭时未保存提示。
 
@@ -259,11 +266,114 @@
 
 ---
 
+## M15：真实求解闭环（Contract v0.2 + Reference Solvers）
+
+> 背景：Fake solver 已验证了 GUI/IO/可视化闭环，但材料/边界/荷载/阶段对求解器的真实驱动仍缺“可照着做”的样板。
+> 本阶段目标是：**一步到位设计“面向 PFEM/HPEM 的可执行契约”**（分小步落地），并提供 2~3 个“参考求解器（reference solvers）”作为 solver 团队的接口范例与回归基准。
+
+### M15.1：Contract v0.2（可执行的最小建模语义）
+
+- [ ] v0.2 schema + 文档（materials/bcs/loads/assignments/stages）
+  - DoD：新增 `docs/CONTRACT_V0_2.md`，明确字段、默认值、单位/坐标约定、示例；并在 `src/geohpem/contract/*` 增加 v0.2 校验入口（兼容 v0.1）。
+- [ ] BC/Load/Material/Assignment 的最小类型集（先做“能跑通”）
+  - DoD：至少支持：
+    - Material：`linear_elastic`（E, nu, rho 可选）
+    - Assignment：`element_set` → `material_id`（按 set 分配）
+    - BC：`displacement`（ux/uy 固定位移 or 约束），作用于 `node_set`（或由 `edge_set` 自动转 node_set）
+    - Load：`gravity`（body force）与 `traction`（边界线力），作用于 `edge_set`
+    - Stage：`analysis_type=static`、steps/dt（即便 solver 不用 dt，也保留语义）
+
+### M15.1+：PFEM/HPEM “一步到位”扩展点（不要推翻重来）
+
+> 这部分不要求一次性全部实现 UI，但契约与数据结构要先定边界，避免后续返工。
+
+- [ ] 离散化描述统一：Mesh / Particles / Hybrid
+  - DoD：Contract 支持声明 `discretization`（mesh-only / particles-only / hybrid），并允许 solver 返回“网格重构/粒子重采样”等事件元数据；事件频率不做限制（每步/每子步/任意），平台按时间轴展示即可。
+- [ ] 粒子相关输入（可选字段，但字段与语义先定）
+  - DoD：支持粒子生成/导入的描述（seed strategy / initial particles / particle sets），以及与材料/区域/阶段的引用方式（uid 体系稳定）。
+- [ ] 大变形/重网格化输出约定（平台侧可视化必须吃得下）
+  - DoD：结果允许同时包含：
+    - mesh-based fields（u/stress/strain 等）
+    - particle-based fields（vp/pp/...）
+    - remeshing events（step 内多子步/重建次数）与映射关系（best-effort）
+
+- [ ] 输出“帧/子步”语义统一（适配 PFEM/HPEM 的可变输出频率）
+  - DoD：result.json 支持 `frames[]`（或 `global_steps[]` 扩展）携带：`time / stage_id / stage_step / substep / dt / events[] / mesh_ref / particles_ref`；平台 Output 以 frame 为基本播放单位（Step slider 对应 frame index）。
+
+### M15.2：Solver API 规范收敛（给 solver 团队照抄）
+
+- [ ] `capabilities()` 的字段清单与语义（最小）
+  - DoD：明确 solver 支持的 `modes`（plane_strain/plane_stress/axisymmetric）、`analysis_types`（static/dynamic 等）、支持的 material/bc/load 类型、输出字段（registry）。
+- [ ] `solve(request, mesh, *, workdir, progress_cb)` 约定（最小）
+  - DoD：明确输入（内存 dict + np arrays）、输出（`result.json + arrays.npz`）、progress/cancel/异常错误码的约定；给出最小示例实现与“常见错误如何报”。
+
+> 补充：为 PFEM/HPEM 预留“多输出载体”能力（平台不限制 solver 只输出一个网格）：
+> - `result.npz` 允许同时包含 `mesh_*` 与 `particles_*` 命名空间（或多个 npz 文件并由 result.json 索引）。
+
+### M15.3：参考求解器 A（开源 FE：线弹性静力，PLAXIS 对标基础）
+
+> 推荐依赖：`scikit-fem` + `scipy.sparse`（轻量、纯 Python 生态、适合做“可读范例”）。
+
+- [ ] `solver_reference_elastic`（plane strain/stress，tri3/quad4）
+  - DoD：支持：
+    - 线弹性材料（E, nu）
+    - 位移边界（ux/uy fixed 或 prescribed）
+    - 重力（rho*g）与边界 traction
+    - 基本应力输出（sx/sy/sxy）与 `vm`（element）
+    - 输出 `u (node)` + `vm (element)`，并生成 `meta.global_steps`（time/step/stage）
+- [ ] 参考算例（case folders）+ 基准输出
+  - DoD：新增 `_Projects/cases/reference_elastic_*`（例如：悬臂梁、地基受载、重力自重），可一键运行并在 Output 中可视化；提供“解析/文献/数值对比说明”。
+
+### M15.4：参考求解器 B（渗流/孔压：Darcy/Poisson）
+
+- [ ] `solver_reference_seepage`（p 场，2D steady）
+  - DoD：支持：
+    - 材料渗透系数 k（各向同性先）
+    - 边界条件：p=常值（Dirichlet）、通量（Neumann）
+    - 输出 `p (node)` + `q (element 或边界)`（至少 p 可云图与 probe）
+- [ ] 参考算例（case folders）+ 基准输出
+  - DoD：新增 `_Projects/cases/reference_seepage_*`（例如：矩形渗流、分层渗流），具备可对标的边界条件与结果截图/曲线。
+
+### M15.5：参考求解器 C（可选，二选一：动力 or u-p 耦合）
+
+- [ ] C1：动力学（Newmark）最小实现（弹性动力）
+  - DoD：支持 `analysis_type=dynamic`，输出 `u(t)`、`v(t)`（至少一个点的时程可对标）。
+  - 或：
+- [ ] C2：Biot u-p（最小耦合，科研对标基础）
+  - DoD：至少实现一个小网格的稳健耦合示例（哪怕是简化版），用于后续 HPEM 对比接口/输出形式。
+
+### M15.6：平台侧配套（让 solver 示例可被 GUI 充分驱动）
+
+- [ ] GUI 表单与预设：Material/BC/Load 的“向导式添加”
+  - DoD：`Properties` 里提供 `Add...` 按钮与模板（例如“Fix bottom”、“Traction on top”、“Gravity”），减少用户手写 JSON。
+- [ ] Validate 扩展：对 v0.2 语义做更强校验
+  - DoD：缺失 assignment/material、引用不存在 sets、BC/Load 类型不支持等给出 ERROR；数值范围给 WARN（例如 nu>0.49）。
+- [ ] 输出对标清单 v0（逐步补齐）
+  - DoD：`docs/OUTPUT_CHECKLIST.md` 记录“最重要的对标输出”（云图字段、剖面、时程、反力等）并与参考算例绑定。
+
+### 需要你协助确认/讨论的关键点（建议尽快敲定，避免返工）
+
+1) **参考求解器开源依赖是否可接受**：`scikit-fem` / `scipy` / `sfepy` 你更倾向哪套？是否有许可证/离线环境约束？
+2) **最小材料模型**：v0.2 是否先只做 `linear_elastic`（对标基础），还是必须同时包含 `mohr_coulomb`（哪怕简化）？
+3) **BC/Load 作用域**：默认要求作用于 `node_set` 还是允许 `edge_set` 并由平台自动投影到节点？
+4) **符号约定**：压应力正负、重力方向（已在 UNITS_AND_COORDS 写了默认，但求解/对标要严格一致）。
+5) **PFEM/HPEM 关键特性清单**（请给“必须从一开始支持”的最小集合）：
+   - 是否存在重网格化/拓扑变化？频率大概如何表达（每步一次/每子步多次）？
+   - 是否粒子需要 sets（粒子组/材料组）与边界作用（速度/压力/接触）？
+   - 输出最希望对标哪些：粒子轨迹、自由面、局部剖面、反力/能量等？
+
+> 当前你的反馈（已采纳）：
+> - “部分算法存在，频率可以灵活一点”：平台将以 frame/event 机制承载可变输出频率，不强制 solver 贴合固定步号节奏。
+> - “你不懂算法无法准确回答”：平台先给出一套 PFEM/HPEM 友好的契约扩展草案与参考实现样式，solver 团队可在此基础上对齐。
+
+---
+
 ## 建议执行顺序（最短路径到“可用软件闭环”）
 
 1) **M5**（先把 Output 可视化闭环做实：VTK/PyVistaQt）  
 2) **M6**（稳定 ID + 选择/拾取模型，避免后期返工）  
 3) **M7**（单位/坐标约定，保证探针/色标/对标一致）  
-4) **M9**（真实 solver 接入与 capabilities 驱动 UI）  
-5) **M10**（对标/回归，工程化收口）  
-6) 再逐步收敛 **M8 Domain Model** 与 UI 细节完善
+4) **M9**（solver manager/capabilities 入口收口）  
+5) **M15**（Contract v0.2 + Reference Solvers：让“真实求解闭环”可照抄）  
+6) **M10**（对标/回归，工程化收口）  
+7) 再逐步收敛 **M8 Domain Model** 与 UI 细节完善
