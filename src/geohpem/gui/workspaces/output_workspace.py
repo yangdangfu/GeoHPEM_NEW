@@ -425,6 +425,12 @@ class OutputWorkspace:
         self._viewer = QtInteractor(self._viewer_host)
         self._viewer_host_layout.addWidget(self._viewer)
         self._apply_2d_view()
+        # Prefer Qt's context menu signal over VTK right-click callbacks (more reliable across versions).
+        try:
+            self._viewer.setContextMenuPolicy(self._Qt.ContextMenuPolicy.CustomContextMenu)
+            self._viewer.customContextMenuRequested.connect(self._on_viewer_context_menu_requested)
+        except Exception:
+            pass
 
         # probe picking
         def on_pick(*args, **kwargs):  # noqa: ANN001
@@ -595,9 +601,18 @@ class OutputWorkspace:
                 act_cancel = menu.addAction("Cancel edit (Esc)")
                 act_cancel.triggered.connect(self._cancel_active_mode)
 
-            menu.exec(self._QCursor.pos())
+            menu.exec(_pos if _pos is not None else self._QCursor.pos())
         except Exception:
             pass
+
+    def _on_viewer_context_menu_requested(self, pos) -> None:  # noqa: ANN001
+        if self._viewer is None:
+            return
+        try:
+            gpos = self._viewer.mapToGlobal(pos)
+        except Exception:
+            gpos = None
+        self._open_viewer_context_menu(gpos)
 
     def _selected_reg(self) -> dict[str, Any] | None:
         idx = self.registry_list.currentRow()

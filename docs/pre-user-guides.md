@@ -78,6 +78,7 @@ GUI 菜单：
     - `Box nodes` / `Box elems`：在视窗中拖拽矩形框选（建议配合 `Brush` 连续多次框选）
     - `Replace`：勾选后每次框选会替换当前选择；不勾选则追加
     - `Subtract`：勾选后框选会从当前选择中“删除”落入矩形的节点/单元（Subtract 会自动取消 Replace）
+    - 快捷键：`B` 进入 `Box nodes`，`Shift+B` 进入 `Box elems`；`Esc` 退出 box 模式
   - 边界辅助（工程常用）：
     - `Boundary helpers (auto)`：点击 `Bottom/Top/Left/Right/All` 自动选中边界边（best-effort，按网格外包框极值判断）
     - 选中后点 `Create edge set...`，默认命名会填入 `boundary_bottom/...`

@@ -161,7 +161,7 @@
   - [x] M13.3a：`Esc` 取消（Input/Output）与 `C` 清空（Input）
     - DoD：Input 的 box/polyline 可用 `Esc` 退出；Output 的 profile edit 可用 `Esc` 取消；Input 支持 `C` 清空选择。
   - [ ] M13.3b：`B` 进入 box 与菜单快捷键展示
-    - DoD：`B` 快速进入 Box nodes/elems（可配合 Shift 切换）；菜单项展示快捷键（如 `C`、`Esc`）。
+    - DoD：`B` 快速进入 Box nodes，`Shift+B` 进入 Box elems；右键菜单项展示快捷键（如 `B`、`Shift+B`、`C`、`Esc`）。
 - [ ] M13.4：选择反馈增强
   - DoD：状态栏/面板显示“当前选中数量 + 类型拆分 + 来源（拾取/框选/边界）”；高亮对比度在深浅主题下都清晰。
 

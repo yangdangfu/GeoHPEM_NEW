@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QObject, QTimer, Signal  # type: ignore
+from PySide6.QtCore import QObject, QTimer, Signal, Qt  # type: ignore
 from PySide6.QtGui import QCursor, QFont, QKeySequence, QShortcut  # type: ignore
 from PySide6.QtWidgets import (  # type: ignore
     QCheckBox,
@@ -342,6 +342,16 @@ class InputWorkspace:
             self._sc_clear.activated.connect(self._clear_selection)
         except Exception:
             self._sc_clear = None
+        try:
+            self._sc_box_nodes = QShortcut(QKeySequence("B"), self.widget)
+            self._sc_box_nodes.activated.connect(lambda: self._toggle_box_select("node"))
+        except Exception:
+            self._sc_box_nodes = None
+        try:
+            self._sc_box_elems = QShortcut(QKeySequence("Shift+B"), self.widget)
+            self._sc_box_elems.activated.connect(lambda: self._toggle_box_select("cell"))
+        except Exception:
+            self._sc_box_elems = None
 
     def set_status(self, *, project: str | None, dirty: bool, solver: str) -> None:
         """
@@ -425,6 +435,12 @@ class InputWorkspace:
         self._viewer_host_layout.addWidget(self._viewer)
         self._viewer.set_background("white")
         self._apply_2d_view()
+        # Prefer Qt's context menu signal over VTK right-click callbacks (more reliable across versions).
+        try:
+            self._viewer.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            self._viewer.customContextMenuRequested.connect(self._on_preview_context_menu_requested)
+        except Exception:
+            pass
 
         def on_pick(*args, **kwargs):  # noqa: ANN001
             if self._box_mode is not None:
@@ -640,6 +656,13 @@ class InputWorkspace:
             grid, is_new_grid = self._ensure_grid()
             if grid is None:
                 raise RuntimeError("No mesh grid")
+            cam = None
+            preserve = not (reset_camera or is_new_grid)
+            if preserve:
+                try:
+                    cam = getattr(self._viewer, "camera_position", None)
+                except Exception:
+                    cam = None
             self._viewer.clear()
             self._viewer.add_mesh(grid, show_edges=True, color="#F2F2F2", edge_color="#888888", line_width=1)
 
@@ -649,6 +672,11 @@ class InputWorkspace:
             self._highlight_selection(mesh, grid)
             if reset_camera or is_new_grid:
                 self._viewer.reset_camera()
+            elif cam is not None:
+                try:
+                    self._viewer.camera_position = cam  # type: ignore[attr-defined]
+                except Exception:
+                    pass
             self._viewer.render()
             self._sel_info.setText("Pick: click node/cell to inspect; choose a set to highlight.")
         except Exception as exc:
@@ -1315,7 +1343,16 @@ class InputWorkspace:
         except Exception:
             pass
 
-    def _open_preview_context_menu(self, _pos=None) -> None:  # noqa: ANN001
+    def _on_preview_context_menu_requested(self, pos) -> None:  # noqa: ANN001
+        if self._viewer is None:
+            return
+        try:
+            gpos = self._viewer.mapToGlobal(pos)
+        except Exception:
+            gpos = None
+        self._open_preview_context_menu(gpos)
+
+    def _open_preview_context_menu(self, pos=None) -> None:  # noqa: ANN001
         """
         Right-click context menu for the Input mesh preview.
         Called from the VTK interactor style (so we use current cursor position).
@@ -1366,11 +1403,11 @@ class InputWorkspace:
             act_inv_edges.setEnabled(self._mesh is not None)
             act_inv_edges.triggered.connect(self._invert_edges)
 
-            act_box_nodes = menu.addAction("Box nodes")
+            act_box_nodes = menu.addAction("Box nodes (B)")
             act_box_nodes.setEnabled(self._box_mode is None)
             act_box_nodes.triggered.connect(lambda: self._toggle_box_select("node"))
 
-            act_box_elems = menu.addAction("Box elems")
+            act_box_elems = menu.addAction("Box elems (Shift+B)")
             act_box_elems.setEnabled(self._box_mode is None)
             act_box_elems.triggered.connect(lambda: self._toggle_box_select("cell"))
 
@@ -1403,7 +1440,7 @@ class InputWorkspace:
             act_create_elem.setEnabled(bool(sum(len(v) for v in self._sel_elems.values())))
             act_create_elem.triggered.connect(self._create_elem_set_from_selection)
 
-            menu.exec(self._QCursor.pos())
+            menu.exec(pos if pos is not None else self._QCursor.pos())
         except Exception:
             pass
 
