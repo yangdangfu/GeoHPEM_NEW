@@ -58,6 +58,42 @@ def compute_boundary_edges(mesh: dict[str, Any]) -> np.ndarray:
     return np.asarray(bd, dtype=np.int32).reshape(-1, 2)
 
 
+def compute_all_edges(mesh: dict[str, Any]) -> np.ndarray:
+    """
+    Compute unique undirected edges from a 2D mesh connectivity.
+
+    Returned edges are unique and stored as node-id pairs (n,2) with each row
+    sorted (min,max).
+    """
+    pts = np.asarray(mesh.get("points", np.zeros((0, 2))), dtype=float)
+    if pts.ndim != 2 or pts.shape[1] < 2:
+        return np.zeros((0, 2), dtype=np.int32)
+
+    edges_parts: list[np.ndarray] = []
+
+    tri = np.asarray(mesh.get("cells_tri3", np.zeros((0, 3))), dtype=np.int64)
+    if tri.ndim == 2 and tri.shape[1] == 3 and tri.shape[0] > 0:
+        edges_parts.extend([tri[:, [0, 1]], tri[:, [1, 2]], tri[:, [2, 0]]])
+
+    quad = np.asarray(mesh.get("cells_quad4", np.zeros((0, 4))), dtype=np.int64)
+    if quad.ndim == 2 and quad.shape[1] == 4 and quad.shape[0] > 0:
+        edges_parts.extend([quad[:, [0, 1]], quad[:, [1, 2]], quad[:, [2, 3]], quad[:, [3, 0]]])
+
+    if not edges_parts:
+        return np.zeros((0, 2), dtype=np.int32)
+
+    edges = np.concatenate(edges_parts, axis=0).reshape(-1, 2)
+    edges = np.sort(edges, axis=1)
+    n_points = int(pts.shape[0])
+    ok = (edges[:, 0] >= 0) & (edges[:, 1] >= 0) & (edges[:, 0] < n_points) & (edges[:, 1] < n_points)
+    edges = edges[ok]
+    if edges.size == 0:
+        return np.zeros((0, 2), dtype=np.int32)
+
+    edges = np.unique(edges, axis=0)
+    return np.asarray(edges, dtype=np.int32).reshape(-1, 2)
+
+
 def classify_boundary_edges(
     mesh: dict[str, Any],
     *,

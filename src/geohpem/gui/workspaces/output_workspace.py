@@ -17,6 +17,7 @@ from geohpem.viz.vtk_convert import (
 class OutputWorkspace:
     def __init__(self) -> None:
         from PySide6.QtCore import QObject, Qt, Signal  # type: ignore
+        from PySide6.QtGui import QCursor, QKeySequence, QShortcut  # type: ignore
         from PySide6.QtWidgets import (
             QDoubleSpinBox,
             QCheckBox,
@@ -24,6 +25,7 @@ class OutputWorkspace:
             QFormLayout,
             QLabel,
             QListWidget,
+            QMenu,
             QMessageBox,
             QPlainTextEdit,
             QPushButton,
@@ -43,11 +45,21 @@ class OutputWorkspace:
         self._Qt = Qt
         self._QMessageBox = QMessageBox
         self._QDoubleSpinBox = QDoubleSpinBox
+        self._QMenu = QMenu
+        self._QCursor = QCursor
         self._new_uid = new_uid
         self._is_2d_view = True
 
         self.widget = QWidget()
         layout = QVBoxLayout(self.widget)
+
+        # Shortcuts (Output workspace scope)
+        try:
+            self._sc_esc = QShortcut(QKeySequence("Esc"), self.widget)
+            self._sc_esc.activated.connect(self._cancel_active_mode)
+        except Exception:
+            self._sc_esc = None
+
         splitter = QSplitter()
         layout.addWidget(splitter, 1)
 
@@ -474,7 +486,7 @@ class OutputWorkspace:
         try:
             from geohpem.viz.vtk_interaction import apply_2d_interaction
 
-            apply_2d_interaction(plotter)
+            apply_2d_interaction(plotter, on_right_click=self._open_viewer_context_menu)
         except Exception:
             return
 
@@ -518,6 +530,74 @@ class OutputWorkspace:
             return
         self._viewer.reset_camera()
         self._viewer.render()
+
+    def _cancel_active_mode(self) -> None:
+        """
+        Cancel an active interactive mode (best-effort).
+
+        Esc is intended as the universal "get me out of this mode" key.
+        """
+        if getattr(self, "_mode", "normal") == "profile_edit":
+            try:
+                self._cancel_profile_edit()
+            except Exception:
+                pass
+            return
+
+    def _open_viewer_context_menu(self, _pos=None) -> None:  # noqa: ANN001
+        """
+        Right-click context menu for the Output VTK viewer.
+        Called from the VTK interactor style (so we use current cursor position).
+        """
+        try:
+            menu = self._QMenu(self.widget)
+
+            header = menu.addAction("Output Viewer")
+            header.setEnabled(False)
+            menu.addSeparator()
+
+            act_reset = menu.addAction("Reset view")
+            act_reset.setEnabled(self._viewer is not None)
+            act_reset.triggered.connect(self._reset_view)
+
+            menu.addSeparator()
+
+            act_export = menu.addAction("Export image...")
+            act_export.setEnabled(self._viewer is not None)
+            act_export.triggered.connect(self._on_export_image)
+
+            act_export_steps = menu.addAction("Export steps -> PNG...")
+            act_export_steps.setEnabled(self._viewer is not None)
+            act_export_steps.triggered.connect(self._on_export_steps_png)
+
+            menu.addSeparator()
+
+            act_profile = menu.addAction("Profile line...")
+            act_profile.setEnabled(self._viewer is not None)
+            act_profile.triggered.connect(self._on_profile_line)
+
+            act_history = menu.addAction("Time history...")
+            act_history.setEnabled(self._viewer is not None)
+            act_history.triggered.connect(self._on_time_history)
+
+            menu.addSeparator()
+
+            act_pin_node = menu.addAction("Pin last probe (node)")
+            act_pin_node.setEnabled(self._last_probe_pid is not None)
+            act_pin_node.triggered.connect(self._pin_last_probe)
+
+            act_pin_elem = menu.addAction("Pin last cell (element)")
+            act_pin_elem.setEnabled(self._last_cell_id is not None)
+            act_pin_elem.triggered.connect(self._pin_last_cell)
+
+            if getattr(self, "_mode", "normal") != "normal":
+                menu.addSeparator()
+                act_cancel = menu.addAction("Cancel edit (Esc)")
+                act_cancel.triggered.connect(self._cancel_active_mode)
+
+            menu.exec(self._QCursor.pos())
+        except Exception:
+            pass
 
     def _selected_reg(self) -> dict[str, Any] | None:
         idx = self.registry_list.currentRow()

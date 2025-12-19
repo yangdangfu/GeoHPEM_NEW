@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
 import weakref
 
 
-def apply_2d_interaction(plotter: Any) -> None:
+def apply_2d_interaction(plotter: Any, *, on_right_click: Callable[..., Any] | None = None) -> None:
     """
     Configure a PyVista/VTK plotter for 2D-only interaction:
     - No 3D rotation
     - Middle mouse drag = pan
     - Mouse wheel = zoom
-    - Right mouse = no VTK interaction (reserved for context menu)
+    - Right mouse = no VTK camera interaction (reserved for context menu)
     - Left mouse = reserved for picking (no camera interaction)
     """
     try:
@@ -28,7 +28,24 @@ def apply_2d_interaction(plotter: Any) -> None:
     if not hasattr(vtk_iren, "SetInteractorStyle"):
         return
 
+    def _weak_cb(cb: Callable[..., Any] | None):  # noqa: ANN001
+        if cb is None:
+            return None
+        try:
+            if hasattr(cb, "__self__") and cb.__self__ is not None:
+                return weakref.WeakMethod(cb)  # type: ignore[arg-type]
+        except Exception:
+            pass
+        try:
+            return weakref.ref(cb)  # type: ignore[arg-type]
+        except Exception:
+            return None
+
     class _GeoHPEM2DStyle(vtk.vtkInteractorStyleImage):  # type: ignore[misc]
+        def __init__(self) -> None:  # noqa: D401
+            super().__init__()
+            self._geohpem_right_click_cb = _weak_cb(on_right_click)
+
         def OnLeftButtonDown(self):  # noqa: N802
             # Reserve left click for picking; do not pan/rotate.
             return
@@ -38,6 +55,27 @@ def apply_2d_interaction(plotter: Any) -> None:
 
         def OnRightButtonDown(self):  # noqa: N802
             # Reserved for Qt context menu.
+            cb_ref = getattr(self, "_geohpem_right_click_cb", None)
+            cb = None
+            try:
+                cb = cb_ref() if cb_ref is not None else None
+            except Exception:
+                cb = None
+            if cb is not None:
+                try:
+                    inter = self.GetInteractor()
+                    pos = inter.GetEventPosition() if inter is not None else None
+                except Exception:
+                    pos = None
+                try:
+                    cb(pos)
+                except TypeError:
+                    try:
+                        cb()
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
             return
 
         def OnRightButtonUp(self):  # noqa: N802

@@ -148,12 +148,20 @@
 
 > 目标：把“能用”提升到“顺手”，减少鼠标移动与重复操作成本。
 
-- [ ] M13.1：VTK 右键上下文菜单（Input/Output）
-  - DoD：右键弹出菜单（清空选择、创建 set、Fit、切换 Replace/Brush、导出图像等），与当前工作区语义一致。
+- [x] M13.1：VTK 右键上下文菜单（Input/Output）
+  - DoD：右键弹出菜单（清空选择、创建 set、Fit、切换 Replace/Brush、导出图像、Profile/History、Pin 等），与当前工作区语义一致。
 - [ ] M13.2：选择集合运算（Replace/Add/Subtract/Invert）
-  - DoD：提供明确的选择运算入口（按钮/快捷键）；对节点/单元/边一致可用；状态可见。
+  - [x] M13.2a：Input 选择运算（Replace/Add/Subtract）
+    - DoD：Box/边界/Polyline 都支持 Add/Replace/Subtract（以 `Replace/Subtract` 控件为入口）；行为一致且可预期。
+  - [x] M13.2b：Input Invert（nodes/elems/edges）
+    - DoD：Mesh Preview 右键菜单提供 `Invert nodes/elements/edges`，用于快速反选。
+  - [ ] M13.2c：更强的选择运算与快捷键（长期）
+    - DoD：支持 Subtract 的快捷键/修饰键（如按住 Alt 拖框）；支持 Invert 的快捷键；可配置默认行为。
 - [ ] M13.3：常用快捷键与 Esc 取消
-  - DoD：`Esc` 取消当前交互模式（box/picking/edit）；`B` 进入 box；`C` 清空；菜单项展示快捷键。
+  - [x] M13.3a：`Esc` 取消（Input/Output）与 `C` 清空（Input）
+    - DoD：Input 的 box/polyline 可用 `Esc` 退出；Output 的 profile edit 可用 `Esc` 取消；Input 支持 `C` 清空选择。
+  - [ ] M13.3b：`B` 进入 box 与菜单快捷键展示
+    - DoD：`B` 快速进入 Box nodes/elems（可配合 Shift 切换）；菜单项展示快捷键（如 `C`、`Esc`）。
 - [ ] M13.4：选择反馈增强
   - DoD：状态栏/面板显示“当前选中数量 + 类型拆分 + 来源（拾取/框选/边界）”；高亮对比度在深浅主题下都清晰。
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QObject, Signal  # type: ignore
-from PySide6.QtGui import QFont  # type: ignore
+from PySide6.QtCore import QObject, QTimer, Signal  # type: ignore
+from PySide6.QtGui import QCursor, QFont, QKeySequence, QShortcut  # type: ignore
 from PySide6.QtWidgets import (  # type: ignore
     QCheckBox,
     QComboBox,
@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (  # type: ignore
     QInputDialog,
     QLabel,
     QListWidget,
+    QMenu,
     QMessageBox,
     QPushButton,
     QScrollArea,
@@ -45,6 +46,8 @@ class InputWorkspace:
         self.widget = QWidget()
         self._QMessageBox = QMessageBox
         self._QInputDialog = QInputDialog
+        self._QMenu = QMenu
+        self._QCursor = QCursor
 
         outer = QVBoxLayout(self.widget)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -157,11 +160,13 @@ class InputWorkspace:
         bxl = QHBoxLayout(row_box)
         bxl.setContentsMargins(0, 0, 0, 0)
         self._chk_box_replace = QCheckBox("Replace")
+        self._chk_box_subtract = QCheckBox("Subtract")
         self._chk_box_brush = QCheckBox("Brush")
         self._chk_box_brush.setToolTip("Keep box selection active for repeated drags.")
         self._btn_box_nodes = QPushButton("Box nodes")
         self._btn_box_cells = QPushButton("Box elems")
         bxl.addWidget(self._chk_box_replace)
+        bxl.addWidget(self._chk_box_subtract)
         bxl.addWidget(self._chk_box_brush)
         bxl.addStretch(1)
         bxl.addWidget(self._btn_box_nodes)
@@ -287,6 +292,13 @@ class InputWorkspace:
         self._btn_polyline_clear.clicked.connect(self._clear_polyline)
         self._btn_boundary_component.clicked.connect(self._select_boundary_component_from_pick)
 
+        # Selection op sanity: Subtract overrides Replace (mutually exclusive).
+        try:
+            self._chk_box_subtract.toggled.connect(self._on_subtract_toggled)
+            self._chk_box_replace.toggled.connect(self._on_replace_toggled)
+        except Exception:
+            pass
+
         self._request = None
         self._mesh = None
         self._mesh_sig = None
@@ -318,6 +330,18 @@ class InputWorkspace:
 
         self.set_status(project=None, dirty=False, solver="fake")
         self._update_selection_ui()
+
+        # Shortcuts (Input workspace scope)
+        try:
+            self._sc_esc = QShortcut(QKeySequence("Esc"), self.widget)
+            self._sc_esc.activated.connect(self._cancel_active_interaction)
+        except Exception:
+            self._sc_esc = None
+        try:
+            self._sc_clear = QShortcut(QKeySequence("C"), self.widget)
+            self._sc_clear.activated.connect(self._clear_selection)
+        except Exception:
+            self._sc_clear = None
 
     def set_status(self, *, project: str | None, dirty: bool, solver: str) -> None:
         """
@@ -431,7 +455,7 @@ class InputWorkspace:
         try:
             from geohpem.viz.vtk_interaction import apply_2d_interaction
 
-            apply_2d_interaction(plotter)
+            apply_2d_interaction(plotter, on_right_click=self._open_preview_context_menu)
         except Exception:
             return
 
@@ -865,6 +889,48 @@ class InputWorkspace:
         can_comp = self._last_probe_pid is not None
         self._btn_boundary_component.setEnabled(bool(can_comp) and (not active))
 
+    def _cancel_active_interaction(self) -> None:
+        """
+        Cancel the current interaction mode (best-effort).
+
+        - If box selection is active, stop it
+        - Else if polyline mode is active, finish it
+        """
+        if self._box_mode is not None:
+            try:
+                self._stop_box_select()
+            except Exception:
+                pass
+            return
+        if self._polyline_active:
+            try:
+                self._finish_polyline_mode()
+            except Exception:
+                pass
+            return
+
+    def _on_replace_toggled(self, on: bool) -> None:
+        if not bool(on):
+            return
+        try:
+            if self._chk_box_subtract.isChecked():
+                self._chk_box_subtract.blockSignals(True)
+                self._chk_box_subtract.setChecked(False)
+                self._chk_box_subtract.blockSignals(False)
+        except Exception:
+            pass
+
+    def _on_subtract_toggled(self, on: bool) -> None:
+        if not bool(on):
+            return
+        try:
+            if self._chk_box_replace.isChecked():
+                self._chk_box_replace.blockSignals(True)
+                self._chk_box_replace.setChecked(False)
+                self._chk_box_replace.blockSignals(False)
+        except Exception:
+            pass
+
     def _toggle_box_select(self, mode: str) -> None:
         if self._viewer is None:
             return
@@ -985,7 +1051,8 @@ class InputWorkspace:
         if mode not in ("node", "cell"):
             return
         # Read live state (user may toggle while box-select is active).
-        replace = bool(self._chk_box_replace.isChecked())
+        subtract = bool(self._chk_box_subtract.isChecked())
+        replace = bool(self._chk_box_replace.isChecked()) and (not subtract)
         brush = bool(self._chk_box_brush.isChecked())
 
         try:
@@ -1009,10 +1076,12 @@ class InputWorkspace:
                     except Exception:
                         ids = []
                 ids = [i for i in ids if 0 <= int(i) < int(grid.n_points)]
-                if replace:
-                    self._sel_nodes = set(ids)
+                if subtract:
+                    self._sel_nodes.difference_update({int(i) for i in ids})
+                elif replace:
+                    self._sel_nodes = {int(i) for i in ids}
                 else:
-                    self._sel_nodes.update(ids)
+                    self._sel_nodes.update({int(i) for i in ids})
 
             if mode == "cell":
                 if replace:
@@ -1028,7 +1097,10 @@ class InputWorkspace:
                         lids = np.asarray(picked.cell_data["__cell_local_id"]).reshape(-1)
                         for code, lid in zip(codes.tolist(), lids.tolist(), strict=False):
                             ctype = cell_type_code_to_name(int(code)) or str(code)
-                            self._sel_elems.setdefault(str(ctype), set()).add(int(lid))
+                            if subtract:
+                                self._sel_elems.get(str(ctype), set()).discard(int(lid))
+                            else:
+                                self._sel_elems.setdefault(str(ctype), set()).add(int(lid))
                     else:
                         # fall back to original cell ids (vtkExtractSelectedFrustum provides vtkOriginalCellIds)
                         cids = None
@@ -1051,16 +1123,22 @@ class InputWorkspace:
                                 code = int(grid.cell_data["__cell_type_code"][c])
                                 lid = int(grid.cell_data["__cell_local_id"][c])
                                 ctype = cell_type_code_to_name(code) or str(code)
-                                self._sel_elems.setdefault(str(ctype), set()).add(int(lid))
+                                if subtract:
+                                    self._sel_elems.get(str(ctype), set()).discard(int(lid))
+                                else:
+                                    self._sel_elems.setdefault(str(ctype), set()).add(int(lid))
+                if subtract:
+                    self._sel_elems = {k: v for k, v in self._sel_elems.items() if v}
 
             self._update_selection_ui()
-            self._render_preview()
+            # Defer heavy VTK operations until after the picking callback returns.
+            QTimer.singleShot(0, lambda: self._render_preview())
         except Exception:
             pass
         finally:
             # In non-brush mode, stop after one selection.
             if not bool(brush):
-                self._stop_box_select()
+                QTimer.singleShot(0, self._stop_box_select)
 
     def _add_picked_node(self) -> None:
         if self._last_probe_pid is None:
@@ -1079,7 +1157,7 @@ class InputWorkspace:
         b = int(self._last_probe_pid_history[-1])
         if a == b:
             return
-        self._sel_edges.add((a, b))
+        self._sel_edges.add((min(a, b), max(a, b)))
         self._update_selection_ui()
         try:
             self._render_preview()
@@ -1176,7 +1254,9 @@ class InputWorkspace:
             return
         if not self._polyline_nodes:
             # start new polyline
-            if bool(self._chk_box_replace.isChecked()):
+            subtract = bool(self._chk_box_subtract.isChecked())
+            replace = bool(self._chk_box_replace.isChecked()) and (not subtract)
+            if replace:
                 self._sel_edges.clear()
             self._polyline_nodes = [pid]
             self._sel_info.setText(self._sel_info.text() + " | polyline: start")
@@ -1185,10 +1265,18 @@ class InputWorkspace:
         path = self._shortest_boundary_path(start, pid)
         if not path or len(path) < 2:
             return
+        subtract = bool(self._chk_box_subtract.isChecked())
         for a, b in zip(path[:-1], path[1:], strict=False):
-            self._sel_edges.add((int(a), int(b)))
+            e = (min(int(a), int(b)), max(int(a), int(b)))
+            if subtract:
+                self._sel_edges.discard(e)
+            else:
+                self._sel_edges.add(e)
+        if subtract:
+            self._suggest_edge_set_name = None
+        else:
+            self._suggest_edge_set_name = "boundary_polyline"
         self._polyline_nodes.append(pid)
-        self._suggest_edge_set_name = "boundary_polyline"
         self._update_selection_ui()
         try:
             self._render_preview()
@@ -1227,6 +1315,153 @@ class InputWorkspace:
         except Exception:
             pass
 
+    def _open_preview_context_menu(self, _pos=None) -> None:  # noqa: ANN001
+        """
+        Right-click context menu for the Input mesh preview.
+        Called from the VTK interactor style (so we use current cursor position).
+        """
+        try:
+            menu = self._QMenu(self.widget)
+
+            header = menu.addAction("Mesh Preview")
+            header.setEnabled(False)
+            menu.addSeparator()
+
+            act_fit = menu.addAction("Fit")
+            act_fit.triggered.connect(self._fit_view)
+
+            menu.addSeparator()
+
+            act_replace = menu.addAction("Replace")
+            act_replace.setCheckable(True)
+            act_replace.setChecked(bool(self._chk_box_replace.isChecked()))
+            act_replace.toggled.connect(self._chk_box_replace.setChecked)
+
+            act_sub = menu.addAction("Subtract")
+            act_sub.setCheckable(True)
+            act_sub.setChecked(bool(self._chk_box_subtract.isChecked()))
+            act_sub.toggled.connect(self._chk_box_subtract.setChecked)
+
+            act_brush = menu.addAction("Brush")
+            act_brush.setCheckable(True)
+            act_brush.setChecked(bool(self._chk_box_brush.isChecked()))
+            act_brush.toggled.connect(self._chk_box_brush.setChecked)
+
+            menu.addSeparator()
+
+            has_sel = bool(self._sel_nodes or self._sel_edges or any(self._sel_elems.values()))
+            act_clear = menu.addAction("Clear selection (C)")
+            act_clear.setEnabled(has_sel)
+            act_clear.triggered.connect(self._clear_selection)
+
+            act_inv_nodes = menu.addAction("Invert nodes")
+            act_inv_nodes.setEnabled(self._mesh is not None)
+            act_inv_nodes.triggered.connect(self._invert_nodes)
+
+            act_inv_elems = menu.addAction("Invert elements")
+            act_inv_elems.setEnabled(self._mesh is not None)
+            act_inv_elems.triggered.connect(self._invert_elems)
+
+            act_inv_edges = menu.addAction("Invert edges")
+            act_inv_edges.setEnabled(self._mesh is not None)
+            act_inv_edges.triggered.connect(self._invert_edges)
+
+            act_box_nodes = menu.addAction("Box nodes")
+            act_box_nodes.setEnabled(self._box_mode is None)
+            act_box_nodes.triggered.connect(lambda: self._toggle_box_select("node"))
+
+            act_box_elems = menu.addAction("Box elems")
+            act_box_elems.setEnabled(self._box_mode is None)
+            act_box_elems.triggered.connect(lambda: self._toggle_box_select("cell"))
+
+            menu.addSeparator()
+
+            act_poly = menu.addAction("Polyline…")
+            act_poly.setEnabled(self._box_mode is None)
+            act_poly.triggered.connect(self._toggle_polyline_mode)
+
+            act_comp = menu.addAction("Component from last pick")
+            act_comp.setEnabled(self._last_probe_pid is not None and self._box_mode is None)
+            act_comp.triggered.connect(self._select_boundary_component_from_pick)
+
+            sub = menu.addMenu("Auto boundary")
+            for name in ("bottom", "top", "left", "right", "all"):
+                a = sub.addAction(name.capitalize())
+                a.triggered.connect(lambda _=False, n=name: self._select_boundary_edges(n))
+
+            menu.addSeparator()
+
+            act_create_node = menu.addAction("Create node set…")
+            act_create_node.setEnabled(bool(self._sel_nodes))
+            act_create_node.triggered.connect(self._create_node_set_from_selection)
+
+            act_create_edge = menu.addAction("Create edge set…")
+            act_create_edge.setEnabled(bool(self._sel_edges))
+            act_create_edge.triggered.connect(self._create_edge_set_from_selection)
+
+            act_create_elem = menu.addAction("Create elem set…")
+            act_create_elem.setEnabled(bool(sum(len(v) for v in self._sel_elems.values())))
+            act_create_elem.triggered.connect(self._create_elem_set_from_selection)
+
+            menu.exec(self._QCursor.pos())
+        except Exception:
+            pass
+
+    def _invert_nodes(self) -> None:
+        mesh = self._mesh
+        if not isinstance(mesh, dict):
+            return
+        try:
+            import numpy as np
+
+            pts = np.asarray(mesh.get("points", []))
+            n = int(pts.shape[0]) if pts.ndim == 2 else int(pts.size)
+            all_ids = set(range(max(n, 0)))
+            self._sel_nodes = all_ids.difference(self._sel_nodes)
+            self._update_selection_ui()
+            self._render_preview()
+        except Exception:
+            pass
+
+    def _invert_elems(self) -> None:
+        mesh = self._mesh
+        if not isinstance(mesh, dict):
+            return
+        try:
+            import numpy as np
+
+            out: dict[str, set[int]] = {}
+            tri = np.asarray(mesh.get("cells_tri3", []))
+            if tri.ndim == 2 and tri.shape[0] > 0:
+                n_tri = int(tri.shape[0])
+                out["tri3"] = set(range(n_tri)).difference(self._sel_elems.get("tri3", set()))
+            quad = np.asarray(mesh.get("cells_quad4", []))
+            if quad.ndim == 2 and quad.shape[0] > 0:
+                n_quad = int(quad.shape[0])
+                out["quad4"] = set(range(n_quad)).difference(self._sel_elems.get("quad4", set()))
+            self._sel_elems = {k: v for k, v in out.items() if v}
+            self._update_selection_ui()
+            self._render_preview()
+        except Exception:
+            pass
+
+    def _invert_edges(self) -> None:
+        mesh = self._mesh
+        if not isinstance(mesh, dict):
+            return
+        try:
+            from geohpem.domain.boundary_ops import compute_all_edges
+
+            edges = compute_all_edges(mesh).reshape(-1, 2)
+            all_edges = {tuple(map(int, row)) for row in edges.tolist()}
+            cur = {tuple(sorted((int(a), int(b)))) for (a, b) in self._sel_edges}
+            inv = all_edges.difference(cur)
+            self._sel_edges = {tuple(map(int, e)) for e in inv}
+            self._update_selection_ui()
+            self._render_preview()
+        except Exception:
+            pass
+
     def _select_boundary_component_from_pick(self) -> None:
         if self._last_probe_pid is None:
             self._QMessageBox.information(self.widget, "Boundary", "Pick a node first.")
@@ -1253,11 +1488,18 @@ class InputWorkspace:
         if not comp_edges:
             self._QMessageBox.information(self.widget, "Boundary", "No edges found in that boundary component.")
             return
-        if bool(self._chk_box_replace.isChecked()):
-            self._sel_edges = set(comp_edges)
+        subtract = bool(self._chk_box_subtract.isChecked())
+        replace = bool(self._chk_box_replace.isChecked()) and (not subtract)
+        comp_set = {tuple(sorted((int(a), int(b)))) for (a, b) in comp_edges}
+        if subtract:
+            self._sel_edges.difference_update(comp_set)
+            self._suggest_edge_set_name = None
+        elif replace:
+            self._sel_edges = set(comp_set)
+            self._suggest_edge_set_name = "boundary_component"
         else:
-            self._sel_edges.update(comp_edges)
-        self._suggest_edge_set_name = "boundary_component"
+            self._sel_edges.update(comp_set)
+            self._suggest_edge_set_name = "boundary_component"
         self._update_selection_ui()
         try:
             self._render_preview()
@@ -1280,9 +1522,18 @@ class InputWorkspace:
             if edges.size == 0:
                 self._QMessageBox.information(self.widget, "Boundary", f"No edges found for: {which}")
                 return
-            # Replace current edge selection; keep node/elem selection unchanged.
-            self._sel_edges = {tuple(map(int, row)) for row in edges.tolist()}
-            self._suggest_edge_set_name = f"boundary_{which}" if which != "all" else "boundary_all"
+            sel = {tuple(map(int, row)) for row in edges.tolist()}
+            subtract = bool(self._chk_box_subtract.isChecked())
+            replace = bool(self._chk_box_replace.isChecked()) and (not subtract)
+            if subtract:
+                self._sel_edges.difference_update(sel)
+                self._suggest_edge_set_name = None
+            elif replace:
+                self._sel_edges = set(sel)
+                self._suggest_edge_set_name = f"boundary_{which}" if which != "all" else "boundary_all"
+            else:
+                self._sel_edges.update(sel)
+                self._suggest_edge_set_name = f"boundary_{which}" if which != "all" else "boundary_all"
             self._update_selection_ui()
             self._render_preview()
         except Exception as exc:
