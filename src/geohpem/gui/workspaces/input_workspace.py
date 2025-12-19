@@ -309,6 +309,7 @@ class InputWorkspace:
         self._elem_set_membership = {}
         self._n_tri = 0
         self._last_probe_pid = None
+        self._last_probe_xy: tuple[float, float] | None = None
         self._last_cell = None  # (cell_type, local_id)
         self._last_probe_pid_history: list[int] = []
         self._box_mode: str | None = None  # None|'node'|'cell'
@@ -321,6 +322,9 @@ class InputWorkspace:
         self._pending_highlight_key: str | None = None
         self._boundary_edges = None
         self._boundary_adj = None
+        self._boundary_nodes = None
+        self._boundary_nodes_xy = None
+        self._bbox_diag = None
         self._polyline_active = False
         self._polyline_nodes: list[int] = []
         self._normal_pick_enabled = False
@@ -382,6 +386,9 @@ class InputWorkspace:
             self._grid = None
             self._boundary_edges = None
             self._boundary_adj = None
+            self._boundary_nodes = None
+            self._boundary_nodes_xy = None
+            self._bbox_diag = None
             self._polyline_active = False
             self._polyline_nodes = []
 
@@ -822,6 +829,7 @@ class InputWorkspace:
                 return
             pid = int(grid.find_closest_point((px, py, pz)))
             self._last_probe_pid = pid
+            self._last_probe_xy = (float(px), float(py))
             self._last_probe_pid_history.append(pid)
             self._last_probe_pid_history = self._last_probe_pid_history[-2:]
             node_sets = self._node_set_membership.get(pid, [])
@@ -1210,6 +1218,7 @@ class InputWorkspace:
         self._suggest_edge_set_name = None
         self._polyline_active = False
         self._polyline_nodes = []
+        self._last_probe_xy = None
         self._update_selection_ui()
         try:
             self._render_preview()
@@ -1223,9 +1232,14 @@ class InputWorkspace:
         if not isinstance(mesh, dict) or "points" not in mesh:
             self._boundary_edges = None
             self._boundary_adj = None
+            self._boundary_nodes = None
+            self._boundary_nodes_xy = None
+            self._bbox_diag = None
             return
         try:
             from geohpem.domain.boundary_ops import compute_boundary_edges
+
+            import numpy as np
 
             edges = compute_boundary_edges(mesh)
             edges = edges.reshape(-1, 2)
@@ -1237,9 +1251,61 @@ class InputWorkspace:
                 adj.setdefault(ib, []).append(ia)
             self._boundary_edges = edges.astype("int32", copy=False)
             self._boundary_adj = adj
+
+            pts = np.asarray(mesh.get("points", np.zeros((0, 2))), dtype=float)
+            if pts.ndim == 2 and pts.shape[0] > 0:
+                xmin, ymin = float(np.min(pts[:, 0])), float(np.min(pts[:, 1]))
+                xmax, ymax = float(np.max(pts[:, 0])), float(np.max(pts[:, 1]))
+                self._bbox_diag = float(((xmax - xmin) ** 2 + (ymax - ymin) ** 2) ** 0.5)
+            else:
+                self._bbox_diag = None
+
+            if edges.size:
+                uniq = np.unique(edges.reshape(-1)).astype(np.int64, copy=False)
+                uniq = uniq[(uniq >= 0) & (uniq < int(pts.shape[0]))]
+                self._boundary_nodes = uniq.astype(np.int32, copy=False)
+                self._boundary_nodes_xy = np.asarray(pts[uniq, :2], dtype=float)
+            else:
+                self._boundary_nodes = np.zeros((0,), dtype=np.int32)
+                self._boundary_nodes_xy = np.zeros((0, 2), dtype=float)
         except Exception:
             self._boundary_edges = None
             self._boundary_adj = None
+            self._boundary_nodes = None
+            self._boundary_nodes_xy = None
+            self._bbox_diag = None
+
+    def _snap_to_boundary_node(self, x: float, y: float) -> int | None:
+        """
+        Best-effort snap: map a click position to the nearest boundary node.
+
+        Returns pid if within tolerance; otherwise None.
+        """
+        try:
+            import numpy as np
+
+            self._ensure_boundary_graph()
+            xy = self._boundary_nodes_xy
+            ids = self._boundary_nodes
+            if xy is None or ids is None:
+                return None
+            xy = np.asarray(xy, dtype=float).reshape(-1, 2)
+            ids = np.asarray(ids, dtype=np.int64).reshape(-1)
+            if xy.size == 0 or ids.size == 0:
+                return None
+            dx = xy[:, 0] - float(x)
+            dy = xy[:, 1] - float(y)
+            d2 = dx * dx + dy * dy
+            i = int(np.argmin(d2))
+            dist = float(d2[i] ** 0.5)
+            diag = float(self._bbox_diag or 0.0)
+            # Tolerance: 5% of bbox diagonal (or absolute small fallback).
+            tol = max(1e-6, 0.05 * diag) if diag > 0 else 1e-6
+            if dist <= tol:
+                return int(ids[i])
+            return None
+        except Exception:
+            return None
 
     def _shortest_boundary_path(self, start: int, goal: int) -> list[int] | None:
         self._ensure_boundary_graph()
@@ -1277,9 +1343,16 @@ class InputWorkspace:
         if self._polyline_nodes and pid == int(self._polyline_nodes[-1]):
             return
         self._ensure_boundary_graph()
-        if not isinstance(self._boundary_adj, dict) or pid not in self._boundary_adj:
-            # not a boundary node; ignore silently (still keep normal pick behavior)
+        if not isinstance(self._boundary_adj, dict):
             return
+        if pid not in self._boundary_adj:
+            # Try snapping to boundary if user clicked near boundary.
+            if self._last_probe_xy is not None:
+                sp = self._snap_to_boundary_node(self._last_probe_xy[0], self._last_probe_xy[1])
+                if sp is not None:
+                    pid = int(sp)
+            if pid not in self._boundary_adj:
+                return
         if not self._polyline_nodes:
             # start new polyline
             subtract = bool(self._chk_box_subtract.isChecked())
@@ -1507,8 +1580,17 @@ class InputWorkspace:
         self._ensure_boundary_graph()
         adj = self._boundary_adj
         edges = self._boundary_edges
-        if not isinstance(adj, dict) or edges is None or pid not in adj:
-            self._QMessageBox.information(self.widget, "Boundary", "Last pick is not on the boundary.")
+        if not isinstance(adj, dict) or edges is None:
+            self._QMessageBox.information(self.widget, "Boundary", "No boundary available for this mesh.")
+            return
+        if pid not in adj:
+            # Try snapping to boundary based on last click position.
+            if self._last_probe_xy is not None:
+                sp = self._snap_to_boundary_node(self._last_probe_xy[0], self._last_probe_xy[1])
+                if sp is not None:
+                    pid = int(sp)
+        if pid not in adj:
+            self._QMessageBox.information(self.widget, "Boundary", "Last pick is not on the boundary (try clicking closer).")
             return
         from collections import deque
 

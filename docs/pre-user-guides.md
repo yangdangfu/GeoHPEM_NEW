@@ -82,8 +82,8 @@ GUI 菜单：
   - 边界辅助（工程常用）：
     - `Boundary helpers (auto)`：点击 `Bottom/Top/Left/Right/All` 自动选中边界边（best-effort，按网格外包框极值判断）
     - 选中后点 `Create edge set...`，默认命名会填入 `boundary_bottom/...`
-    - `Polyline`：进入“沿边刷选”模式；在视窗中依次点击边界上的节点，会按边界最短路径自动补齐中间边并加入 edge 选择
-    - `Component from pick`：先拾取一个边界节点，再一键提取其所在边界连通段（适合复杂边界/多段边界）
+    - `Polyline`：进入“沿边刷选”模式；在视窗中依次点击边界上的节点，会按边界最短路径自动补齐中间边并加入 edge 选择（支持近边界点击自动吸附）
+    - `Component from pick`：先拾取一个边界节点，再一键提取其所在边界连通段（适合复杂边界/多段边界；支持近边界点击自动吸附）
   - `Create node/edge/elem set...` 一键生成 sets，并自动在 Preview 下拉中可高亮查看
   - 右键菜单：在 Mesh Preview 中右键可快速 `Fit/Clear/Box/Polyline/Auto boundary/Create set...`；`Esc` 退出当前交互模式，`C` 清空选择
 
