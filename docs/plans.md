@@ -72,6 +72,8 @@
 
 - [x] Geometry 数据模型（Polygon2D）可序列化进 request
 - [x] Geometry Dock：画多边形/拖拽顶点/边标签编辑/网格+坐标参考（缩放/平移/网格/坐标轴）
+- [x] 交互绘制预览增强（Polygon/Rectangle）
+  - DoD：Polygon 绘制时鼠标移动有预览线段；Rectangle 支持交互两点绘制并有预览矩形（不再固定大小）。
 - [x] pygmsh 网格化：从 Polygon2D 生成 tri 网格并生成 edge/elem sets
 
 ---
@@ -99,6 +101,8 @@
 - [x] M5.ux.3：Probe Pin/复用：Pinned Nodes/Elements 列表 + Time history 可选来源（而非“最后一次拾取”）
 - [x] M5.ux.4：交互式剖面线（拖拽/编辑/多条 overlay）+ 保存到工程（随 project 保存：`ui_state.json`）
 - [x] M5.ux.5：批量导出（MVP）：steps → PNG（保持当前相机视角；GIF/MP4 后续可选）
+- [x] M5.ux.6：Output 面板重排（减少上下移动）
+  - DoD：左侧按“Field / Profiles / Pins”分组（Profiles/Pins 使用标签页），常用动作就近（Profile/Time history/Pin/Export），并保留右键菜单快捷入口。
 
 ---
 
@@ -167,6 +171,19 @@
     - DoD：`B` 快速进入 Box nodes，`Shift+B` 进入 Box elems；右键菜单项展示快捷键（如 `B`、`Shift+B`、`C`、`Esc`）。
 - [ ] M13.4：选择反馈增强
   - DoD：状态栏/面板显示“当前选中数量 + 类型拆分 + 来源（拾取/框选/边界）”；高亮对比度在深浅主题下都清晰。
+
+---
+
+## M14：用户教程与可用性收敛（面向交付）
+
+> 目标：让新用户不看代码也能跑通闭环；把“容易踩坑”的点前置消解。
+
+- [x] M14.1：2-3 个 step-by-step 案例教程（从创建项目到后处理）
+  - DoD：提供三篇教程覆盖“画几何→网格化”“导入现成网格（含 npz）”“打开 case folder 专注后处理”；教程可按步骤复现。
+- [x] M14.2：补齐 `.npz` 网格导入（Import Mesh 支持 Contract mesh.npz）
+  - DoD：`File -> Import Mesh...` 可直接选择 `.npz`（contract mesh），并正确生成导入报告与 sets；无需用户绕路 Open Case Folder。
+- [ ] M14.3：新手模式（长期，可选）
+  - DoD：提供“下一步建议/缺失项提示”（例如缺少 mesh/缺少 output_requests/缺少 stages），并可一键跳转到对应面板。
 
 ---
 

@@ -78,7 +78,7 @@ class ImportMeshDialog:
             self.dialog,
             "Select mesh file",
             "",
-            "Mesh files (*.msh *.vtk *.vtu *.xdmf *.obj *.stl);;All Files (*)",
+            "Mesh files (*.npz *.msh *.vtk *.vtu *.xdmf *.obj *.stl);;All Files (*)",
         )
         if file:
             self.path.setText(file)

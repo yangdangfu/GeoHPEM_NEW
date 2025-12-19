@@ -79,7 +79,7 @@ class StageDock:
         layout.addWidget(toolbar)
 
         splitter = QSplitter()
-        layout.addWidget(splitter)
+        layout.addWidget(splitter, 1)
 
         self.list = QListWidget()
         self.diff = QPlainTextEdit()
@@ -92,6 +92,13 @@ class StageDock:
         self._stages: list[dict[str, Any]] = []
 
         self.list.currentRowChanged.connect(self._on_row_changed)
+        # Clicking an already-selected row does not emit currentRowChanged.
+        # Ensure users can re-select a stage (e.g., when only one stage exists)
+        # and still drive Properties updates.
+        try:
+            self.list.itemClicked.connect(lambda *_: self._on_row_changed(self.list.currentRow()))
+        except Exception:
+            pass
         self.btn_add.clicked.connect(lambda: self.add_stage.emit())
         self.btn_copy.clicked.connect(self._on_copy)
         self.btn_del.clicked.connect(self._on_delete)
@@ -105,6 +112,8 @@ class StageDock:
             self.list.addItem(f"{sid} [{at}]")
         if self._stages:
             self.list.setCurrentRow(0)
+            # Ensure Properties is updated even if the first row is already current.
+            self._on_row_changed(0)
 
     def select_stage(self, index: int) -> None:
         if index < 0:

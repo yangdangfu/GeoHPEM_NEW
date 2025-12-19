@@ -23,6 +23,8 @@ class OutputWorkspace:
             QCheckBox,
             QComboBox,
             QFormLayout,
+            QGroupBox,
+            QHBoxLayout,
             QLabel,
             QListWidget,
             QMenu,
@@ -31,6 +33,7 @@ class OutputWorkspace:
             QPushButton,
             QSpinBox,
             QSplitter,
+            QTabWidget,
             QVBoxLayout,
             QWidget,
         )  # type: ignore
@@ -63,99 +66,157 @@ class OutputWorkspace:
         splitter = QSplitter()
         layout.addWidget(splitter, 1)
 
-        # Left panel: result browser
+        # Left panel: controls
         left = QWidget()
         left_layout = QVBoxLayout(left)
-        self.registry_list = QListWidget()
-        left_layout.addWidget(QLabel("Registry"))
-        left_layout.addWidget(self.registry_list, 1)
+        left_layout.setContentsMargins(6, 6, 6, 6)
 
+        # --- Field panel (always visible) ---
+        gb_field = QGroupBox("Field")
+        fld = QVBoxLayout(gb_field)
+
+        self.registry_list = QListWidget()
+        fld.addWidget(QLabel("Registry"))
+        fld.addWidget(self.registry_list, 1)
+
+        step_row = QWidget()
+        step_rl = QHBoxLayout(step_row)
+        step_rl.setContentsMargins(0, 0, 0, 0)
+        step_rl.addWidget(QLabel("Step"))
         self.step = QSpinBox()
         self.step.setRange(0, 0)
         self.step.setEnabled(False)
-        left_layout.addWidget(QLabel("Step"))
-        left_layout.addWidget(self.step)
+        step_rl.addWidget(self.step, 1)
+        fld.addWidget(step_row)
+
         self.step_info = QLabel("")
         self.step_info.setWordWrap(True)
-        left_layout.addWidget(self.step_info)
+        fld.addWidget(self.step_info)
 
+        fm_row = QWidget()
+        fm_rl = QHBoxLayout(fm_row)
+        fm_rl.setContentsMargins(0, 0, 0, 0)
+        fm_rl.addWidget(QLabel("Field mode"))
         self.field_mode = QComboBox()
         self.field_mode.addItem("Auto", "auto")
         self.field_mode.addItem("Magnitude (vector)", "mag")
         self.field_mode.setEnabled(False)
-        left_layout.addWidget(QLabel("Field mode"))
-        left_layout.addWidget(self.field_mode)
+        fm_rl.addWidget(self.field_mode, 1)
+        fld.addWidget(fm_row)
 
         self.warp = QCheckBox("Warp by displacement u")
         self.warp.setEnabled(False)
-        left_layout.addWidget(self.warp)
+        fld.addWidget(self.warp)
 
+        ws_row = QWidget()
+        ws_rl = QHBoxLayout(ws_row)
+        ws_rl.setContentsMargins(0, 0, 0, 0)
+        ws_rl.addWidget(QLabel("Warp scale"))
         self.warp_scale = QSpinBox()
         self.warp_scale.setRange(0, 1_000_000)
         self.warp_scale.setValue(100)
         self.warp_scale.setEnabled(False)
-        left_layout.addWidget(QLabel("Warp scale"))
-        left_layout.addWidget(self.warp_scale)
+        ws_rl.addWidget(self.warp_scale, 1)
+        fld.addWidget(ws_row)
 
+        actions_row = QWidget()
+        ar = QHBoxLayout(actions_row)
+        ar.setContentsMargins(0, 0, 0, 0)
         self.btn_reset = QPushButton("Reset view")
         self.btn_reset.setEnabled(False)
-        left_layout.addWidget(self.btn_reset)
-
-        self.btn_profile = QPushButton("Profile line...")
-        self.btn_profile.setEnabled(False)
-        left_layout.addWidget(self.btn_profile)
-
-        self.btn_history = QPushButton("Time history...")
-        self.btn_history.setEnabled(False)
-        left_layout.addWidget(self.btn_history)
-
         self.btn_export_img = QPushButton("Export image...")
         self.btn_export_img.setEnabled(False)
-        left_layout.addWidget(self.btn_export_img)
+        ar.addWidget(self.btn_reset)
+        ar.addWidget(self.btn_export_img)
+        fld.addWidget(actions_row)
 
         self.btn_export_steps = QPushButton("Export steps -> PNG...")
         self.btn_export_steps.setEnabled(False)
-        left_layout.addWidget(self.btn_export_steps)
+        fld.addWidget(self.btn_export_steps)
 
-        left_layout.addWidget(QLabel("Profiles"))
-        self.profile_list = QListWidget()
-        self.profile_list.setEnabled(False)
-        left_layout.addWidget(self.profile_list, 1)
+        left_layout.addWidget(gb_field, 3)
 
+        # --- Tools panel (profiles/pins) ---
+        tabs = QTabWidget()
+        self._tabs = tabs
+        self._tab_profiles = 0
+        self._tab_pins = 1
+
+        # Profiles tab
+        tab_profiles = QWidget()
+        pl = QVBoxLayout(tab_profiles)
+        self.btn_profile = QPushButton("Profile line...")
+        self.btn_profile.setEnabled(False)
         self.btn_profile_pick = QPushButton("Pick 2 points (viewport)")
         self.btn_profile_pick.setEnabled(False)
-        left_layout.addWidget(self.btn_profile_pick)
-        self.btn_profile_plot = QPushButton("Plot selected")
-        self.btn_profile_plot.setEnabled(False)
-        left_layout.addWidget(self.btn_profile_plot)
-        self.btn_profile_remove = QPushButton("Remove selected")
-        self.btn_profile_remove.setEnabled(False)
-        left_layout.addWidget(self.btn_profile_remove)
+        top_p = QWidget()
+        top_pl = QHBoxLayout(top_p)
+        top_pl.setContentsMargins(0, 0, 0, 0)
+        top_pl.addWidget(self.btn_profile, 1)
+        top_pl.addWidget(self.btn_profile_pick, 1)
+        pl.addWidget(top_p)
 
-        self.btn_profile_edit = QPushButton("Edit selected (drag)")
+        self.profile_list = QListWidget()
+        self.profile_list.setEnabled(False)
+        pl.addWidget(self.profile_list, 1)
+
+        row_prof_actions = QWidget()
+        rpa = QHBoxLayout(row_prof_actions)
+        rpa.setContentsMargins(0, 0, 0, 0)
+        self.btn_profile_plot = QPushButton("Plot")
+        self.btn_profile_plot.setEnabled(False)
+        self.btn_profile_edit = QPushButton("Edit (drag)")
         self.btn_profile_edit.setEnabled(False)
-        left_layout.addWidget(self.btn_profile_edit)
+        self.btn_profile_remove = QPushButton("Remove")
+        self.btn_profile_remove.setEnabled(False)
+        rpa.addWidget(self.btn_profile_plot)
+        rpa.addWidget(self.btn_profile_edit)
+        rpa.addWidget(self.btn_profile_remove)
+        pl.addWidget(row_prof_actions)
+
+        row_prof_edit = QWidget()
+        rpe = QHBoxLayout(row_prof_edit)
+        rpe.setContentsMargins(0, 0, 0, 0)
         self.btn_profile_edit_finish = QPushButton("Finish edit")
         self.btn_profile_edit_finish.setEnabled(False)
-        left_layout.addWidget(self.btn_profile_edit_finish)
         self.btn_profile_edit_cancel = QPushButton("Cancel edit")
         self.btn_profile_edit_cancel.setEnabled(False)
-        left_layout.addWidget(self.btn_profile_edit_cancel)
+        rpe.addWidget(self.btn_profile_edit_finish)
+        rpe.addWidget(self.btn_profile_edit_cancel)
+        pl.addWidget(row_prof_edit)
 
-        left_layout.addWidget(QLabel("Pins"))
-        self.pin_list = QListWidget()
-        self.pin_list.setEnabled(False)
-        left_layout.addWidget(self.pin_list, 1)
+        tabs.addTab(tab_profiles, "Profiles")
+
+        # Pins tab
+        tab_pins = QWidget()
+        pil = QVBoxLayout(tab_pins)
+
+        row_pin_top = QWidget()
+        rpt = QHBoxLayout(row_pin_top)
+        rpt.setContentsMargins(0, 0, 0, 0)
+        self.btn_history = QPushButton("Time history...")
+        self.btn_history.setEnabled(False)
+        pil.addWidget(self.btn_history)
 
         self.btn_pin_node = QPushButton("Pin last probe (node)")
         self.btn_pin_node.setEnabled(False)
-        left_layout.addWidget(self.btn_pin_node)
         self.btn_pin_elem = QPushButton("Pin last cell (element)")
         self.btn_pin_elem.setEnabled(False)
-        left_layout.addWidget(self.btn_pin_elem)
+        rpt.addWidget(self.btn_pin_node)
+        rpt.addWidget(self.btn_pin_elem)
+        pil.addWidget(row_pin_top)
+
+        self.pin_list = QListWidget()
+        self.pin_list.setEnabled(False)
+        pil.addWidget(self.pin_list, 1)
+
         self.btn_pin_remove = QPushButton("Remove pin")
         self.btn_pin_remove.setEnabled(False)
-        left_layout.addWidget(self.btn_pin_remove)
+        pil.addWidget(self.btn_pin_remove)
+
+        tabs.addTab(tab_pins, "Pins")
+
+        left_layout.addWidget(tabs, 2)
 
         splitter.addWidget(left)
 
@@ -304,7 +365,7 @@ class OutputWorkspace:
 
         def _clean_pin(pin: dict[str, Any]) -> dict[str, Any]:
             out: dict[str, Any] = {}
-            for k in ("uid", "kind", "pid", "cell_id", "cell_type", "local_id", "label"):
+            for k in ("uid", "kind", "name", "pid", "x", "y", "cell_id", "cell_type", "local_id", "label"):
                 if k in pin:
                     out[k] = pin[k]
             return out
@@ -343,6 +404,23 @@ class OutputWorkspace:
                 for p in self._pins:
                     if not p.get("uid"):
                         p["uid"] = self._new_uid("pin")
+                    # Back-fill name/x/y for older ui_state.
+                    kind = str(p.get("kind", ""))
+                    if kind == "node":
+                        if not p.get("name"):
+                            p["name"] = f"node_{len([pp for pp in self._pins if isinstance(pp, dict) and pp.get('kind')=='node'])}"
+                        if (p.get("x") is None or p.get("y") is None) and self._mesh is not None:
+                            try:
+                                pid = int(p.get("pid"))
+                                pts = np.asarray(self._mesh.get("points"), dtype=float)
+                                if 0 <= pid < pts.shape[0]:
+                                    p["x"] = float(pts[pid, 0])
+                                    p["y"] = float(pts[pid, 1])
+                            except Exception:
+                                pass
+                    elif kind == "element":
+                        if not p.get("name"):
+                            p["name"] = f"elem_{len([pp for pp in self._pins if isinstance(pp, dict) and pp.get('kind')=='element'])}"
             except Exception:
                 pass
             self._refresh_pin_list()
@@ -476,11 +554,232 @@ class OutputWorkspace:
         except Exception:
             # Some versions may not expose enable_cell_picking; point probe still works.
             pass
+        # Element picking: support Shift+LeftClick for cell selection (avoids conflict with node probe).
+        self._install_shift_cell_picker()
         # Some picking helpers may reset the interactor style; enforce our 2D interaction again.
         self._apply_2d_view()
         self._viewer.set_background("white")
         self.btn_reset.setEnabled(True)
         self.btn_export_img.setEnabled(True)
+
+    def _install_shift_cell_picker(self) -> None:
+        """
+        Install a VTK observer to pick cells on Shift+LeftClick.
+
+        This works reliably even when point-picking is enabled on LeftClick.
+        """
+        if getattr(self, "_shift_cell_pick_installed", False) and getattr(self, "_qt_shift_cell_pick_installed", False):
+            return
+        v = self._viewer
+        if v is None:
+            return
+        try:
+            iren = getattr(v, "iren", None)
+            vtk_iren = getattr(iren, "interactor", iren)
+        except Exception:
+            return
+        if vtk_iren is None or not hasattr(vtk_iren, "AddObserver"):
+            return
+        try:
+            import vtk  # type: ignore
+
+            self._vtk_cell_picker = vtk.vtkCellPicker()  # type: ignore[attr-defined]
+            try:
+                # Slightly larger tolerance makes picking usable when zoomed out.
+                self._vtk_cell_picker.SetTolerance(0.02)  # type: ignore[misc]
+            except Exception:
+                pass
+        except Exception:
+            return
+
+        def on_left_press(obj, _evt):  # noqa: ANN001
+            # Only when Shift is pressed, and not in profile-pick/edit modes.
+            try:
+                if getattr(self, "_mode", "normal") != "normal":
+                    return
+                if int(getattr(obj, "GetShiftKey")()) != 1:
+                    return
+            except Exception:
+                return
+            grid = getattr(self, "_last_grid", None)
+            if grid is None or self._viewer is None:
+                return
+            try:
+                x, y = obj.GetEventPosition()
+            except Exception:
+                return
+            try:
+                ren = None
+                # Prefer VTK poked renderer if available.
+                try:
+                    if hasattr(obj, "FindPokedRenderer"):
+                        ren = obj.FindPokedRenderer(int(x), int(y))  # type: ignore[misc]
+                except Exception:
+                    ren = None
+                # Fall back to PyVista helper (requires style._parent compatibility).
+                if ren is None:
+                    try:
+                        ren = self._viewer.iren.get_poked_renderer()  # type: ignore[attr-defined]
+                    except Exception:
+                        ren = None
+                if ren is None:
+                    rw = obj.GetRenderWindow()
+                    rens = rw.GetRenderers() if rw is not None else None
+                    ren = rens.GetFirstRenderer() if rens is not None else None
+                if ren is None:
+                    return
+
+                # Restrict picker to the mesh actor when possible (avoids scalarbar/overlays).
+                try:
+                    act = getattr(self, "_mesh_actor", None)
+                    if act is not None and hasattr(self._vtk_cell_picker, "PickFromListOn"):
+                        self._vtk_cell_picker.PickFromListOn()  # type: ignore[misc]
+                        if hasattr(self._vtk_cell_picker, "InitializePickList"):
+                            self._vtk_cell_picker.InitializePickList()  # type: ignore[misc]
+                        if hasattr(self._vtk_cell_picker, "AddPickList"):
+                            self._vtk_cell_picker.AddPickList(act)  # type: ignore[misc]
+                except Exception:
+                    pass
+                self._vtk_cell_picker.Pick(float(x), float(y), 0.0, ren)  # type: ignore[misc]
+                cid = int(self._vtk_cell_picker.GetCellId())  # type: ignore[misc]
+                if cid < 0:
+                    # Fallback: map pick position to closest cell.
+                    try:
+                        pos = self._vtk_cell_picker.GetPickPosition()  # type: ignore[misc]
+                        if hasattr(grid, "find_closest_cell"):
+                            cid = int(grid.find_closest_cell(pos))  # type: ignore[misc]
+                    except Exception:
+                        cid = -1
+                if cid >= 0:
+                    self._on_cell_pick((int(cid),), {})
+            except Exception:
+                return
+
+        if not getattr(self, "_shift_cell_pick_installed", False):
+            try:
+                # Use high priority to run before other LeftButtonPress observers.
+                vtk_iren.AddObserver("LeftButtonPressEvent", on_left_press, 1.0)  # type: ignore[misc]
+                self._shift_cell_pick_installed = True
+            except Exception:
+                # Even if VTK observer fails, try Qt-level fallback below.
+                pass
+
+        # Qt-level fallback (more reliable modifier detection in some setups)
+        if getattr(self, "_qt_shift_cell_pick_installed", False):
+            return
+        try:
+            from PySide6.QtCore import QObject, QEvent  # type: ignore
+
+            outer = self
+
+            class _ShiftPickFilter(QObject):
+                def eventFilter(self, _obj, event):  # noqa: ANN001,N802
+                    try:
+                        if event.type() != QEvent.MouseButtonPress:
+                            return False
+                        if int(event.button()) != int(outer._Qt.LeftButton):
+                            return False
+                        if int(event.modifiers()) & int(outer._Qt.ShiftModifier) == 0:
+                            return False
+                        if getattr(outer, "_mode", "normal") != "normal":
+                            return False
+                        # Qt uses top-left origin; VTK often uses bottom-left. Try both.
+                        try:
+                            pos = event.position()
+                            xq = float(pos.x())
+                            yq = float(pos.y())
+                        except Exception:
+                            p = event.pos()
+                            xq = float(p.x())
+                            yq = float(p.y())
+                        outer._pick_cell_from_display_pos(xq, yq)
+                        return True  # consume: avoid node probe on Shift-click
+                    except Exception:
+                        return False
+
+            self._qt_shift_pick_filter = _ShiftPickFilter(self.widget)
+            iren_w = getattr(self._viewer, "iren", None)
+            iren_widget = getattr(iren_w, "interactor", iren_w)
+            qt_target = iren_w if hasattr(iren_w, "installEventFilter") else None
+            if qt_target is None and hasattr(iren_widget, "installEventFilter"):
+                qt_target = iren_widget
+            if qt_target is not None:
+                qt_target.installEventFilter(self._qt_shift_pick_filter)  # type: ignore[misc]
+                self._qt_shift_cell_pick_installed = True
+        except Exception:
+            return
+
+    def _pick_cell_from_display_pos(self, xq: float, yq: float) -> None:
+        """
+        Pick a cell using display coordinates (Qt mouse position), best-effort.
+        """
+        grid = getattr(self, "_last_grid", None)
+        if grid is None or self._viewer is None:
+            return
+        picker = getattr(self, "_vtk_cell_picker", None)
+        if picker is None:
+            return
+        try:
+            iren = getattr(self._viewer, "iren", None)
+            vtk_iren = getattr(iren, "interactor", iren)
+        except Exception:
+            vtk_iren = None
+        if vtk_iren is None:
+            return
+        try:
+            h = float(getattr(vtk_iren, "GetSize")()[1])  # type: ignore[misc]
+        except Exception:
+            try:
+                h = float(getattr(self._viewer, "height")())
+            except Exception:
+                h = float(yq + 1.0)
+
+        candidates = [(int(xq), int(h - yq)), (int(xq), int(yq))]
+
+        # Restrict picker to the mesh actor when possible.
+        try:
+            act = getattr(self, "_mesh_actor", None)
+            if act is not None and hasattr(picker, "PickFromListOn"):
+                picker.PickFromListOn()  # type: ignore[misc]
+                if hasattr(picker, "InitializePickList"):
+                    picker.InitializePickList()  # type: ignore[misc]
+                if hasattr(picker, "AddPickList"):
+                    picker.AddPickList(act)  # type: ignore[misc]
+        except Exception:
+            pass
+
+        for x, y in candidates:
+            try:
+                ren = None
+                try:
+                    if hasattr(vtk_iren, "FindPokedRenderer"):
+                        ren = vtk_iren.FindPokedRenderer(int(x), int(y))  # type: ignore[misc]
+                except Exception:
+                    ren = None
+                if ren is None:
+                    rw = vtk_iren.GetRenderWindow()
+                    rens = rw.GetRenderers() if rw is not None else None
+                    ren = rens.GetFirstRenderer() if rens is not None else None
+                if ren is None:
+                    continue
+                picker.Pick(float(x), float(y), 0.0, ren)  # type: ignore[misc]
+                cid = int(picker.GetCellId())  # type: ignore[misc]
+                if cid < 0:
+                    try:
+                        pos = picker.GetPickPosition()  # type: ignore[misc]
+                        if hasattr(grid, "find_closest_cell"):
+                            cid = int(grid.find_closest_cell(pos))  # type: ignore[misc]
+                    except Exception:
+                        cid = -1
+                if cid >= 0:
+                    self._on_cell_pick((int(cid),), {})
+                    return
+            except Exception:
+                continue
+        try:
+            self.probe.setPlainText("Cell pick: nothing (try Shift+click inside an element).")
+        except Exception:
+            pass
 
     def _apply_2d_view(self) -> None:
         """
@@ -664,7 +963,12 @@ class OutputWorkspace:
 
         # Render
         self._viewer.clear()
-        self._viewer.add_mesh(grid, show_edges=True, cmap="viridis", **scalars_kwargs)
+        self._mesh_actor = self._viewer.add_mesh(grid, show_edges=True, cmap="viridis", **scalars_kwargs)
+        try:
+            if self._mesh_actor is not None and hasattr(self._mesh_actor, "SetPickable"):
+                self._mesh_actor.SetPickable(True)  # type: ignore[misc]
+        except Exception:
+            pass
         if unit_display:
             title = f"{scalar_name} [{unit_display}] (step {step_id:06d})"
         elif unit_base:
@@ -673,6 +977,7 @@ class OutputWorkspace:
             title = f"{scalar_name} (step {step_id:06d})"
         self._viewer.add_scalar_bar(title=title)
         self._add_profile_overlays()
+        self._add_pin_overlays(grid)
         if not bool(getattr(self, "_export_keep_camera", False)):
             self._viewer.reset_camera()
         self._viewer.render()
@@ -707,6 +1012,208 @@ class OutputWorkspace:
                 self._viewer.add_mesh(line, color=color, line_width=3 if color == "red" else 2, pickable=False)
         except Exception:
             return
+
+    def _add_pin_overlays(self, grid) -> None:  # noqa: ANN001
+        """
+        Draw pinned nodes/cells as view overlays (best-effort).
+        """
+        if self._viewer is None:
+            return
+        try:
+            import pyvista as pv  # type: ignore
+        except Exception:
+            return
+
+        selected = self._selected_pin()
+        selected_uid = selected.get("uid") if isinstance(selected, dict) else None
+
+        # Node pins (screen-sized points)
+        for p in self._pins:
+            try:
+                if not isinstance(p, dict) or str(p.get("kind", "")) != "node":
+                    continue
+                x = p.get("x")
+                y = p.get("y")
+                if x is None or y is None:
+                    pid = p.get("pid")
+                    try:
+                        pid_i = int(pid)
+                        if 0 <= pid_i < int(getattr(grid, "n_points", 0)):
+                            pt3 = np.asarray(grid.points[pid_i], dtype=float).ravel()
+                            x = float(pt3[0])
+                            y = float(pt3[1])
+                    except Exception:
+                        x, y = None, None
+                if x is None or y is None:
+                    continue
+                x = float(x)
+                y = float(y)
+                uid = p.get("uid")
+                is_sel = bool(uid and uid == selected_uid)
+                pt = pv.PolyData(np.asarray([[x, y, 0.0]], dtype=float))
+                self._viewer.add_mesh(
+                    pt,
+                    color=("red" if is_sel else "#4444aa"),
+                    point_size=(14 if is_sel else 10),
+                    render_points_as_spheres=True,
+                    pickable=False,
+                )
+            except Exception:
+                continue
+
+        # Element pins (cell highlight)
+        for p in self._pins:
+            try:
+                if not isinstance(p, dict) or str(p.get("kind", "")) != "element":
+                    continue
+                cid = int(p.get("cell_id"))
+                if cid < 0 or cid >= int(getattr(grid, "n_cells", 0)):
+                    continue
+                uid = p.get("uid")
+                is_sel = bool(uid and uid == selected_uid)
+                cell = grid.extract_cells([cid])
+                # Draw as boundary edges to avoid z-fighting under the (opaque) colormap mesh.
+                try:
+                    surf = cell.extract_surface()
+                except Exception:
+                    surf = cell
+
+                # Z-offset to avoid z-fighting with the base colormap mesh.
+                try:
+                    dx = float(grid.bounds[1] - grid.bounds[0])
+                    dy = float(grid.bounds[3] - grid.bounds[2])
+                    z_off = 1e-6 * max(dx, dy, 1.0)
+                except Exception:
+                    z_off = 1e-6
+
+                # When selected, also add a translucent face fill (more readable than edges-only).
+                if is_sel:
+                    try:
+                        fill = surf
+                        if hasattr(fill, "translate"):
+                            fill = fill.translate((0.0, 0.0, z_off), inplace=False)
+                        self._viewer.add_mesh(
+                            fill,
+                            color="#ff3333",
+                            opacity=0.18,
+                            show_edges=False,
+                            lighting=False,
+                            pickable=False,
+                        )
+                    except Exception:
+                        pass
+                try:
+                    edges = surf.extract_feature_edges(
+                        boundary_edges=True,
+                        feature_edges=False,
+                        manifold_edges=False,
+                        non_manifold_edges=False,
+                    )
+                except Exception:
+                    edges = surf
+                try:
+                    if hasattr(edges, "translate"):
+                        edges = edges.translate((0.0, 0.0, z_off), inplace=False)
+                except Exception:
+                    pass
+                self._viewer.add_mesh(
+                    edges,
+                    color=("red" if is_sel else "#aa4444"),
+                    line_width=(6 if is_sel else 3),
+                    render_lines_as_tubes=True,
+                    pickable=False,
+                )
+            except Exception:
+                continue
+
+        # Last picked cell (not necessarily pinned): show subtle highlight for feedback.
+        try:
+            last_cid = getattr(self, "_last_cell_id", None)
+            if isinstance(last_cid, int) and 0 <= int(last_cid) < int(getattr(grid, "n_cells", 0)):
+                # Skip if already pinned (avoid duplicate highlight noise).
+                pinned_ids = {int(pp.get("cell_id")) for pp in self._pins if isinstance(pp, dict) and str(pp.get("kind", "")) == "element" and "cell_id" in pp}
+                if int(last_cid) not in pinned_ids:
+                    cell = grid.extract_cells([int(last_cid)])
+                    try:
+                        surf = cell.extract_surface()
+                    except Exception:
+                        surf = cell
+                    # Z-offset to avoid z-fighting with the base colormap mesh.
+                    try:
+                        dx = float(grid.bounds[1] - grid.bounds[0])
+                        dy = float(grid.bounds[3] - grid.bounds[2])
+                        z_off = 1e-6 * max(dx, dy, 1.0)
+                    except Exception:
+                        z_off = 1e-6
+                    try:
+                        edges = surf.extract_feature_edges(
+                            boundary_edges=True,
+                            feature_edges=False,
+                            manifold_edges=False,
+                            non_manifold_edges=False,
+                        )
+                    except Exception:
+                        edges = surf
+                    try:
+                        if hasattr(edges, "translate"):
+                            edges = edges.translate((0.0, 0.0, z_off), inplace=False)
+                    except Exception:
+                        pass
+                    self._viewer.add_mesh(
+                        edges,
+                        color="#ff9900",
+                        line_width=2,
+                        render_lines_as_tubes=True,
+                        pickable=False,
+                    )
+        except Exception:
+            pass
+
+    def _rerender_preserve_camera(self) -> None:
+        """
+        Re-render while preserving camera (used for overlay/selection changes).
+        """
+        if self._viewer is None:
+            return
+        if getattr(self, "_mode", "normal") == "profile_edit":
+            return
+        try:
+            cam = getattr(self._viewer, "camera_position", None)
+        except Exception:
+            cam = None
+        try:
+            self._export_keep_camera = True  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        try:
+            self._render()
+            try:
+                if cam is not None and hasattr(self._viewer, "camera_position"):
+                    self._viewer.camera_position = cam  # type: ignore[attr-defined]
+                    self._viewer.render()
+            except Exception:
+                pass
+        finally:
+            try:
+                self._export_keep_camera = False  # type: ignore[attr-defined]
+            except Exception:
+                pass
+
+    def _schedule_rerender_preserve_camera(self) -> None:
+        """
+        Schedule a camera-preserving re-render on the Qt event loop.
+
+        This avoids re-entrancy issues when called from VTK picking callbacks.
+        """
+        try:
+            from PySide6.QtCore import QTimer  # type: ignore
+
+            QTimer.singleShot(0, self._rerender_preserve_camera)
+        except Exception:
+            try:
+                self._rerender_preserve_camera()
+            except Exception:
+                pass
 
     def _update_step_info(self, step_id: int) -> None:
         info = self._step_infos.get(int(step_id))
@@ -834,6 +1341,10 @@ class OutputWorkspace:
             )
         except Exception as exc:
             self.probe.setPlainText(f"Cell pick failed: {exc}")
+            self._last_cell_info = None
+
+        # Update highlight overlays immediately (last-picked cell orange outline).
+        self._schedule_rerender_preserve_camera()
 
     def _build_grid_with_scalars(
         self,
@@ -898,13 +1409,11 @@ class OutputWorkspace:
         if location in ("node", "nodal"):
             if scalar.shape[0] != grid.n_points:
                 raise RuntimeError(f"Array size mismatch: {scalar.shape[0]} vs n_points {grid.n_points}")
-            grid.point_data.clear()
             grid.point_data[scalar_name] = scalar
             scalars_kwargs = {"scalars": scalar_name, "preference": "point"}
         elif location in ("element", "elem"):
             if scalar.shape[0] != grid.n_cells:
                 raise RuntimeError(f"Array size mismatch: {scalar.shape[0]} vs n_cells {grid.n_cells}")
-            grid.cell_data.clear()
             grid.cell_data[scalar_name] = scalar
             scalars_kwargs = {"scalars": scalar_name, "preference": "cell"}
         else:
@@ -1017,6 +1526,11 @@ class OutputWorkspace:
             }
             self._profiles.append(prof)
             self._refresh_profile_list(select_uid=uid)
+            try:
+                if getattr(self, "_tabs", None) is not None:
+                    self._tabs.setCurrentIndex(int(getattr(self, "_tab_profiles", 0)))
+            except Exception:
+                pass
             self._plot_profile(prof)
             try:
                 self.ui_state_changed.emit()
@@ -1051,6 +1565,9 @@ class OutputWorkspace:
         self.btn_profile_edit.setEnabled(bool(ok) and self._mode == "normal")
         self.btn_profile_edit_finish.setEnabled(False)
         self.btn_profile_edit_cancel.setEnabled(False)
+        # Update viewport highlight immediately (selected profile line in red).
+        if self._viewer is not None:
+            self._rerender_preserve_camera()
 
     def _selected_profile(self) -> dict[str, Any] | None:
         row = int(self.profile_list.currentRow())
@@ -1186,11 +1703,97 @@ class OutputWorkspace:
         except Exception:
             pass
 
-        def cb(a, b, *_args, **_kwargs):  # noqa: ANN001
+        def _as_point3(pt) -> list[float] | None:  # noqa: ANN001
             try:
-                prof["p1"] = [float(a[0]), float(a[1]), float(a[2]) if len(a) >= 3 else 0.0]
-                prof["p2"] = [float(b[0]), float(b[1]), float(b[2]) if len(b) >= 3 else 0.0]
+                if isinstance(pt, np.ndarray):
+                    pt = pt.tolist()
+                if isinstance(pt, (list, tuple)) and len(pt) >= 2:
+                    x = float(pt[0])
+                    y = float(pt[1])
+                    z = float(pt[2]) if len(pt) >= 3 else 0.0
+                    return [x, y, z]
             except Exception:
+                return None
+            return None
+
+        def _get_widget_points(widget) -> tuple[list[float], list[float]] | None:  # noqa: ANN001
+            """
+            Best-effort extraction of (p1, p2) from various VTK line widget types.
+            """
+            try:
+                if hasattr(widget, "GetPoint1") and hasattr(widget, "GetPoint2"):
+                    a = _as_point3(widget.GetPoint1())  # type: ignore[misc]
+                    b = _as_point3(widget.GetPoint2())  # type: ignore[misc]
+                    if a and b:
+                        return a, b
+            except Exception:
+                pass
+            try:
+                rep = widget.GetRepresentation() if hasattr(widget, "GetRepresentation") else None  # type: ignore[misc]
+                if rep is not None:
+                    for m1, m2 in (
+                        ("GetPoint1WorldPosition", "GetPoint2WorldPosition"),
+                        ("GetPoint1DisplayPosition", "GetPoint2DisplayPosition"),
+                    ):
+                        if hasattr(rep, m1) and hasattr(rep, m2):
+                            a = _as_point3(getattr(rep, m1)())  # type: ignore[misc]
+                            b = _as_point3(getattr(rep, m2)())  # type: ignore[misc]
+                            if a and b:
+                                return a, b
+            except Exception:
+                pass
+            return None
+
+        def _set_widget_points(widget, a: tuple[float, float, float], b: tuple[float, float, float]) -> None:
+            try:
+                if hasattr(widget, "SetPoint1"):
+                    widget.SetPoint1(*a)  # type: ignore[misc]
+                if hasattr(widget, "SetPoint2"):
+                    widget.SetPoint2(*b)  # type: ignore[misc]
+                return
+            except Exception:
+                pass
+            try:
+                rep = widget.GetRepresentation() if hasattr(widget, "GetRepresentation") else None  # type: ignore[misc]
+                if rep is None:
+                    return
+                if hasattr(rep, "SetPoint1WorldPosition") and hasattr(rep, "SetPoint2WorldPosition"):
+                    rep.SetPoint1WorldPosition(a)  # type: ignore[misc]
+                    rep.SetPoint2WorldPosition(b)  # type: ignore[misc]
+            except Exception:
+                return
+
+        def _update_prof_from_points(a, b) -> None:  # noqa: ANN001
+            pa = _as_point3(a)
+            pb = _as_point3(b)
+            if pa is None or pb is None:
+                return
+            prof["p1"] = pa
+            prof["p2"] = pb
+            prof["dist"] = []
+            prof["vals"] = []
+
+        def cb(*args, **kwargs):  # noqa: ANN001
+            """
+            PyVista versions differ:
+            - callback(point_a, point_b)
+            - callback(widget) when pass_widget=True (or unsupported kwargs fall back)
+            Keep this callback resilient.
+            """
+            # 1) explicit kwargs
+            for k1, k2 in (("pointa", "pointb"), ("point1", "point2"), ("p1", "p2")):
+                if k1 in kwargs and k2 in kwargs:
+                    _update_prof_from_points(kwargs[k1], kwargs[k2])
+                    return
+            # 2) positional points
+            if len(args) >= 2:
+                _update_prof_from_points(args[0], args[1])
+                return
+            # 3) widget
+            if len(args) == 1:
+                pts = _get_widget_points(args[0])
+                if pts is not None:
+                    _update_prof_from_points(pts[0], pts[1])
                 return
 
         try:
@@ -1198,15 +1801,12 @@ class OutputWorkspace:
             self._profile_widget = plotter.add_line_widget(  # type: ignore[misc]
                 cb,
                 use_vertices=False,
-                pass_widget=False,
+                pass_widget=True,
                 interaction_event="end",
                 color="red",
             )
             try:
-                if hasattr(self._profile_widget, "SetPoint1"):
-                    self._profile_widget.SetPoint1(*p1)  # type: ignore[misc]
-                if hasattr(self._profile_widget, "SetPoint2"):
-                    self._profile_widget.SetPoint2(*p2)  # type: ignore[misc]
+                _set_widget_points(self._profile_widget, p1, p2)
             except Exception:
                 pass
         except Exception as exc:
@@ -1222,6 +1822,43 @@ class OutputWorkspace:
     def _finish_profile_edit(self) -> None:
         if self._mode != "profile_edit":
             return
+        # Snapshot current widget endpoints in case callback wasn't invoked (version differences / event timing).
+        try:
+            backup = self._profile_edit_backup if isinstance(self._profile_edit_backup, dict) else None
+            uid = backup.get("uid") if backup else None
+            w = self._profile_widget
+            if uid and w is not None:
+                pts = None
+                try:
+                    # Local helper mirroring _start_profile_edit's widget extraction.
+                    rep = w.GetRepresentation() if hasattr(w, "GetRepresentation") else None  # type: ignore[misc]
+                    if hasattr(w, "GetPoint1") and hasattr(w, "GetPoint2"):
+                        pts = (w.GetPoint1(), w.GetPoint2())  # type: ignore[misc]
+                    elif rep is not None and hasattr(rep, "GetPoint1WorldPosition") and hasattr(rep, "GetPoint2WorldPosition"):
+                        pts = (rep.GetPoint1WorldPosition(), rep.GetPoint2WorldPosition())  # type: ignore[misc]
+                except Exception:
+                    pts = None
+                if pts is not None:
+                    a = pts[0]
+                    b = pts[1]
+                    try:
+                        if isinstance(a, np.ndarray):
+                            a = a.tolist()
+                        if isinstance(b, np.ndarray):
+                            b = b.tolist()
+                        p1 = [float(a[0]), float(a[1]), float(a[2]) if len(a) >= 3 else 0.0]
+                        p2 = [float(b[0]), float(b[1]), float(b[2]) if len(b) >= 3 else 0.0]
+                        for p in self._profiles:
+                            if isinstance(p, dict) and p.get("uid") == uid:
+                                p["p1"] = p1
+                                p["p2"] = p2
+                                p["dist"] = []
+                                p["vals"] = []
+                                break
+                    except Exception:
+                        pass
+        except Exception:
+            pass
         self._teardown_profile_widget()
         self._mode = "normal"
         self._profile_edit_backup = None
@@ -1284,12 +1921,21 @@ class OutputWorkspace:
 
     def _refresh_pin_list(self, *, select_uid: str | None = None) -> None:
         self.pin_list.clear()
+
+        def fmt_num(v) -> str:  # noqa: ANN001
+            try:
+                if v is None:
+                    return "?"
+                return f"{float(v):.4g}"
+            except Exception:
+                return "?"
+
         for p in self._pins:
             kind = str(p.get("kind", ""))
             if kind == "node":
                 pid = p.get("pid")
                 x, y = p.get("x"), p.get("y")
-                label = f"{p.get('name','node')}  (pid={pid} x={x:.4g} y={y:.4g})"
+                label = f"{p.get('name','node')}  (pid={pid} x={fmt_num(x)} y={fmt_num(y)})"
             else:
                 cid = p.get("cell_id")
                 ct = p.get("cell_type", "")
@@ -1306,6 +1952,9 @@ class OutputWorkspace:
     def _on_pin_selection_changed(self, row: int) -> None:
         ok = 0 <= int(row) < len(self._pins)
         self.btn_pin_remove.setEnabled(bool(ok))
+        # Update viewport highlight immediately (selected pin in red).
+        if self._viewer is not None:
+            self._rerender_preserve_camera()
 
     def _selected_pin(self) -> dict[str, Any] | None:
         row = int(self.pin_list.currentRow())
@@ -1324,6 +1973,11 @@ class OutputWorkspace:
         self._pins.append(pin)
         self._refresh_pin_list(select_uid=uid)
         try:
+            if getattr(self, "_tabs", None) is not None:
+                self._tabs.setCurrentIndex(int(getattr(self, "_tab_pins", 1)))
+        except Exception:
+            pass
+        try:
             self.ui_state_changed.emit()
         except Exception:
             pass
@@ -1337,6 +1991,11 @@ class OutputWorkspace:
         pin = {"uid": uid, "kind": "element", "name": f"elem_{len([p for p in self._pins if p.get('kind')=='element'])+1}", **info}
         self._pins.append(pin)
         self._refresh_pin_list(select_uid=uid)
+        try:
+            if getattr(self, "_tabs", None) is not None:
+                self._tabs.setCurrentIndex(int(getattr(self, "_tab_pins", 1)))
+        except Exception:
+            pass
         try:
             self.ui_state_changed.emit()
         except Exception:
@@ -1560,6 +2219,11 @@ class OutputWorkspace:
     def _on_profile_line(self) -> None:
         if self._viewer is None:
             return
+        try:
+            if getattr(self, "_tabs", None) is not None:
+                self._tabs.setCurrentIndex(int(getattr(self, "_tab_profiles", 0)))
+        except Exception:
+            pass
         ctx = self._current_field_context()
         if ctx is None:
             self._QMessageBox.information(self.widget, "Profile Line", "Select a field and render a step first.")
@@ -1618,6 +2282,10 @@ class OutputWorkspace:
         chk_overlay.setChecked(True)
         form.addRow("", chk_overlay)
 
+        chk_save = QCheckBox("Save to Profiles list")
+        chk_save.setChecked(True)
+        form.addRow("", chk_save)
+
         btn_row = QWidget()
         bl = QHBoxLayout(btn_row)
         bl.setContentsMargins(0, 0, 0, 0)
@@ -1674,16 +2342,54 @@ class OutputWorkspace:
             else:
                 raise RuntimeError(f"Sampled data missing '{scalar_name}'")
 
-            if chk_overlay.isChecked():
-                line = pv.Line(p1, p2, resolution=1)
+            # Persist into Profiles list (recommended), so user can later edit/plot/export repeatedly.
+            prof = None
+            if chk_save.isChecked():
+                uid = self._new_uid("profile")
+                prof = {
+                    "uid": uid,
+                    "name": f"profile_{len(self._profiles)+1}",
+                    "p1": [float(p1[0]), float(p1[1]), float(p1[2])],
+                    "p2": [float(p2[0]), float(p2[1]), float(p2[2])],
+                    "reg": {"location": reg.get("location"), "name": reg.get("name")},
+                    "step_id": int(step_id),
+                    "scalar_name": scalar_name,
+                    "unit": unit_label,
+                    "dist": dist,
+                    "vals": vals,
+                }
+                self._profiles.append(prof)
+                self._refresh_profile_list(select_uid=uid)
                 try:
-                    if hasattr(self, "_profile_actor") and getattr(self, "_profile_actor") is not None:
+                    self.ui_state_changed.emit()
+                except Exception:
+                    pass
+
+                # Update viewport overlay without resetting camera.
+                if chk_overlay.isChecked():
+                    try:
+                        cam = getattr(self._viewer, "camera_position", None)
+                    except Exception:
+                        cam = None
+                    try:
+                        self._export_keep_camera = True  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
+                    try:
+                        self._render()
+                        if cam is not None and hasattr(self._viewer, "camera_position"):
+                            self._viewer.camera_position = cam  # type: ignore[attr-defined]
+                            self._viewer.render()
+                    finally:
                         try:
-                            self._viewer.remove_actor(getattr(self, "_profile_actor"))
+                            self._export_keep_camera = False  # type: ignore[attr-defined]
                         except Exception:
                             pass
-                    actor = self._viewer.add_mesh(line, color="red", line_width=3)
-                    self._profile_actor = actor
+            elif chk_overlay.isChecked():
+                # Temporary overlay only (not saved).
+                try:
+                    line = pv.Line(p1, p2, resolution=1)
+                    self._viewer.add_mesh(line, color="red", line_width=3, pickable=False)
                     self._viewer.render()
                 except Exception:
                     pass
@@ -1710,6 +2416,11 @@ class OutputWorkspace:
     def _on_time_history(self) -> None:
         if self._mesh is None or self._arrays is None:
             return
+        try:
+            if getattr(self, "_tabs", None) is not None:
+                self._tabs.setCurrentIndex(int(getattr(self, "_tab_pins", 1)))
+        except Exception:
+            pass
         reg = self._selected_reg()
         if reg is None:
             self._QMessageBox.information(self.widget, "Time History", "Select a field first.")

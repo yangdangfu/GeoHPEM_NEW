@@ -4,6 +4,12 @@
 
 > 说明：Output 已接入 VTK（PyVistaQt）云图渲染与 Probe，并提供 Profile line / Time history / 导出截图（PNG）/ steps→PNG 批量导出；GIF/MP4 等仍在后续里程碑完善。
 
+更详细的“从零到后处理”教程请看：
+- `docs/tutorials/00_Tutorials_Overview.md`
+- `docs/tutorials/01_Tutorial_DrawGeometry_To_Post.md`
+- `docs/tutorials/02_Tutorial_ImportMesh_To_Post.md`
+- `docs/tutorials/03_Tutorial_OpenCase_Output_Advanced.md`
+
 ## 1. 环境准备
 
 - 推荐使用 conda 环境：`environment.yml`
@@ -94,6 +100,7 @@ GUI 菜单：
 左侧 Project Explorer 选择对象，右侧 Properties 可编辑：
 
 > 说明：Input 工作区中间区域包含“流程导航/快捷入口面板”（Quick Actions + Status + 推荐流程）+ “Mesh Preview”（查看网格、sets 高亮、点击拾取节点/单元信息）。核心编辑仍在左右 Dock（Project/Geometry/Properties/Stages）完成。
+> 提示：建模期建议保持 `Properties` 与 `Stages` 同时显示（右侧上下分屏）；若不小心关掉，可在 `View` 菜单重新打开。
 
 - `Model`
   - `mode`（plane_strain/axisymmetric）
@@ -151,13 +158,13 @@ GUI 菜单：
     - Step 下方会显示 `global_step_id / time / stage`（若 solver 提供 `result.json:global_steps`）
   - 默认显示标量云图（先支持 nodal 标量，如 `p`）
   - 勾选 `Warp by displacement u` 可按位移变形显示（若结果提供 `u`）
-  - 在渲染窗口中点击点可 Probe（显示近邻点的数值 + 所属 node sets）
-  - 选中单元（若版本支持 cell picking）会显示单元类型/编号 + 所属 element sets
-  - `Profile line...`：剖面线（线采样）
+  - 在渲染窗口中左键点击点可 Probe（显示近邻点的数值 + 所属 node sets）
+  - 选中单元：`Shift + 左键` 点击单元，可显示单元类型/编号 + 所属 element sets（用于 element 字段的时程/Pin）
+  - `Profile line...`：剖面线（线采样；在 `Profiles` 标签页里）
     - 推荐方式（更顺手）：点 `Pick 2 points (viewport)` 进入剖面拾取模式，在视窗连续点两次即可自动生成剖面并弹出曲线
     - 也可用旧方式：先在视窗里连续点两次（得到 2 次 Probe），再点 `Use last two picks` 自动填入端点
     - 自动弹出曲线窗口，支持 `Export CSV...` 与 `Save Plot Image...`
-  - `Time history...`：时程曲线
+  - `Time history...`：时程曲线（在 `Pins` 标签页里）
     - 弹窗选择来源：`Use last picked` 或 `Use pinned`
     - 对 nodal 字段：先 Probe 一个点（确定 pid）或 `Pin last probe (node)`；对 element 字段：先 pick 一个单元（确定 cell_id）或 `Pin last cell (element)`
     - 自动弹出曲线窗口（横轴优先用 time，否则用 step），支持 `Export CSV...`

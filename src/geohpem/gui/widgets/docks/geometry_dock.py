@@ -113,11 +113,26 @@ class GeometryDock:
                         scene_pos = self.mapToScene(int(pos.x()), int(pos.y()))
                         x = float(scene_pos.x())
                         y = float(-scene_pos.y())
+                        if outer._draw_tool == "rect":
+                            # Two-click rectangle: first corner, then second corner to finish.
+                            if not outer._draw_points:
+                                outer._draw_points = [(x, y)]
+                                outer._draw_cursor = (x, y)
+                                outer._update_preview()
+                                return
+                            outer._draw_points = [outer._draw_points[0], (x, y)]
+                            outer._draw_cursor = (x, y)
+                            outer._finish_draw()
+                            return
                         outer._draw_points.append((x, y))
+                        outer._draw_cursor = (x, y)
                         outer._update_preview()
                         return
                     if btn == outer._Qt.RightButton:
-                        outer._finish_draw()
+                        if outer._draw_tool == "polygon" and len(outer._draw_points) >= 3:
+                            outer._finish_draw()
+                        else:
+                            outer._cancel_draw()
                         return
                 return super().mousePressEvent(event)
 
@@ -150,6 +165,9 @@ class GeometryDock:
                     self.verticalScrollBar().setValue(self.verticalScrollBar().value() - delta.y())
                     event.accept()
                     return
+                if outer._draw_mode:
+                    outer._draw_cursor = (x, y)
+                    outer._update_preview()
                 return super().mouseMoveEvent(event)
 
             def drawBackground(self, painter, rect) -> None:  # noqa: ANN001
@@ -230,14 +248,16 @@ class GeometryDock:
         self._edge_items: list[Any] = []
 
         self._draw_mode = False
+        self._draw_tool: str | None = None  # 'polygon'|'rect'
         self._draw_points: list[tuple[float, float]] = []
+        self._draw_cursor: tuple[float, float] | None = None
         self._preview_items: list[Any] = []
 
         self.btn_finish.setEnabled(False)
 
-        self.btn_draw.clicked.connect(self._start_draw)
+        self.btn_draw.clicked.connect(self._start_draw_polygon)
         self.btn_finish.clicked.connect(self._finish_draw)
-        self.btn_rect.clicked.connect(self._create_rectangle)
+        self.btn_rect.clicked.connect(self._start_draw_rectangle)
         self.btn_clear.clicked.connect(self._clear)
         self.btn_edges.clicked.connect(self._edit_edge_labels)
         self.btn_mesh.clicked.connect(self._generate_mesh)
@@ -462,34 +482,73 @@ class GeometryDock:
             pen.setColor(self._Qt.red if sel == ("vertex", i) else self._Qt.black)
             it.setPen(pen)
 
-    def _create_rectangle(self) -> None:
-        poly = Polygon2D(
-            vertices=[(0.0, 0.0), (10.0, 0.0), (10.0, 5.0), (0.0, 5.0)],
-            edge_groups=["bottom", "right", "top", "left"],
-            region_name="domain",
-        )
-        self._set_polygon(poly, push_to_model=True)
-
-    def _start_draw(self) -> None:
+    def _start_draw_polygon(self) -> None:
         self._draw_mode = True
+        self._draw_tool = "polygon"
         self._draw_points = []
+        self._draw_cursor = None
         self._clear_preview()
         self.btn_finish.setEnabled(True)
-        self.info.setText("Draw mode: left-click to add points, right-click or Finish to close.")
+        self.info.setText("Draw polygon: left-click to add points, right-click to cancel, Finish to close.")
+
+    def _start_draw_rectangle(self) -> None:
+        self._draw_mode = True
+        self._draw_tool = "rect"
+        self._draw_points = []
+        self._draw_cursor = None
+        self._clear_preview()
+        self.btn_finish.setEnabled(True)
+        self.info.setText("Draw rectangle: left-click 1st corner, move to preview, left-click 2nd corner. Right-click to cancel.")
+
+    def _start_draw(self) -> None:
+        # Backward-compatible alias
+        self._start_draw_polygon()
 
     def _finish_draw(self) -> None:
         if not self._draw_mode:
             return
         self._draw_mode = False
+        tool = self._draw_tool
+        self._draw_tool = None
         self.btn_finish.setEnabled(False)
         pts = list(self._draw_points)
         self._draw_points = []
+        self._draw_cursor = None
         self._clear_preview()
+        if tool == "rect":
+            if len(pts) < 2:
+                self.info.setText("Polygon2D: not set")
+                return
+            (x1, y1), (x2, y2) = pts[0], pts[1]
+            xmin, xmax = (x1, x2) if x1 <= x2 else (x2, x1)
+            ymin, ymax = (y1, y2) if y1 <= y2 else (y2, y1)
+            if abs(xmax - xmin) <= 1e-12 or abs(ymax - ymin) <= 1e-12:
+                self.info.setText("Polygon2D: not set")
+                return
+            poly = Polygon2D(
+                vertices=[(xmin, ymin), (xmax, ymin), (xmax, ymax), (xmin, ymax)],
+                edge_groups=["bottom", "right", "top", "left"],
+                region_name="domain",
+            )
+            self._set_polygon(poly, push_to_model=True)
+            return
+
         if len(pts) < 3:
             self.info.setText("Polygon2D: not set")
             return
         poly = Polygon2D(vertices=pts, edge_groups=[], region_name="domain")
         self._set_polygon(poly, push_to_model=True)
+
+    def _cancel_draw(self) -> None:
+        if not self._draw_mode:
+            return
+        self._draw_mode = False
+        self._draw_tool = None
+        self.btn_finish.setEnabled(False)
+        self._draw_points = []
+        self._draw_cursor = None
+        self._clear_preview()
+        self.info.setText("Draw canceled.")
 
     def _clear(self) -> None:
         self._set_polygon(None, push_to_model=True)
@@ -508,18 +567,51 @@ class GeometryDock:
         from PySide6.QtWidgets import QGraphicsLineItem  # type: ignore
 
         self._clear_preview()
-        if len(self._draw_points) < 2:
-            return
+        tool = self._draw_tool
+        cur = self._draw_cursor
         pen = QPen(Qt.darkGray)
         pen.setWidth(1)
         pen.setStyle(Qt.PenStyle.DashLine)
-        for i in range(len(self._draw_points) - 1):
-            x1, y1 = self._draw_points[i]
-            x2, y2 = self._draw_points[i + 1]
+
+        if tool == "rect":
+            if len(self._draw_points) >= 1 and cur is not None:
+                x1, y1 = self._draw_points[0]
+                x2, y2 = cur
+                xmin, xmax = (x1, x2) if x1 <= x2 else (x2, x1)
+                ymin, ymax = (y1, y2) if y1 <= y2 else (y2, y1)
+                pts = [(xmin, ymin), (xmax, ymin), (xmax, ymax), (xmin, ymax), (xmin, ymin)]
+                for (ax, ay), (bx, by) in zip(pts[:-1], pts[1:], strict=False):
+                    li = QGraphicsLineItem(ax, -ay, bx, -by)
+                    li.setPen(pen)
+                    self.scene.addItem(li)
+                    self._preview_items.append(li)
+            return
+
+        # polygon tool preview
+        if len(self._draw_points) >= 2:
+            for i in range(len(self._draw_points) - 1):
+                x1, y1 = self._draw_points[i]
+                x2, y2 = self._draw_points[i + 1]
+                li = QGraphicsLineItem(x1, -y1, x2, -y2)
+                li.setPen(pen)
+                self.scene.addItem(li)
+                self._preview_items.append(li)
+        if len(self._draw_points) >= 1 and cur is not None:
+            x1, y1 = self._draw_points[-1]
+            x2, y2 = cur
             li = QGraphicsLineItem(x1, -y1, x2, -y2)
             li.setPen(pen)
             self.scene.addItem(li)
             self._preview_items.append(li)
+            if len(self._draw_points) >= 2:
+                pen2 = QPen(Qt.darkGray)
+                pen2.setWidth(1)
+                pen2.setStyle(Qt.PenStyle.DotLine)
+                x0, y0 = self._draw_points[0]
+                li2 = QGraphicsLineItem(x2, -y2, x0, -y0)
+                li2.setPen(pen2)
+                self.scene.addItem(li2)
+                self._preview_items.append(li2)
 
     def _edit_edge_labels(self) -> None:
         if not self._poly:

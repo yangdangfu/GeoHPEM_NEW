@@ -95,7 +95,12 @@ class MainWindow:
         self._win.addDockWidget(Qt.BottomDockWidgetArea, self.tasks_dock.dock)
 
         self._win.tabifyDockWidget(self.project_dock.dock, self.geometry_dock.dock)
-        self._win.tabifyDockWidget(self.properties_dock.dock, self.stage_dock.dock)
+        # Keep Properties and Stages visible simultaneously: Properties on top, Stages below.
+        try:
+            self._win.splitDockWidget(self.properties_dock.dock, self.stage_dock.dock, Qt.Vertical)
+        except Exception:
+            # Fallback to tabbing if splitting isn't available (should be rare).
+            self._win.tabifyDockWidget(self.properties_dock.dock, self.stage_dock.dock)
         self._win.tabifyDockWidget(self.log_dock.dock, self.tasks_dock.dock)
         self.log_dock.dock.raise_()
         self.properties_dock.dock.raise_()
@@ -1098,6 +1103,12 @@ class MainWindow:
 
     def _on_stage_selected(self, uid: str) -> None:
         self.selection.set(Selection(kind="stage", ref={"type": "stage", "uid": uid}))
+        # Improve discoverability: bring Properties to front if it was hidden behind tabs/other docks.
+        try:
+            self.properties_dock.dock.show()
+            self.properties_dock.dock.raise_()
+        except Exception:
+            pass
 
     def _on_selection_changed(self, sel) -> None:  # noqa: ANN001
         state = self.model.state()
