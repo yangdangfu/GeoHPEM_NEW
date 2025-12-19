@@ -132,7 +132,30 @@
 - [x] M12.5：框选/刷选（矩形选择）以批量选择节点/单元（Input Mesh Preview）
   - DoD：支持 Box select nodes / Box select elements；支持“替换/追加”与“刷选模式（保持激活）”；与 selection 叠加显示与 Create set 打通。
 - [ ] M12.6：沿边刷选（polyline）/按边界提取整条边界（工程常用）
-  - DoD：支持沿边连续点选形成 polyline 并吸附到边界；一键提取整条边界生成 `edge_set__*`（可选：同时生成对应的 node_set）；优先覆盖“底/顶/左/右”等常用边界。
+  - [x] M12.6a：按边界提取整条边界（auto，按外包框极值）
+    - DoD：Input Mesh Preview 提供 `Boundary helpers (auto)`（All/Bottom/Top/Left/Right），可一键选中边界边并直接创建 `edge_set__*`。
+  - [ ] M12.6b：沿边刷选（polyline）与“按边界提取整条边界（按连通段/按环）”
+    - [x] M12.6b1：polyline 沿边刷选（基于边界图最短路径，MVP）
+      - DoD：Input Mesh Preview 提供 `Polyline/Finish/Clear`；在 polyline 模式下依次拾取边界节点，会沿边界最短路径补齐中间边并加入 edge 选择；可直接 `Create edge set...`。
+    - [x] M12.6b2：按拾取提取边界连通段（component，MVP）
+      - DoD：提供 `Component from pick`，基于最后一次拾取节点提取其所在边界连通段并加入 edge 选择。
+    - [ ] M12.6b3：吸附与“整条边界环”
+      - DoD：允许拾取非边界节点/边时自动吸附到最近边界边；支持提取“整个边界环/外边界/孔洞边界”；可选同时生成对应 node_set。
+
+---
+
+## M13：交互可用性增强（选择/右键菜单/快捷键）
+
+> 目标：把“能用”提升到“顺手”，减少鼠标移动与重复操作成本。
+
+- [ ] M13.1：VTK 右键上下文菜单（Input/Output）
+  - DoD：右键弹出菜单（清空选择、创建 set、Fit、切换 Replace/Brush、导出图像等），与当前工作区语义一致。
+- [ ] M13.2：选择集合运算（Replace/Add/Subtract/Invert）
+  - DoD：提供明确的选择运算入口（按钮/快捷键）；对节点/单元/边一致可用；状态可见。
+- [ ] M13.3：常用快捷键与 Esc 取消
+  - DoD：`Esc` 取消当前交互模式（box/picking/edit）；`B` 进入 box；`C` 清空；菜单项展示快捷键。
+- [ ] M13.4：选择反馈增强
+  - DoD：状态栏/面板显示“当前选中数量 + 类型拆分 + 来源（拾取/框选/边界）”；高亮对比度在深浅主题下都清晰。
 
 ---
 

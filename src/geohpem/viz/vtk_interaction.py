@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+import weakref
 
 
 def apply_2d_interaction(plotter: Any) -> None:
@@ -57,6 +58,13 @@ def apply_2d_interaction(plotter: Any) -> None:
 
     try:
         style = _GeoHPEM2DStyle()
+        # PyVista's picking utilities expect the VTK interactor style to expose
+        # a `_parent()` callable returning the RenderWindowInteractor wrapper.
+        # This is normally injected by PyVista; add it here for compatibility.
+        try:
+            setattr(style, "_parent", weakref.ref(iren_wrapper))
+        except Exception:
+            pass
         # Keep a Python reference so the style isn't garbage-collected.
         try:
             setattr(plotter, "_geohpem_interaction_style", style)

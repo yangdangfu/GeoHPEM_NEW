@@ -1,25 +1,26 @@
 from __future__ import annotations
 
+from PySide6.QtCore import QObject, Signal  # type: ignore
+from PySide6.QtGui import QFont  # type: ignore
+from PySide6.QtWidgets import (  # type: ignore
+    QCheckBox,
+    QComboBox,
+    QGroupBox,
+    QHBoxLayout,
+    QInputDialog,
+    QLabel,
+    QListWidget,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QSplitter,
+    QVBoxLayout,
+    QWidget,
+)
+
 
 class InputWorkspace:
     def __init__(self) -> None:
-        from PySide6.QtCore import QObject, Signal  # type: ignore
-        from PySide6.QtGui import QFont  # type: ignore
-        from PySide6.QtWidgets import (  # type: ignore
-            QComboBox,
-            QCheckBox,
-            QGroupBox,
-            QHBoxLayout,
-            QLabel,
-            QInputDialog,
-            QListWidget,
-            QMessageBox,
-            QPushButton,
-            QSplitter,
-            QScrollArea,
-            QVBoxLayout,
-            QWidget,
-        )
 
         class _Signals(QObject):
             new_project_requested = Signal()
@@ -67,7 +68,9 @@ class InputWorkspace:
         f.setBold(True)
         title.setFont(f)
         layout.addWidget(title)
-        layout.addWidget(QLabel("建模主要在左/右侧 Dock（Project/Geometry/Properties/Stages）完成。这里提供流程导航与快捷入口。"))
+        layout.addWidget(
+            QLabel("建模主要在左/右侧 Dock（Project/Geometry/Properties/Stages）完成。这里提供流程导航与快捷入口。")
+        )
 
         # Status
         gb_status = QGroupBox("Status")
@@ -112,7 +115,9 @@ class InputWorkspace:
 
         gb_tips = QGroupBox("Tips")
         tl = QVBoxLayout(gb_tips)
-        tl.addWidget(QLabel("- Output 场景建议隐藏编辑 Dock（Geometry/Properties/Stages），专注可视化；可在 View 菜单随时打开。"))
+        tl.addWidget(
+            QLabel("- Output 场景建议隐藏编辑 Dock（Geometry/Properties/Stages），专注可视化；可在 View 菜单随时打开。")
+        )
         tl.addWidget(QLabel("- 若要与 solver 团队联调：File -> Export Case Folder... 导出 request.json + mesh.npz。"))
         layout.addWidget(gb_tips)
 
@@ -186,6 +191,57 @@ class InputWorkspace:
         crl.addWidget(self._btn_create_edge_set)
         crl.addWidget(self._btn_create_elem_set)
         sl.addWidget(row_create)
+
+        gb_boundary = QGroupBox("Boundary helpers (auto)")
+        bdl_outer = QVBoxLayout(gb_boundary)
+        bdl_outer.setContentsMargins(6, 6, 6, 6)
+
+        row_auto = QWidget()
+        bdl = QHBoxLayout(row_auto)
+        bdl.setContentsMargins(0, 0, 0, 0)
+        self._btn_boundary_all = QPushButton("All")
+        self._btn_boundary_bottom = QPushButton("Bottom")
+        self._btn_boundary_top = QPushButton("Top")
+        self._btn_boundary_left = QPushButton("Left")
+        self._btn_boundary_right = QPushButton("Right")
+        self._btn_boundary_all.setToolTip("Select all boundary edges (edges that belong to exactly 1 cell).")
+        tip = "Select boundary edges near the mesh bounding box side (best-effort)."
+        self._btn_boundary_bottom.setToolTip(tip)
+        self._btn_boundary_top.setToolTip(tip)
+        self._btn_boundary_left.setToolTip(tip)
+        self._btn_boundary_right.setToolTip(tip)
+        bdl.addWidget(QLabel("Auto:"))
+        bdl.addWidget(self._btn_boundary_all)
+        bdl.addWidget(self._btn_boundary_bottom)
+        bdl.addWidget(self._btn_boundary_top)
+        bdl.addWidget(self._btn_boundary_left)
+        bdl.addWidget(self._btn_boundary_right)
+        bdl.addStretch(1)
+        bdl_outer.addWidget(row_auto)
+
+        row_poly = QWidget()
+        pdl = QHBoxLayout(row_poly)
+        pdl.setContentsMargins(0, 0, 0, 0)
+        self._btn_polyline = QPushButton("Polyline")
+        self._btn_polyline_finish = QPushButton("Finish")
+        self._btn_polyline_clear = QPushButton("Clear")
+        self._btn_boundary_component = QPushButton("Component from pick")
+        self._btn_polyline.setToolTip(
+            "Pick boundary nodes to build a polyline (snaps to boundary edges via shortest path)."
+        )
+        self._btn_polyline_finish.setToolTip("Finish polyline mode (keep selected edges).")
+        self._btn_polyline_clear.setToolTip("Clear current polyline points and edges selection.")
+        self._btn_boundary_component.setToolTip(
+            "Extract the boundary connected component containing the last picked node."
+        )
+        pdl.addWidget(QLabel("Brush:"))
+        pdl.addWidget(self._btn_polyline)
+        pdl.addWidget(self._btn_polyline_finish)
+        pdl.addWidget(self._btn_polyline_clear)
+        pdl.addWidget(self._btn_boundary_component)
+        pdl.addStretch(1)
+        bdl_outer.addWidget(row_poly)
+        sl.addWidget(gb_boundary)
         pv.addWidget(gb_sel)
 
         self._viewer = None
@@ -221,6 +277,15 @@ class InputWorkspace:
         self._btn_create_elem_set.clicked.connect(self._create_elem_set_from_selection)
         self._btn_box_nodes.clicked.connect(lambda: self._toggle_box_select("node"))
         self._btn_box_cells.clicked.connect(lambda: self._toggle_box_select("cell"))
+        self._btn_boundary_all.clicked.connect(lambda: self._select_boundary_edges("all"))
+        self._btn_boundary_bottom.clicked.connect(lambda: self._select_boundary_edges("bottom"))
+        self._btn_boundary_top.clicked.connect(lambda: self._select_boundary_edges("top"))
+        self._btn_boundary_left.clicked.connect(lambda: self._select_boundary_edges("left"))
+        self._btn_boundary_right.clicked.connect(lambda: self._select_boundary_edges("right"))
+        self._btn_polyline.clicked.connect(self._toggle_polyline_mode)
+        self._btn_polyline_finish.clicked.connect(self._finish_polyline_mode)
+        self._btn_polyline_clear.clicked.connect(self._clear_polyline)
+        self._btn_boundary_component.clicked.connect(self._select_boundary_component_from_pick)
 
         self._request = None
         self._mesh = None
@@ -240,7 +305,12 @@ class InputWorkspace:
         self._sel_nodes: set[int] = set()
         self._sel_edges: set[tuple[int, int]] = set()
         self._sel_elems: dict[str, set[int]] = {}
+        self._suggest_edge_set_name: str | None = None
         self._pending_highlight_key: str | None = None
+        self._boundary_edges = None
+        self._boundary_adj = None
+        self._polyline_active = False
+        self._polyline_nodes: list[int] = []
         self._normal_pick_enabled = False
         self._pick_cb = None
         self._cell_pick_cb = None
@@ -276,6 +346,10 @@ class InputWorkspace:
         if mesh_changed:
             self._vtk_mesh = None
             self._grid = None
+            self._boundary_edges = None
+            self._boundary_adj = None
+            self._polyline_active = False
+            self._polyline_nodes = []
 
         self._rebuild_sets()
         self._ensure_viewer()
@@ -389,7 +463,9 @@ class InputWorkspace:
             )
         except TypeError:
             # compatibility with older versions
-            self._viewer.enable_point_picking(callback=self._pick_cb, show_message=False, left_clicking=True, show_point=True, use_mesh=True)
+            self._viewer.enable_point_picking(
+                callback=self._pick_cb, show_message=False, left_clicking=True, show_point=True, use_mesh=True
+            )
         try:
             self._viewer.enable_cell_picking(  # type: ignore[attr-defined]
                 callback=self._cell_pick_cb,
@@ -614,7 +690,9 @@ class InputWorkspace:
                 self._viewer.add_mesh(sub, style="wireframe", color="#D00000", line_width=5)
             except Exception:
                 pass
-            self._viewer.add_mesh(sub, color="#D00000", opacity=0.55, show_edges=True, edge_color="#D00000", line_width=2)
+            self._viewer.add_mesh(
+                sub, color="#D00000", opacity=0.55, show_edges=True, edge_color="#D00000", line_width=2
+            )
 
     def _highlight_selection(self, mesh, grid) -> None:  # noqa: ANN001
         if self._viewer is None:
@@ -662,7 +740,9 @@ class InputWorkspace:
             if vtk_ids.size == 0:
                 continue
             sub = grid.extract_cells(vtk_ids)
-            self._viewer.add_mesh(sub, color="#FF8800", opacity=0.65, show_edges=True, edge_color="#FF8800", line_width=2)
+            self._viewer.add_mesh(
+                sub, color="#FF8800", opacity=0.65, show_edges=True, edge_color="#FF8800", line_width=2
+            )
 
     def _on_probe(self, point) -> None:  # noqa: ANN001
         if self._viewer is None:
@@ -694,6 +774,8 @@ class InputWorkspace:
             self._last_probe_pid_history = self._last_probe_pid_history[-2:]
             node_sets = self._node_set_membership.get(pid, [])
             self._sel_info.setText(f"Pick node: pid={pid} x={px:.6g} y={py:.6g} node_sets={node_sets}")
+            if self._polyline_active:
+                self._polyline_add_pick(pid)
         except Exception:
             # ignore
             pass
@@ -733,7 +815,9 @@ class InputWorkspace:
             ctype = cell_type_code_to_name(ctype_code) or str(ctype_code)
             self._last_cell = (str(ctype), int(local_id))
             elem_sets = self._elem_set_membership.get(ctype, {}).get(local_id, [])
-            self._sel_info.setText(f"Pick cell: cell_id={cell_id} type={ctype} local_id={local_id} elem_sets={elem_sets}")
+            self._sel_info.setText(
+                f"Pick cell: cell_id={cell_id} type={ctype} local_id={local_id} elem_sets={elem_sets}"
+            )
         except Exception:
             pass
 
@@ -745,7 +829,9 @@ class InputWorkspace:
         self._lbl_sel_edges.setText(f"Edges: {n_edges}")
         if self._sel_elems:
             parts = [f"{k}:{len(v)}" for k, v in sorted(self._sel_elems.items()) if v]
-            self._lbl_sel_elems.setText(f"Elements: {n_elems}  ({', '.join(parts)})" if parts else f"Elements: {n_elems}")
+            self._lbl_sel_elems.setText(
+                f"Elements: {n_elems}  ({', '.join(parts)})" if parts else f"Elements: {n_elems}"
+            )
         else:
             self._lbl_sel_elems.setText(f"Elements: {n_elems}")
 
@@ -762,6 +848,22 @@ class InputWorkspace:
         self._btn_box_cells.setText("Cancel box" if self._box_mode == "cell" else "Box elems")
         self._btn_box_nodes.setEnabled((not active) or self._box_mode == "node")
         self._btn_box_cells.setEnabled((not active) or self._box_mode == "cell")
+
+        # Polyline boundary mode
+        poly_active = bool(self._polyline_active)
+        self._btn_polyline.setText("Cancel polyline" if poly_active else "Polyline")
+        self._btn_polyline_finish.setEnabled(poly_active)
+        self._btn_polyline_clear.setEnabled(poly_active or bool(self._polyline_nodes) or bool(self._sel_edges))
+        # Avoid mixing interaction modes (box selection uses same picking pipeline).
+        self._btn_polyline.setEnabled(not active)
+        self._btn_polyline_finish.setEnabled(poly_active and (not active))
+        self._btn_polyline_clear.setEnabled(
+            (poly_active or bool(self._polyline_nodes) or bool(self._sel_edges)) and (not active)
+        )
+
+        # Boundary component extraction is based on the last pick.
+        can_comp = self._last_probe_pid is not None
+        self._btn_boundary_component.setEnabled(bool(can_comp) and (not active))
 
     def _toggle_box_select(self, mode: str) -> None:
         if self._viewer is None:
@@ -830,8 +932,8 @@ class InputWorkspace:
         if grid is None:
             return None
         try:
-            import vtk  # type: ignore
             import pyvista as pv  # type: ignore
+            import vtk  # type: ignore
 
             # Prefer vtkExtractSelectedFrustum (matches rubber-band picking semantics).
             if hasattr(vtk, "vtkExtractSelectedFrustum"):
@@ -893,7 +995,9 @@ class InputWorkspace:
                 ids: list[int] = []
                 if hasattr(picked, "point_data"):
                     if "vtkOriginalPointIds" in picked.point_data:
-                        ids = [int(x) for x in np.asarray(picked.point_data["vtkOriginalPointIds"]).reshape(-1).tolist()]
+                        ids = [
+                            int(x) for x in np.asarray(picked.point_data["vtkOriginalPointIds"]).reshape(-1).tolist()
+                        ]
                     elif "__pid" in picked.point_data:
                         ids = [int(x) for x in np.asarray(picked.point_data["__pid"]).reshape(-1).tolist()]
                 if not ids:
@@ -915,6 +1019,7 @@ class InputWorkspace:
                     self._sel_elems.clear()
                 # Add by mapping picked cell_data -> (ctype, local_id)
                 import numpy as np
+
                 from geohpem.viz.vtk_convert import cell_type_code_to_name
 
                 if hasattr(picked, "cell_data"):
@@ -931,7 +1036,11 @@ class InputWorkspace:
                             cids = np.asarray(picked.cell_data["vtkOriginalCellIds"]).reshape(-1)
                         elif "__cid" in picked.cell_data:
                             cids = np.asarray(picked.cell_data["__cid"]).reshape(-1)
-                        if cids is not None and "__cell_type_code" in grid.cell_data and "__cell_local_id" in grid.cell_data:
+                        if (
+                            cids is not None
+                            and "__cell_type_code" in grid.cell_data
+                            and "__cell_local_id" in grid.cell_data
+                        ):
                             for cid in cids.tolist():
                                 try:
                                     c = int(cid)
@@ -992,11 +1101,192 @@ class InputWorkspace:
         self._sel_nodes.clear()
         self._sel_edges.clear()
         self._sel_elems.clear()
+        self._suggest_edge_set_name = None
+        self._polyline_active = False
+        self._polyline_nodes = []
         self._update_selection_ui()
         try:
             self._render_preview()
         except Exception:
             pass
+
+    def _ensure_boundary_graph(self) -> None:
+        if self._boundary_edges is not None and self._boundary_adj is not None:
+            return
+        mesh = self._mesh
+        if not isinstance(mesh, dict) or "points" not in mesh:
+            self._boundary_edges = None
+            self._boundary_adj = None
+            return
+        try:
+            from geohpem.domain.boundary_ops import compute_boundary_edges
+
+            edges = compute_boundary_edges(mesh)
+            edges = edges.reshape(-1, 2)
+            adj: dict[int, list[int]] = {}
+            for a, b in edges.tolist():
+                ia = int(a)
+                ib = int(b)
+                adj.setdefault(ia, []).append(ib)
+                adj.setdefault(ib, []).append(ia)
+            self._boundary_edges = edges.astype("int32", copy=False)
+            self._boundary_adj = adj
+        except Exception:
+            self._boundary_edges = None
+            self._boundary_adj = None
+
+    def _shortest_boundary_path(self, start: int, goal: int) -> list[int] | None:
+        self._ensure_boundary_graph()
+        adj = self._boundary_adj
+        if not isinstance(adj, dict) or start not in adj or goal not in adj:
+            return None
+        if start == goal:
+            return [start]
+        from collections import deque
+
+        q = deque([start])
+        prev: dict[int, int | None] = {start: None}
+        while q:
+            u = q.popleft()
+            for v in adj.get(u, []):
+                if v in prev:
+                    continue
+                prev[v] = u
+                if v == goal:
+                    q.clear()
+                    break
+                q.append(v)
+        if goal not in prev:
+            return None
+        path: list[int] = []
+        cur: int | None = goal
+        while cur is not None:
+            path.append(int(cur))
+            cur = prev.get(int(cur))
+        path.reverse()
+        return path
+
+    def _polyline_add_pick(self, pid: int) -> None:
+        pid = int(pid)
+        if self._polyline_nodes and pid == int(self._polyline_nodes[-1]):
+            return
+        self._ensure_boundary_graph()
+        if not isinstance(self._boundary_adj, dict) or pid not in self._boundary_adj:
+            # not a boundary node; ignore silently (still keep normal pick behavior)
+            return
+        if not self._polyline_nodes:
+            # start new polyline
+            if bool(self._chk_box_replace.isChecked()):
+                self._sel_edges.clear()
+            self._polyline_nodes = [pid]
+            self._sel_info.setText(self._sel_info.text() + " | polyline: start")
+            return
+        start = int(self._polyline_nodes[-1])
+        path = self._shortest_boundary_path(start, pid)
+        if not path or len(path) < 2:
+            return
+        for a, b in zip(path[:-1], path[1:], strict=False):
+            self._sel_edges.add((int(a), int(b)))
+        self._polyline_nodes.append(pid)
+        self._suggest_edge_set_name = "boundary_polyline"
+        self._update_selection_ui()
+        try:
+            self._render_preview()
+        except Exception:
+            pass
+
+    def _toggle_polyline_mode(self) -> None:
+        if self._polyline_active:
+            self._finish_polyline_mode()
+            return
+        self._ensure_boundary_graph()
+        if not isinstance(self._boundary_adj, dict) or not self._boundary_adj:
+            self._QMessageBox.information(self.widget, "Polyline", "No boundary graph available for this mesh.")
+            return
+        self._polyline_active = True
+        self._polyline_nodes = []
+        self._sel_info.setText("Polyline: pick boundary nodes (snaps along boundary). Click Finish when done.")
+        self._update_selection_ui()
+
+    def _finish_polyline_mode(self) -> None:
+        if not self._polyline_active:
+            return
+        self._polyline_active = False
+        self._sel_info.setText("Polyline finished.")
+        self._update_selection_ui()
+
+    def _clear_polyline(self) -> None:
+        self._polyline_nodes = []
+        self._polyline_active = False
+        self._sel_edges.clear()
+        self._suggest_edge_set_name = None
+        self._sel_info.setText("Polyline cleared.")
+        self._update_selection_ui()
+        try:
+            self._render_preview()
+        except Exception:
+            pass
+
+    def _select_boundary_component_from_pick(self) -> None:
+        if self._last_probe_pid is None:
+            self._QMessageBox.information(self.widget, "Boundary", "Pick a node first.")
+            return
+        pid = int(self._last_probe_pid)
+        self._ensure_boundary_graph()
+        adj = self._boundary_adj
+        edges = self._boundary_edges
+        if not isinstance(adj, dict) or edges is None or pid not in adj:
+            self._QMessageBox.information(self.widget, "Boundary", "Last pick is not on the boundary.")
+            return
+        from collections import deque
+
+        q = deque([pid])
+        visited: set[int] = {pid}
+        while q:
+            u = q.popleft()
+            for v in adj.get(u, []):
+                if v in visited:
+                    continue
+                visited.add(int(v))
+                q.append(int(v))
+        comp_edges = [(int(a), int(b)) for a, b in edges.tolist() if int(a) in visited and int(b) in visited]
+        if not comp_edges:
+            self._QMessageBox.information(self.widget, "Boundary", "No edges found in that boundary component.")
+            return
+        if bool(self._chk_box_replace.isChecked()):
+            self._sel_edges = set(comp_edges)
+        else:
+            self._sel_edges.update(comp_edges)
+        self._suggest_edge_set_name = "boundary_component"
+        self._update_selection_ui()
+        try:
+            self._render_preview()
+        except Exception:
+            pass
+
+    def _select_boundary_edges(self, which: str) -> None:
+        mesh = self._mesh
+        if not isinstance(mesh, dict) or "points" not in mesh:
+            self._QMessageBox.information(self.widget, "Boundary", "No mesh loaded.")
+            return
+        try:
+            from geohpem.domain.boundary_ops import classify_boundary_edges
+
+            groups = classify_boundary_edges(mesh)
+            edges = groups.get(str(which))
+            if edges is None:
+                return
+            edges = edges.reshape(-1, 2)
+            if edges.size == 0:
+                self._QMessageBox.information(self.widget, "Boundary", f"No edges found for: {which}")
+                return
+            # Replace current edge selection; keep node/elem selection unchanged.
+            self._sel_edges = {tuple(map(int, row)) for row in edges.tolist()}
+            self._suggest_edge_set_name = f"boundary_{which}" if which != "all" else "boundary_all"
+            self._update_selection_ui()
+            self._render_preview()
+        except Exception as exc:
+            self._QMessageBox.critical(self.widget, "Boundary Failed", str(exc))
 
     def _ask_set_name(self, *, title: str, default: str) -> str | None:
         txt, ok = self._QInputDialog.getText(self.widget, title, "Set name (no spaces):", text=default)
@@ -1019,7 +1309,9 @@ class InputWorkspace:
             return
         key = f"node_set__{name}"
         if key in mesh:
-            btn = self._QMessageBox.question(self.widget, "Overwrite Set?", f"Set already exists:\n{key}\n\nOverwrite it?")
+            btn = self._QMessageBox.question(
+                self.widget, "Overwrite Set?", f"Set already exists:\n{key}\n\nOverwrite it?"
+            )
             if btn != self._QMessageBox.Yes:
                 return
         self._pending_highlight_key = key
@@ -1032,12 +1324,16 @@ class InputWorkspace:
             return
         if not self._sel_edges:
             return
-        name = self._ask_set_name(title="Create Edge Set", default="new_edges")
+        default = self._suggest_edge_set_name or "new_edges"
+        name = self._ask_set_name(title="Create Edge Set", default=default)
         if not name:
             return
+        self._suggest_edge_set_name = None
         key = f"edge_set__{name}"
         if key in mesh:
-            btn = self._QMessageBox.question(self.widget, "Overwrite Set?", f"Set already exists:\n{key}\n\nOverwrite it?")
+            btn = self._QMessageBox.question(
+                self.widget, "Overwrite Set?", f"Set already exists:\n{key}\n\nOverwrite it?"
+            )
             if btn != self._QMessageBox.Yes:
                 return
         self._pending_highlight_key = key
@@ -1066,7 +1362,9 @@ class InputWorkspace:
             return
         key = f"elem_set__{name}__{ct}"
         if key in mesh:
-            btn = self._QMessageBox.question(self.widget, "Overwrite Set?", f"Set already exists:\n{key}\n\nOverwrite it?")
+            btn = self._QMessageBox.question(
+                self.widget, "Overwrite Set?", f"Set already exists:\n{key}\n\nOverwrite it?"
+            )
             if btn != self._QMessageBox.Yes:
                 return
         self._pending_highlight_key = key

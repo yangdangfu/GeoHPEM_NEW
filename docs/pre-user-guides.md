@@ -77,9 +77,14 @@ GUI 菜单：
   - 框选/刷选（批量选择）：
     - `Box nodes` / `Box elems`：在视窗中拖拽矩形框选（建议配合 `Brush` 连续多次框选）
     - `Replace`：勾选后每次框选会替换当前选择；不勾选则追加
+  - 边界辅助（工程常用）：
+    - `Boundary helpers (auto)`：点击 `Bottom/Top/Left/Right/All` 自动选中边界边（best-effort，按网格外包框极值判断）
+    - 选中后点 `Create edge set...`，默认命名会填入 `boundary_bottom/...`
+    - `Polyline`：进入“沿边刷选”模式；在视窗中依次点击边界上的节点，会按边界最短路径自动补齐中间边并加入 edge 选择
+    - `Component from pick`：先拾取一个边界节点，再一键提取其所在边界连通段（适合复杂边界/多段边界）
   - `Create node/edge/elem set...` 一键生成 sets，并自动在 Preview 下拉中可高亮查看
 
-> 说明：Input 工作区中央已接入 Mesh Preview（高亮 sets + 点击拾取信息），并支持“拾取→累积选择→一键创建 node/elem sets”（MVP：逐个拾取；框选/刷选后续补齐）。
+> 说明：Input 工作区中央已接入 Mesh Preview（高亮 sets + 点击拾取信息），并支持“拾取/框选→累积选择→一键创建 node/edge/elem sets”。
 
 ## 7. 编辑建模数据（Input 工作区 MVP）
 
