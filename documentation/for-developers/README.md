@@ -215,5 +215,5 @@ from geohpem.project.types import ProjectData
 
 ---
 
-Last updated: 2024-12-18 (v7 - InputWorkspace, profiles/pins, ui_state persistence)
+Last updated: 2024-12-22 (v9 - reference solvers, solver team guide, workflow upgrades)
 

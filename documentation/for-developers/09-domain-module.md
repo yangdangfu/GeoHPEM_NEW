@@ -7,9 +7,10 @@ The `domain/` module contains pure domain operations for manipulating project da
 ```
 domain/
 ├── __init__.py
-├── project.py      # (placeholder for future domain models)
-├── mesh_ops.py     # Mesh manipulation operations
-└── request_ops.py  # Request manipulation operations
+├── project.py        # (placeholder for future domain models)
+├── mesh_ops.py       # Mesh manipulation operations
+├── request_ops.py    # Request manipulation operations
+└── boundary_ops.py   # Boundary edge computation and classification
 ```
 
 ---
@@ -148,6 +149,67 @@ def set_set_label(request: dict, set_key: str, label: str) -> dict:
 
 ---
 
+## Boundary Operations (`boundary_ops.py`)
+
+Pure functions for computing and classifying mesh boundary edges.
+
+### Edge Computation
+
+```python
+def compute_boundary_edges(mesh: dict[str, Any]) -> np.ndarray:
+    """
+    Compute boundary edges from a 2D mesh connectivity.
+    
+    Boundary edges are those belonging to exactly one cell.
+    Returns unique edges as (n,2) array with each row sorted (min,max).
+    
+    Handles multiple cell blocks (e.g., tri3 + quad4) by computing
+    boundaries per block and then unioning.
+    """
+
+def compute_all_edges(mesh: dict[str, Any]) -> np.ndarray:
+    """
+    Compute unique undirected edges from a 2D mesh connectivity.
+    
+    Returns unique edges as (n,2) array with each row sorted (min,max).
+    """
+```
+
+### Boundary Classification
+
+```python
+def classify_boundary_edges(
+    mesh: dict[str, Any],
+    *,
+    edges: np.ndarray | None = None,
+    tol_factor: float = 1e-6,
+) -> dict[str, np.ndarray]:
+    """
+    Classify boundary edges into {all,bottom,top,left,right} by bounding box extremes.
+    
+    Best-effort helper for common engineering cases where the domain has
+    clear min/max x/y boundaries.
+    
+    Args:
+        mesh: Mesh dict with points
+        edges: Optional pre-computed boundary edges (default: calls compute_boundary_edges)
+        tol_factor: Tolerance factor for boundary detection (default: 1e-6)
+    
+    Returns:
+        Dict with keys: "all", "bottom", "top", "left", "right"
+        Each value is (n,2) array of edge node pairs.
+    """
+```
+
+### Utilities
+
+```python
+def unique_nodes_from_edges(edges: np.ndarray) -> np.ndarray:
+    """Extract unique node IDs from an edge array."""
+```
+
+---
+
 ## Usage Examples
 
 ### Adding a Node Set
@@ -231,5 +293,5 @@ def update_stage(self, stage_uid: str, patch: dict) -> None:
 
 ---
 
-Last updated: 2024-12-18 (v2 - added set_set_label)
+Last updated: 2024-12-19 (v3 - added boundary_ops module)
 

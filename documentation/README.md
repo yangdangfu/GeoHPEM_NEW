@@ -20,6 +20,8 @@ documentation/
 │   └── 09-domain-module.md            # Domain operations documentation
 └── for-users/                         # User documentation (TBD)
     └── README.md                      # Placeholder
+
+Note: Tutorials are available in `docs/tutorials/` (see 00_Tutorials_Overview.md).
 ```
 
 ## For Developers

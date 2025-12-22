@@ -164,6 +164,10 @@ class MainWindow:
 | `open_output_folder(path)` | Display results |
 | `show()` | Show the window |
 | `_shutdown_before_close()` | Clean up VTK/workers before exit |
+| `_suggest_material_id()` | Generate unique material ID (mat_1, mat_2, ...) |
+| `_on_add_material(preferred_id)` | Show dialog to add new material |
+| `_on_delete_material(material_id)` | Show dialog to delete material |
+| `_on_project_context_menu(pos)` | Handle ProjectDock tree context menu |
 
 **Menu Structure**:
 
@@ -412,16 +416,63 @@ class InputWorkspace:
 - **Create edge set...**: Prompt for name, emit `create_set_requested`
 - **Create elem set...**: Prompt for name, emit `create_set_requested`
 
+**Boundary Selection Tools**:
+- **Polyline**: Interactive boundary edge selection
+  - Click boundary nodes to build a polyline
+  - Automatically finds shortest path along boundary between consecutive picks
+  - Snaps clicks to nearest boundary node (within tolerance)
+  - Finish/Clear buttons to complete or cancel
+- **Component from pick**: Extract entire boundary connected component
+  - Selects all boundary edges reachable from last picked node
+  - Uses BFS traversal of boundary graph
+- **Auto boundary** (context menu): Quick selection by position
+  - Bottom/Top/Left/Right/All boundary edges
+  - Uses `classify_boundary_edges()` from `domain.boundary_ops`
+
+**Selection Modes**:
+- **Replace**: Clear selection before adding new items
+- **Subtract**: Remove items from current selection (mutually exclusive with Replace)
+- **Brush**: Keep box selection active for repeated drags
+
+**Selection Inversion** (context menu):
+- **Invert nodes**: Select all nodes not currently selected
+- **Invert edges**: Select all edges not currently selected
+- **Invert elements**: Select all elements not currently selected
+
+**Context Menu** (right-click in preview):
+- Fit view
+- Selection mode toggles (Replace, Subtract, Brush)
+- Clear selection (C)
+- Invert selections
+- Box nodes (B) / Box elems (Shift+B)
+- Polyline mode
+- Component extraction
+- Auto boundary selection
+- Create set from selection
+
 **Internal State**:
 ```python
 _sel_nodes: set[int]                    # Selected node IDs
 _sel_edges: set[tuple[int, int]]        # Selected edges as node pairs
 _sel_elems: dict[str, set[int]]         # {cell_type: {local_ids}}
 _box_mode: str | None                   # None | "node" | "cell"
+_polyline_active: bool                  # Polyline mode active
+_polyline_nodes: list[int]              # Current polyline node sequence
 _last_probe_pid: int | None             # Last clicked node ID
+_last_probe_xy: tuple[float, float] | None  # Last clicked coordinates
 _last_cell: tuple[str, int] | None      # (cell_type, local_id)
 _last_probe_pid_history: list[int]      # Last 2 picks for edge creation
+_boundary_edges: np.ndarray | None      # Cached boundary edges
+_boundary_adj: dict[int, list[int]] | None  # Boundary adjacency graph
+_boundary_nodes: np.ndarray | None      # Cached boundary node IDs
+_boundary_nodes_xy: np.ndarray | None   # Cached boundary node coordinates
+_bbox_diag: float | None                # Bounding box diagonal (for snap tolerance)
 ```
+
+**Boundary Graph**: Built on-demand using `domain.boundary_ops.compute_boundary_edges()` to enable:
+- Polyline shortest-path routing
+- Component extraction via BFS
+- Snap-to-boundary for near-boundary clicks
 
 **2D View**: Uses `viz/vtk_interaction.py` for 2D-only interaction (no rotation).
 
@@ -511,6 +562,28 @@ _pins: list[dict]              # Saved probe pins
 _mode: str                     # "normal" | "profile_pick" | "profile_edit"
 ```
 
+**Profile Editing** (persistent):
+- **Edit Selected (drag)**: Drag profile endpoints in viewport
+- Endpoints visualized as draggable widgets
+- Auto-updates profile path when endpoints change
+- Finish/Cancel buttons to complete or abort editing
+
+**Pin Overlays**:
+- Visual markers in viewport showing saved pin locations
+- Different colors for node vs element pins
+- Click pin markers to select/view pin details
+
+**Shift+Click Cell Picking**:
+- Hold Shift and left-click to pick cells directly
+- Installs custom event filter for Shift+click detection
+- Updates last picked cell for pin creation
+
+**Context Menu** (right-click in viewer):
+- Fit view
+- Export image
+- Profile management actions
+- Pin management actions
+
 **2D View Interaction**:
 Uses `viz/vtk_interaction.py` to configure VTK for 2D-only interaction:
 - No 3D rotation
@@ -518,6 +591,7 @@ Uses `viz/vtk_interaction.py` to configure VTK for 2D-only interaction:
 - Mouse wheel = zoom
 - Left mouse = picking (no camera interaction)
 - Right mouse = reserved for context menu
+- Adds `_parent` weakref for PyVista compatibility
 
 **Set Membership Tracking**:
 ```python
@@ -614,9 +688,9 @@ class StageItemTableEditor:
 
 ### ProjectDock (`widgets/docks/project_dock.py`)
 
-Tree view of project structure:
+Tree view of project structure with context menu support:
 - Model settings
-- Materials
+- Materials (with context menu: Add/Delete)
 - Mesh info
 - Sets (node/edge/element)
 - Stages
@@ -625,6 +699,12 @@ Tree view of project structure:
 - `case_open_requested(Path)`: User wants to open a case
 - `output_open_requested(Path)`: User wants to open results
 - `selection_changed(dict)`: Tree selection changed
+
+**Context Menu** (right-click on Materials or individual Material items):
+- **Materials folder**: "Add material..." - Opens dialog to create new material
+- **Material item**: "Delete material..." - Removes material with confirmation
+
+The context menu is handled by `MainWindow._on_project_context_menu()`, which connects to the tree's `customContextMenuRequested` signal.
 
 ### PropertiesDock (`widgets/docks/properties_dock.py`)
 
@@ -1035,5 +1115,5 @@ menu_edit.addAction(self._action_my)
 
 ---
 
-Last updated: 2024-12-18 (v8 - InputWorkspace selection, profiles/pins persistence, 2D interaction)
+Last updated: 2024-12-22 (v10 - material management in main window)
 

@@ -18,10 +18,22 @@ The `solver_adapter` module provides the interface between GeoHPEM and solver ba
 GeoHPEM supports multiple solver backends through a plugin architecture:
 
 - **Fake Solver**: Built-in placeholder for development and testing
+- **Reference Elastic Solver**: Full FEM implementation for linear elasticity (plane strain/stress)
+- **Reference Seepage Solver**: Full implementation for steady-state seepage (Poisson/Darcy)
 - **Python Module Solvers**: Load solvers from Python modules
 - **External Solvers**: (Future) Subprocess-based external solvers
 
 The solver adapter ensures all backends conform to the `SolverProtocol` interface.
+
+### Reference Solvers
+
+The reference solvers (`reference_elastic.py` and `reference_seepage.py`) serve multiple purposes:
+
+1. **Template for Solver Teams**: Provide working examples of the solver interface
+2. **Platform Regression**: Baseline implementations for testing and validation
+3. **End-to-End Testing**: Enable full workflow testing (materials/BCs/loads → solve → output → post-processing)
+
+These are "minimal real implementations" (linear elasticity/seepage), not full-featured commercial solver replacements.
 
 ### GUI Solver Selection
 
@@ -37,8 +49,10 @@ Users can select the solver via **Solve → Select Solver...** menu:
 ```
 solver_adapter/
 ├── __init__.py
-├── loader.py      # Solver loading logic
-└── fake.py        # Fake solver implementation
+├── loader.py              # Solver loading logic
+├── fake.py                # Fake solver implementation
+├── reference_elastic.py    # Reference elastic solver (FEM)
+└── reference_seepage.py   # Reference seepage solver (Poisson/Darcy)
 ```
 
 ---
@@ -129,6 +143,8 @@ def load_solver(selector: str) -> SolverProtocol:
     Args:
         selector: Solver selector in one of these formats:
             - "fake": Built-in fake solver
+            - "ref_elastic" or "reference_elastic": Reference elastic solver
+            - "ref_seepage" or "reference_seepage": Reference seepage solver
             - "python:<module>": Load from Python module
     
     Returns:
@@ -141,6 +157,8 @@ def load_solver(selector: str) -> SolverProtocol:
     
     Examples:
         load_solver("fake")
+        load_solver("ref_elastic")
+        load_solver("ref_seepage")
         load_solver("python:my_solver.backend")
     """
 ```
@@ -171,6 +189,94 @@ def get_solver():
 Usage:
 ```bash
 geohpem run case_folder --solver python:my_solver.backend
+```
+
+---
+
+## Reference Elastic Solver
+
+The `ReferenceElasticSolver` (`reference_elastic.py`) implements linear elasticity FEM:
+
+### Capabilities
+
+- **Materials**: `linear_elastic` (E, nu, rho optional)
+- **Boundary Conditions**: `displacement` (ux/uy on node_set/edge_set→nodes)
+- **Loads**: `gravity`, `traction` (on edge_set)
+- **Output**: `u` (node), `sx/sy/sxy/vm` (element)
+- **Modes**: `plane_strain`, `plane_stress`
+- **Contract**: v0.2
+
+### Implementation Details
+
+- Standard FEM assembly (tri3 and quad4 elements)
+- Plane stress/strain D-matrix computation
+- Dirichlet BC enforcement (displacement constraints)
+- Neumann BC application (traction loads)
+- Body force integration (gravity)
+- Stress computation from displacements (σ_xx, σ_yy, τ_xy, von Mises)
+
+### Usage
+
+```python
+from geohpem.solver_adapter.loader import load_solver
+
+solver = load_solver("ref_elastic")
+caps = solver.capabilities()
+# caps["analysis_types"] = ["static"]
+# caps["materials"] = ["linear_elastic"]
+# caps["bcs"] = ["displacement"]
+# caps["loads"] = ["gravity", "traction"]
+
+result_meta, result_arrays = solver.solve(request, mesh, callbacks)
+```
+
+### CLI Usage
+
+```bash
+geohpem run case_folder --solver ref_elastic
+```
+
+---
+
+## Reference Seepage Solver
+
+The `ReferenceSeepageSolver` (`reference_seepage.py`) implements steady-state seepage (Poisson/Darcy):
+
+### Capabilities
+
+- **Materials**: `darcy` (k - isotropic permeability)
+- **Boundary Conditions**: `p` (Dirichlet on node_set/edge_set→nodes)
+- **Loads**: `flux` (Neumann on edge_set)
+- **Output**: `p` (node - pore pressure)
+- **Modes**: `plane_strain`, `plane_stress`
+- **Contract**: v0.2
+
+### Implementation Details
+
+- Poisson/Darcy equation discretization (tri3 and quad4)
+- Dirichlet BC enforcement (prescribed pressure)
+- Neumann BC application (flux boundary conditions)
+- Sparse linear solver (scipy.sparse.linalg.spsolve)
+
+### Usage
+
+```python
+from geohpem.solver_adapter.loader import load_solver
+
+solver = load_solver("ref_seepage")
+caps = solver.capabilities()
+# caps["analysis_types"] = ["seepage_steady"]
+# caps["materials"] = ["darcy"]
+# caps["bcs"] = ["p"]
+# caps["loads"] = ["flux"]
+
+result_meta, result_arrays = solver.solve(request, mesh, callbacks)
+```
+
+### CLI Usage
+
+```bash
+geohpem run case_folder --solver ref_seepage
 ```
 
 ---
@@ -527,5 +633,32 @@ def test_solver():
 
 ---
 
-Last updated: 2024-12-18 (v3 - added modes capability, capabilities integration)
+---
+
+## Solver Team Integration Guide
+
+For solver teams integrating new solvers, see:
+
+- **`docs/SOLVER_TEAM_GUIDE.md`**: Step-by-step guide for solver integration
+- **`docs/REFERENCE_SOLVERS.md`**: Overview of reference solvers
+- **`docs/CONTRACT_V0_2.md`**: Contract v0.2 specification
+- **`docs/SOLVER_SUBMODULE_INTEGRATION.md`**: Technical integration details
+
+The reference solvers (`reference_elastic.py` and `reference_seepage.py`) serve as templates that can be copied and modified for new solver implementations.
+
+### Reference Case Generation
+
+Generate test cases for reference solvers:
+
+```bash
+python scripts/make_reference_cases.py
+```
+
+This creates reference cases in `_Projects/cases/`:
+- `reference_elastic_01/`: Elastic test case
+- `reference_seepage_01/`: Seepage test case
+
+---
+
+Last updated: 2024-12-22 (v4 - reference solvers, contract v0.2 support)
 

@@ -145,9 +145,9 @@ Supporting services for mesh, visualization, and solver integration.
 |--------|----------------|
 | `mesh/` | Mesh import (meshio), conversion, quality analysis |
 | `viz/` | Contract mesh → PyVista conversion, result array extraction, cell type mapping, 2D interaction |
-| `solver_adapter/` | Solver loading, fake solver for testing |
+| `solver_adapter/` | Solver loading, fake solver, reference solvers (elastic/seepage) |
 | `geometry/` | 2D geometry primitives (Polygon2D) |
-| `domain/` | Pure domain operations (mesh_ops, request_ops) |
+| `domain/` | Pure domain operations (mesh_ops, request_ops, boundary_ops) |
 | `units.py` | Unit conversion system and display unit management |
 | `util/` | ID generation, logging configuration |
 
@@ -356,5 +356,5 @@ raise SystemExit(main())
 
 ---
 
-Last updated: 2024-12-18 (v7 - InputWorkspace, profiles/pins, ui_state persistence, 2D interaction)
+Last updated: 2024-12-22 (v9 - reference solvers, solver team guide, workflow upgrades)
 
