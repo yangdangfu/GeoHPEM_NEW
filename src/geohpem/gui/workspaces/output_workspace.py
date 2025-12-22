@@ -26,6 +26,7 @@ class OutputWorkspace:
             QGroupBox,
             QHBoxLayout,
             QLabel,
+            QLineEdit,
             QListWidget,
             QMenu,
             QMessageBox,
@@ -52,6 +53,7 @@ class OutputWorkspace:
         self._QCursor = QCursor
         self._new_uid = new_uid
         self._is_2d_view = True
+        self._color_range_cache: dict[tuple[str, str, str, str], tuple[float, float]] = {}
 
         self.widget = QWidget()
         layout = QVBoxLayout(self.widget)
@@ -103,6 +105,38 @@ class OutputWorkspace:
         self.field_mode.setEnabled(False)
         fm_rl.addWidget(self.field_mode, 1)
         fld.addWidget(fm_row)
+
+        cr_row = QWidget()
+        cr_rl = QHBoxLayout(cr_row)
+        cr_rl.setContentsMargins(0, 0, 0, 0)
+        cr_rl.addWidget(QLabel("Color range"))
+        self.color_range = QComboBox()
+        self.color_range.addItem("Auto (per step)", "auto")
+        self.color_range.addItem("Global (fixed)", "global")
+        self.color_range.addItem("Manual", "manual")
+        try:
+            self.color_range.setCurrentIndex(int(self.color_range.findData("global")))
+        except Exception:
+            pass
+        cr_rl.addWidget(self.color_range, 1)
+        fld.addWidget(cr_row)
+
+        manual_row = QWidget()
+        mr = QHBoxLayout(manual_row)
+        mr.setContentsMargins(0, 0, 0, 0)
+        self.color_min = QLineEdit()
+        self.color_min.setPlaceholderText("min (e.g. 0, -1e5)")
+        self.color_max = QLineEdit()
+        self.color_max.setPlaceholderText("max (e.g. 1e5)")
+        mr.addWidget(QLabel("min"))
+        mr.addWidget(self.color_min, 1)
+        mr.addWidget(QLabel("max"))
+        mr.addWidget(self.color_max, 1)
+        fld.addWidget(manual_row)
+
+        self.color_range_info = QLabel("")
+        self.color_range_info.setWordWrap(True)
+        fld.addWidget(self.color_range_info)
 
         self.warp = QCheckBox("Warp by displacement u")
         self.warp.setEnabled(False)
@@ -266,6 +300,10 @@ class OutputWorkspace:
         self.registry_list.currentRowChanged.connect(self._render)
         self.step.valueChanged.connect(self._render)
         self.field_mode.currentIndexChanged.connect(self._render)
+        self.field_mode.currentIndexChanged.connect(self._clear_color_cache)
+        self.color_range.currentIndexChanged.connect(self._on_color_range_changed)
+        self.color_min.editingFinished.connect(self._render)
+        self.color_max.editingFinished.connect(self._render)
         self.warp.stateChanged.connect(self._render)
         self.warp_scale.valueChanged.connect(self._render)
         self.btn_reset.clicked.connect(self._reset_view)
@@ -299,18 +337,21 @@ class OutputWorkspace:
         self._profile_edit_backup: dict[str, Any] | None = None
         self._pins: list[dict[str, Any]] = []
         self._ui_state: dict[str, Any] | None = None
+        self._on_color_range_changed()
 
     def set_unit_context(self, units) -> None:  # noqa: ANN001
         """
         Set a UnitContext for display conversion (cloud map / probe readout).
         """
         self._units = units
+        self._clear_color_cache()
         self._render()
 
     def set_result(self, meta: dict[str, Any], arrays: dict[str, Any], mesh: dict[str, Any] | None = None) -> None:
         self._meta = meta
         self._arrays = arrays
         self._mesh = mesh
+        self._clear_color_cache()
         self._build_set_membership()
 
         self._reg_items = [i for i in meta.get("registry", []) if isinstance(i, dict)]
@@ -343,6 +384,155 @@ class OutputWorkspace:
         self.btn_pin_elem.setEnabled(True)
         self._refresh_pin_list()
         self._apply_ui_state_if_ready()
+
+    def _clear_color_cache(self) -> None:
+        try:
+            self._color_range_cache.clear()
+        except Exception:
+            pass
+
+    def _on_color_range_changed(self) -> None:
+        mode = str(self.color_range.currentData())
+        is_manual = mode == "manual"
+        try:
+            self.color_min.setEnabled(bool(is_manual))
+            self.color_max.setEnabled(bool(is_manual))
+        except Exception:
+            pass
+        if mode == "global":
+            self.color_range_info.setText("Global range is computed from all available steps (may take a moment).")
+        elif mode == "manual":
+            self.color_range_info.setText("Manual range uses min/max above (values are in display units).")
+        else:
+            self.color_range_info.setText("")
+        self._render()
+
+    def _parse_float(self, text: str) -> float | None:
+        s = str(text or "").strip()
+        if not s:
+            return None
+        try:
+            return float(s)
+        except Exception:
+            return None
+
+    def _manual_clim(self) -> tuple[float, float] | None:
+        a = self._parse_float(self.color_min.text())
+        b = self._parse_float(self.color_max.text())
+        if a is None or b is None:
+            return None
+        if not np.isfinite(a) or not np.isfinite(b):
+            return None
+        if a == b:
+            return None
+        lo, hi = (a, b) if a < b else (b, a)
+        return (float(lo), float(hi))
+
+    def _scalar_for_reg_step(self, reg: dict[str, Any], step_id: int) -> tuple[np.ndarray, str, str | None]:
+        """
+        Return (scalar_values_1d, scalar_name, unit_display_label) for the current field_mode.
+        Uses the same unit conversion logic as rendering.
+        """
+        if self._arrays is None:
+            raise RuntimeError("Missing arrays")
+        location = str(reg.get("location", "node"))
+        name = str(reg.get("name", ""))
+        unit_base = reg.get("unit")
+        if not isinstance(unit_base, str) or not unit_base:
+            unit_base = None
+        if not name:
+            raise RuntimeError("Invalid registry entry")
+
+        arr = get_array_for(arrays=self._arrays, location=location, name=name, step=int(step_id))
+        if arr is None:
+            raise RuntimeError(f"Missing array for {name} ({location}) step {int(step_id):06d}")
+
+        scalar_name = name
+        mode = self.field_mode.currentData()
+        arr2 = np.asarray(arr)
+        is_vector = bool(arr2.ndim == 2)
+        if is_vector and mode in ("auto", "mag"):
+            scalar = vector_magnitude(arr2)
+            scalar_name = f"{name}_mag"
+        else:
+            scalar = arr2.reshape(-1)
+
+        unit_display: str | None = None
+        if unit_base and self._units is not None:
+            from geohpem.units import conversion_factor, infer_kind_from_unit
+
+            kind = infer_kind_from_unit(unit_base)
+            if name == "u":
+                kind = "length"
+            if kind:
+                unit_display = self._units.display_unit(kind, unit_base)
+                if unit_display and unit_display != unit_base:
+                    scalar = scalar.astype(float, copy=False) * conversion_factor(unit_base, unit_display)
+        elif name == "u" and self._units is not None:
+            ub = self._units.base_unit("length", None)
+            ud = self._units.display_unit("length", None)
+            if ub and ud and ub != ud:
+                from geohpem.units import conversion_factor
+
+                scalar = scalar.astype(float, copy=False) * conversion_factor(ub, ud)
+                unit_display = ud
+
+        return np.asarray(scalar, dtype=float).reshape(-1), scalar_name, unit_display
+
+    def _global_clim(self, reg: dict[str, Any]) -> tuple[float, float] | None:
+        if not self._steps:
+            return None
+        name = str(reg.get("name", ""))
+        loc = str(reg.get("location", ""))
+        mode = str(self.field_mode.currentData() or "auto")
+        unit = ""
+        try:
+            _scalar, _sname, unit = self._scalar_for_reg_step(reg, int(self._steps[-1]))
+        except Exception:
+            unit = ""
+        key = (loc, name, mode, unit or "")
+        if key in self._color_range_cache:
+            return self._color_range_cache[key]
+
+        vmin: float | None = None
+        vmax: float | None = None
+        for sid in self._steps:
+            try:
+                s, _sname, _unit = self._scalar_for_reg_step(reg, int(sid))
+            except Exception:
+                continue
+            s = np.asarray(s, dtype=float).reshape(-1)
+            mask = np.isfinite(s)
+            if not np.any(mask):
+                continue
+            lo = float(np.min(s[mask]))
+            hi = float(np.max(s[mask]))
+            vmin = lo if vmin is None else min(vmin, lo)
+            vmax = hi if vmax is None else max(vmax, hi)
+
+        if vmin is None or vmax is None or vmin == vmax:
+            return None
+        self._color_range_cache[key] = (float(vmin), float(vmax))
+        try:
+            suf = f" {unit}" if unit else ""
+            self.color_range_info.setText(f"Global range: {vmin:.6g}{suf} .. {vmax:.6g}{suf}")
+        except Exception:
+            pass
+        return self._color_range_cache[key]
+
+    def _get_color_clim(self, reg: dict[str, Any]) -> tuple[float, float] | None:
+        mode = str(self.color_range.currentData())
+        if mode == "manual":
+            clim = self._manual_clim()
+            if clim is None:
+                try:
+                    self.color_range_info.setText("Manual range: invalid min/max (leave blank to use Auto).")
+                except Exception:
+                    pass
+            return clim
+        if mode == "global":
+            return self._global_clim(reg)
+        return None
 
     def set_ui_state(self, ui_state: dict[str, Any]) -> None:
         """
@@ -960,6 +1150,15 @@ class OutputWorkspace:
         except Exception as exc:
             self.probe.setText(str(exc))
             return
+
+        # Apply color range policy (auto/global/manual)
+        try:
+            clim = self._get_color_clim(reg)
+            if clim is not None:
+                scalars_kwargs = dict(scalars_kwargs)
+                scalars_kwargs["clim"] = tuple(clim)
+        except Exception:
+            pass
 
         # Render
         self._viewer.clear()

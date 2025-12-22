@@ -50,6 +50,7 @@ class PropertiesDock:
 
         self._mode = QComboBox()
         self._mode.addItem("Plane strain", "plane_strain")
+        self._mode.addItem("Plane stress", "plane_stress")
         self._mode.addItem("Axisymmetric", "axisymmetric")
         model_form.addRow("Mode", self._mode)
 
@@ -81,7 +82,7 @@ class PropertiesDock:
         stage_form.addRow("Stage ID", self._stage_id)
 
         self._analysis_type = QComboBox()
-        for v in ("static", "dynamic", "seepage_transient", "consolidation_u_p"):
+        for v in ("static", "dynamic", "seepage_steady", "seepage_transient", "consolidation_u_p"):
             self._analysis_type.addItem(v, v)
         stage_form.addRow("Analysis Type", self._analysis_type)
 
@@ -206,6 +207,42 @@ class PropertiesDock:
         # Refresh enable/disable state for current pages.
         self._apply_capabilities_to_model_combo()
         self._apply_capabilities_to_stage_combo()
+        # Stage BC/Load helper options (best-effort).
+        try:
+            bc_types = caps.get("bcs") if isinstance(caps, dict) else None
+            ld_types = caps.get("loads") if isinstance(caps, dict) else None
+            bc_list = [str(x) for x in (bc_types or []) if isinstance(x, str) and x.strip()]
+            ld_list = [str(x) for x in (ld_types or []) if isinstance(x, str) and x.strip()]
+            self._bcs_editor.set_type_options(bc_list)
+            self._loads_editor.set_type_options(ld_list)
+
+            # Fields are optional in v0.2; keep a small common set and let presets auto-fill.
+            field_opts: list[str] = []
+            if "displacement" in bc_list or "traction" in ld_list or "gravity" in ld_list:
+                field_opts.append("u")
+            if "p" in bc_list or "flux" in ld_list:
+                field_opts.append("p")
+            if not field_opts:
+                field_opts = ["u", "p"]
+            self._bcs_editor.set_field_options(field_opts)
+            self._loads_editor.set_field_options(field_opts)
+
+            # Type -> (field,value) presets for better UX.
+            self._bcs_editor.set_type_presets(
+                {
+                    "displacement": {"field": "u", "value": {"ux": 0.0, "uy": 0.0}},
+                    "p": {"field": "p", "value": 0.0},
+                }
+            )
+            self._loads_editor.set_type_presets(
+                {
+                    "traction": {"field": "u", "value": [0.0, -1.0e5]},
+                    "gravity": {"field": "u", "value": [0.0, -9.81]},
+                    "flux": {"field": "p", "value": -1.0e-6},
+                }
+            )
+        except Exception:
+            pass
         try:
             self._stage_out_editor.set_options(self._outreq_options())
             self._global_out_editor.set_options(self._outreq_options())

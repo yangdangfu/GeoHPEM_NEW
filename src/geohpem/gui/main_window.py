@@ -112,36 +112,47 @@ class MainWindow:
         self._solver_caps_cache: dict[str, dict[str, Any]] = {}
 
         self._action_new = QAction("New Project...", self._win)
+        self._action_new.setShortcut("Ctrl+N")
         self._action_new.triggered.connect(self._on_new_project)
 
         self._action_open = QAction("Open Project...", self._win)
+        self._action_open.setShortcut("Ctrl+O")
         self._action_open.triggered.connect(self._on_open_project_dialog)
 
         self._action_open_case = QAction("Open Case Folder...", self._win)
+        self._action_open_case.setShortcut("Ctrl+Shift+O")
         self._action_open_case.triggered.connect(self._on_open_case_dialog)
 
         self._action_export_case = QAction("Export Case Folder...", self._win)
+        self._action_export_case.setShortcut("Ctrl+Shift+E")
         self._action_export_case.triggered.connect(self._on_export_case_folder)
 
         self._action_save = QAction("Save", self._win)
+        self._action_save.setShortcut("Ctrl+S")
         self._action_save.triggered.connect(self._on_save)
 
         self._action_save_as = QAction("Save As...", self._win)
+        self._action_save_as.setShortcut("Ctrl+Shift+S")
         self._action_save_as.triggered.connect(self._on_save_as)
 
         self._action_open_results = QAction("Open Output Folder...", self._win)
+        self._action_open_results.setShortcut("Ctrl+Alt+O")
         self._action_open_results.triggered.connect(self._on_open_output_dialog)
 
         self._action_units = QAction("Display Units...", self._win)
+        self._action_units.setShortcut("Ctrl+U")
         self._action_units.triggered.connect(self._on_display_units)
 
         self._action_batch_run = QAction("Batch Run...", self._win)
+        self._action_batch_run.setShortcut("Ctrl+Alt+B")
         self._action_batch_run.triggered.connect(self._on_batch_run)
 
         self._action_batch_report = QAction("Open Batch Report...", self._win)
+        self._action_batch_report.setShortcut("Ctrl+Alt+R")
         self._action_batch_report.triggered.connect(self._on_open_batch_report)
 
         self._action_compare_outputs = QAction("Compare Outputs...", self._win)
+        self._action_compare_outputs.setShortcut("Ctrl+Alt+C")
         self._action_compare_outputs.triggered.connect(self._on_compare_outputs)
 
         self._action_validate_inputs = QAction("Validate Inputs...", self._win)
@@ -149,24 +160,39 @@ class MainWindow:
         self._action_validate_inputs.triggered.connect(self._on_validate_inputs)
 
         self._action_import_mesh = QAction("Import Mesh...", self._win)
+        self._action_import_mesh.setShortcut("Ctrl+I")
         self._action_import_mesh.triggered.connect(self._on_import_mesh)
 
         self._action_ws_input = QAction("Workspace: Input", self._win)
+        self._action_ws_input.setShortcut("Ctrl+1")
         self._action_ws_input.triggered.connect(lambda: self._set_workspace("input"))
 
         self._action_ws_output = QAction("Workspace: Output", self._win)
+        self._action_ws_output.setShortcut("Ctrl+2")
         self._action_ws_output.triggered.connect(lambda: self._set_workspace("output"))
 
         self._action_select_solver = QAction("Select Solver...", self._win)
+        self._action_select_solver.setShortcut("Ctrl+Alt+S")
         self._action_select_solver.triggered.connect(self._on_select_solver)
 
         self._action_run = QAction("Run", self._win)
+        self._action_run.setShortcut("F5")
         self._action_run.triggered.connect(self._on_run_solver)
 
         self._action_sets = QAction("Manage Sets...", self._win)
+        self._action_sets.setShortcut("Ctrl+Alt+G")
         self._action_sets.triggered.connect(self._on_manage_sets)
 
+        self._action_add_material = QAction("Add Material...", self._win)
+        self._action_add_material.setShortcut("Ctrl+Alt+M")
+        self._action_add_material.triggered.connect(self._on_add_material)
+
+        self._action_delete_material = QAction("Delete Material...", self._win)
+        self._action_delete_material.setShortcut("Ctrl+Alt+Shift+M")
+        self._action_delete_material.triggered.connect(self._on_delete_material)
+
         self._action_mesh_quality = QAction("Mesh Quality...", self._win)
+        self._action_mesh_quality.setShortcut("Ctrl+Alt+Q")
         self._action_mesh_quality.triggered.connect(self._on_mesh_quality)
 
         self._action_undo = QAction("Undo", self._win)
@@ -201,6 +227,9 @@ class MainWindow:
         menu_edit.addAction(self._action_redo)
         menu_edit.addSeparator()
         menu_edit.addAction(self._action_sets)
+        menu_edit.addSeparator()
+        menu_edit.addAction(self._action_add_material)
+        menu_edit.addAction(self._action_delete_material)
 
         menu_mesh = self._win.menuBar().addMenu("Mesh")
         menu_mesh.addAction(self._action_mesh_quality)
@@ -238,6 +267,13 @@ class MainWindow:
         self.project_dock.case_open_requested.connect(self.open_case_folder)
         self.project_dock.output_open_requested.connect(self.open_output_folder)
         self.project_dock.selection_changed.connect(self._on_tree_selection)
+
+        # Project tree context menu (materials convenience actions).
+        try:
+            self.project_dock.tree.setContextMenuPolicy(self._Qt.ContextMenuPolicy.CustomContextMenu)
+            self.project_dock.tree.customContextMenuRequested.connect(self._on_project_context_menu)
+        except Exception:
+            pass
 
         self.stage_dock.stage_selected.connect(self._on_stage_selected)
         self.stage_dock.add_stage.connect(self._on_stage_add)
@@ -781,6 +817,7 @@ class MainWindow:
 
         combo_mode = QComboBox()
         combo_mode.addItem("Plane strain", "plane_strain")
+        combo_mode.addItem("Plane stress", "plane_stress")
         combo_mode.addItem("Axisymmetric", "axisymmetric")
         form.addRow("Mode", combo_mode)
 
@@ -963,6 +1000,131 @@ class MainWindow:
                 pass
         self._QMessageBox.information(self._win, "Solve", msg)
         self.log_dock.append_info(msg)
+
+    def _suggest_material_id(self) -> str:
+        state = self.model.state()
+        mats = {}
+        try:
+            if state.project and isinstance(state.project.request.get("materials"), dict):
+                mats = state.project.request.get("materials") or {}
+        except Exception:
+            mats = {}
+        i = 1
+        while True:
+            mid = f"mat_{i}"
+            if mid not in mats:
+                return mid
+            i += 1
+
+    def _on_add_material(self, *, preferred_id: str | None = None) -> None:
+        state = self.model.state()
+        if not state.project:
+            self._QMessageBox.information(self._win, "Material", "Open a project/case first.")
+            return
+
+        from PySide6.QtWidgets import QInputDialog  # type: ignore
+
+        default_id = preferred_id or self._suggest_material_id()
+        mid, ok = QInputDialog.getText(self._win, "Add Material", "Material ID:", text=str(default_id))
+        if not ok:
+            return
+        mid = str(mid).strip()
+        if not mid:
+            return
+
+        mats = state.project.request.get("materials", {})
+        exists = isinstance(mats, dict) and mid in mats
+        if exists:
+            btn = self._QMessageBox.question(
+                self._win,
+                "Add Material",
+                f"Material '{mid}' already exists.\nOverwrite it?",
+                self._QMessageBox.Yes | self._QMessageBox.No,
+            )
+            if btn != self._QMessageBox.Yes:
+                return
+
+        self.model.set_material(mid, "placeholder", {})
+        self.log_dock.append_info(f"Added material: {mid}")
+
+    def _on_delete_material(self, *, material_id: str | None = None) -> None:
+        state = self.model.state()
+        if not state.project:
+            self._QMessageBox.information(self._win, "Material", "Open a project/case first.")
+            return
+
+        mats = state.project.request.get("materials", {})
+        if not isinstance(mats, dict) or not mats:
+            self._QMessageBox.information(self._win, "Material", "No materials to delete.")
+            return
+
+        mid = str(material_id).strip() if material_id else ""
+        if not mid:
+            from PySide6.QtWidgets import QInputDialog  # type: ignore
+
+            items = sorted([str(k) for k in mats.keys()])
+            choice, ok = QInputDialog.getItem(self._win, "Delete Material", "Material ID:", items, 0, False)
+            if not ok:
+                return
+            mid = str(choice).strip()
+        if not mid or mid not in mats:
+            return
+
+        btn = self._QMessageBox.warning(
+            self._win,
+            "Delete Material",
+            f"Delete material '{mid}'?",
+            self._QMessageBox.Yes | self._QMessageBox.No,
+        )
+        if btn != self._QMessageBox.Yes:
+            return
+
+        self.model.delete_material(mid)
+        self.log_dock.append_info(f"Deleted material: {mid}")
+
+    def _on_project_context_menu(self, pos) -> None:  # noqa: ANN001
+        """
+        Context menu for Project Explorer (QTreeWidget).
+
+        Currently used for Materials convenience actions.
+        """
+        tree = self.project_dock.tree
+        try:
+            item = tree.itemAt(pos)
+        except Exception:
+            item = None
+        if item is None:
+            return
+        try:
+            tree.setCurrentItem(item)
+        except Exception:
+            pass
+
+        payload = item.data(0, self._Qt.UserRole)
+        if not isinstance(payload, dict):
+            return
+
+        t = str(payload.get("type", ""))
+        if t not in ("materials", "material"):
+            return
+
+        from PySide6.QtWidgets import QMenu  # type: ignore
+
+        menu = QMenu(self._win)
+        if t == "materials":
+            act_add = menu.addAction("Add material...")
+            gpos = tree.viewport().mapToGlobal(pos)
+            chosen = menu.exec(gpos)
+            if chosen == act_add:
+                self._on_add_material()
+            return
+
+        mid = str(payload.get("id", "")).strip()
+        act_del = menu.addAction("Delete material...")
+        gpos = tree.viewport().mapToGlobal(pos)
+        chosen = menu.exec(gpos)
+        if chosen == act_del and mid:
+            self._on_delete_material(material_id=mid)
 
     def _on_manage_sets(self) -> None:
         state = self.model.state()

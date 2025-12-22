@@ -3,6 +3,7 @@
 本规范用于约定 GeoHPEM 平台与 solver 团队的协作边界：**平台负责建模/项目/前后处理；solver 负责求解**。solver 将以 **Python 包（repo 子模块）** 的形式嵌入本仓库，通过 `capabilities()/solve()` 与 **Contract v0.2（JSON + NPZ，兼容 v0.1）** 对接。
 
 Contract 详见：`docs/CONTRACT_V0_2.md`
+快速上手（推荐先读）：`docs/SOLVER_TEAM_GUIDE.md`
 
 > 开发阶段说明：平台/solver 接口会快速迭代，不承诺跨版本兼容；但保留 `schema_version` 与迁移入口，正式版再做兼容策略与回归约束。
 

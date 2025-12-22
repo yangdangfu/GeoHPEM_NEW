@@ -92,6 +92,9 @@ class StageItemTableEditor:
         self.tabs.addTab(self.json_edit, "JSON")
 
         self._set_options: list[str] = []
+        self._field_options: list[str] = []
+        self._type_options: list[str] = []
+        self._type_presets: dict[str, dict[str, Any]] = {}
 
         self.btn_add.clicked.connect(self._on_add)
         self.btn_delete.clicked.connect(self._on_delete)
@@ -109,6 +112,44 @@ class StageItemTableEditor:
             except Exception:
                 current = ""
             self._populate_set_combo(cb, current)
+
+    def set_field_options(self, names: list[str]) -> None:
+        self._field_options = [str(n) for n in names if isinstance(n, str) and str(n).strip()]
+        for row in range(self.table.rowCount()):
+            cb = self.table.cellWidget(row, self.COL_FIELD)
+            if cb is None:
+                continue
+            try:
+                current = str(cb.currentText())
+            except Exception:
+                current = ""
+            self._populate_field_combo(cb, current)
+
+    def set_type_options(self, names: list[str]) -> None:
+        self._type_options = [str(n) for n in names if isinstance(n, str) and str(n).strip()]
+        for row in range(self.table.rowCount()):
+            cb = self.table.cellWidget(row, self.COL_TYPE)
+            if cb is None:
+                continue
+            try:
+                current = str(cb.currentText())
+            except Exception:
+                current = ""
+            self._populate_type_combo(cb, current)
+
+    def set_type_presets(self, presets: dict[str, dict[str, Any]]) -> None:
+        """
+        Optional UX helper: when a row's type changes, auto-fill field/value if empty.
+
+        Example:
+          {"displacement":{"field":"u","value":{"ux":0,"uy":0}}, "traction":{"field":"u","value":[0,-1e5]}}
+        """
+        out: dict[str, dict[str, Any]] = {}
+        for k, v in (presets or {}).items():
+            if not isinstance(k, str) or not k.strip() or not isinstance(v, dict):
+                continue
+            out[str(k)] = dict(v)
+        self._type_presets = out
 
     def set_items(self, items: list[dict[str, Any]]) -> None:
         self.table.setRowCount(0)
@@ -148,11 +189,11 @@ class StageItemTableEditor:
                 uid = new_uid(self.config.uid_prefix)
             obj["uid"] = uid
 
-            field = self._text(row, self.COL_FIELD)
+            field = self._combo_or_text(row, self.COL_FIELD)
             if field:
                 obj["field"] = field
 
-            typ = self._text(row, self.COL_TYPE)
+            typ = self._combo_or_text(row, self.COL_TYPE)
             if typ:
                 obj["type"] = typ
 
@@ -181,6 +222,15 @@ class StageItemTableEditor:
         it = self.table.item(row, col)
         return str(it.text()).strip() if it is not None else ""
 
+    def _combo_or_text(self, row: int, col: int) -> str:
+        cb = self.table.cellWidget(row, col)
+        if cb is not None:
+            try:
+                return str(cb.currentText()).strip()
+            except Exception:
+                return ""
+        return self._text(row, col)
+
     def _set_text(self, row: int) -> str:
         cb = self.table.cellWidget(row, self.COL_SET)
         if cb is None:
@@ -200,11 +250,16 @@ class StageItemTableEditor:
         it_uid.setData(self._Qt.UserRole, dict(obj))
         self.table.setItem(r, self.COL_UID, it_uid)
 
-        it_field = self._QTableWidgetItem(str(obj.get("field", "")))
-        self.table.setItem(r, self.COL_FIELD, it_field)
+        cb_field = self._QComboBox()
+        cb_field.setEditable(True)
+        self._populate_field_combo(cb_field, str(obj.get("field", "")))
+        self.table.setCellWidget(r, self.COL_FIELD, cb_field)
 
-        it_type = self._QTableWidgetItem(str(obj.get("type", "")))
-        self.table.setItem(r, self.COL_TYPE, it_type)
+        cb_type = self._QComboBox()
+        cb_type.setEditable(True)
+        self._populate_type_combo(cb_type, str(obj.get("type", "")))
+        cb_type.currentTextChanged.connect(lambda _txt, w=cb_type: self._on_type_changed(w))
+        self.table.setCellWidget(r, self.COL_TYPE, cb_type)
 
         cb = self._QComboBox()
         cb.setEditable(True)
@@ -222,6 +277,56 @@ class StageItemTableEditor:
         it_val = self._QTableWidgetItem(val_txt)
         self.table.setItem(r, self.COL_VALUE, it_val)
 
+    def _find_row_of_widget(self, widget, col: int) -> int | None:  # noqa: ANN001
+        for row in range(self.table.rowCount()):
+            if self.table.cellWidget(row, col) is widget:
+                return row
+        return None
+
+    def _apply_type_preset_to_row(self, row: int, typ: str) -> None:
+        preset = self._type_presets.get(typ)
+        if not isinstance(preset, dict):
+            return
+
+        # Field
+        field = preset.get("field")
+        cb_field = self.table.cellWidget(row, self.COL_FIELD)
+        if cb_field is not None and isinstance(field, str) and field.strip():
+            try:
+                if not str(cb_field.currentText()).strip():
+                    cb_field.setCurrentText(field)
+            except Exception:
+                pass
+
+        # Value (only fill if empty)
+        it_val = self.table.item(row, self.COL_VALUE)
+        if it_val is None:
+            return
+        if str(it_val.text()).strip():
+            return
+        if "value" not in preset:
+            return
+        try:
+            v = preset.get("value")
+            if isinstance(v, (dict, list, int, float, bool)) or v is None:
+                it_val.setText(json.dumps(v, ensure_ascii=False) if isinstance(v, (dict, list)) else ("" if v is None else str(v)))
+            else:
+                it_val.setText(str(v))
+        except Exception:
+            return
+
+    def _on_type_changed(self, cb_type) -> None:  # noqa: ANN001
+        row = self._find_row_of_widget(cb_type, self.COL_TYPE)
+        if row is None:
+            return
+        try:
+            typ = str(cb_type.currentText()).strip()
+        except Exception:
+            typ = ""
+        if not typ:
+            return
+        self._apply_type_preset_to_row(row, typ)
+
     def _populate_set_combo(self, combo, current: str) -> None:  # noqa: ANN001
         combo.blockSignals(True)
         combo.clear()
@@ -234,15 +339,47 @@ class StageItemTableEditor:
             combo.setCurrentText(current)
         combo.blockSignals(False)
 
+    def _populate_field_combo(self, combo, current: str) -> None:  # noqa: ANN001
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItem("")
+        for n in self._field_options:
+            combo.addItem(n)
+        if current and combo.findText(current) < 0:
+            combo.addItem(current)
+        if current:
+            combo.setCurrentText(current)
+        combo.blockSignals(False)
+
+    def _populate_type_combo(self, combo, current: str) -> None:  # noqa: ANN001
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItem("")
+        for n in self._type_options:
+            combo.addItem(n)
+        if current and combo.findText(current) < 0:
+            combo.addItem(current)
+        if current:
+            combo.setCurrentText(current)
+        combo.blockSignals(False)
+
     def _on_add(self) -> None:
-        obj: dict[str, Any] = {
-            "uid": new_uid(self.config.uid_prefix),
-            "field": self.config.default_field,
-            "type": self.config.default_type,
-            "set": "",
-            "value": [0.0, 0.0] if self.config.kind == "bc" else 0.0,
-        }
+        default_type = self._type_options[0] if self._type_options else self.config.default_type
+        obj: dict[str, Any] = {"uid": new_uid(self.config.uid_prefix), "field": self.config.default_field, "type": default_type, "set": ""}
+        # Apply preset value if possible; otherwise use generic fallback.
+        preset = self._type_presets.get(default_type)
+        if isinstance(preset, dict):
+            if isinstance(preset.get("field"), str) and preset.get("field"):
+                obj["field"] = str(preset.get("field"))
+            if "value" in preset:
+                obj["value"] = preset.get("value")
+        if "value" not in obj:
+            obj["value"] = [0.0, 0.0] if self.config.kind == "bc" else 0.0
         self._append_row(obj)
+        # One more time: if value is empty and preset exists, auto-fill.
+        row = self.table.rowCount() - 1
+        if row >= 0:
+            self._apply_type_preset_to_row(row, str(obj.get("type", "")).strip())
         self.table.selectRow(self.table.rowCount() - 1)
 
     def _on_delete(self) -> None:

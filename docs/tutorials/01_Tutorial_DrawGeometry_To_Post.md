@@ -21,6 +21,7 @@
 
 1. 在 `Geometry` Dock 点击 `Generate Mesh...`
 2. 设置 `mesh_size`（例如 `0.5` 或 `1.0`），确定
+   - `mesh_size` 的单位与当前显示长度单位一致（对话框里会标注，例如 `m/km`）；内部会自动换算到工程单位
 3. 观察：
    - Input 中央 `Mesh Preview (Input)` 出现网格
    - 若 mesh 中已有 sets，会在 `Highlight set` 下拉中出现 `node_set__/edge_set__/elem_set__...`
@@ -43,33 +44,71 @@
 
 > 提示：也可以 `Polyline` 沿边刷选；或 `Box nodes/Box elems` 批量选择后创建 set。
 
-## E. 配置阶段与输出请求
+## E. 选择求解器（ref_elastic）
 
-1. 在左侧 Dock 选择 `Stages`
-2. 选中 `stage_1`（或你当前的第一个 stage）
-3. 在右侧 `Properties`（若未显示：`View -> Properties` 打开；选中 stage 会自动切到 Properties）：
+1. `Solve -> Select Solver...`
+2. 选择 `Reference Elastic (built-in)`（即 `ref_elastic`），点击 OK
+
+## F. 配置材料与分配（ref_elastic 必需）
+
+> 说明：平台只负责把 `mesh/materials/assignments/bcs/loads/output_requests...` 交给 solver；材料本构由 solver 解释与计算。
+
+1. 在左侧 `Project`（Project Explorer）展开 `Materials`
+2. 新建一个材料：
+   - 方式 A（推荐）：选中 `Materials`，右键 `Add material...`
+   - 方式 B：`Edit -> Add Material...`
+   - Material ID：`mat_soil`
+3. 选中 `mat_soil`，在右侧 `Properties` 设置：
+   - `Model Name`：`linear_elastic`
+   - `parameters`（JSON，示例）：
+     - `{"E": 3.0e7, "nu": 0.3, "rho": 1800.0}`
+   - 点击 `Apply`
+4. 配置分配（element_set → material）：
+   - 在左侧 `Project` 选中 `Assignments`
+   - 在右侧 `Properties` 的 Assignments 表格点 `Add`
+   - 设置：`element_set=domain`，`cell_type=tri3`（或你的网格类型），`material_id=mat_soil`
+     - 若 `element_set` 下拉为空：可以直接手动输入 `domain`（该下拉是可编辑的）；同时确认你已经完成了 `Generate Mesh...`（mesh 生成后会自动创建 `elem_set__domain__tri3`）
+   - 点击 `Apply`
+
+## G. 配置阶段（BC/Loads/Outputs）
+
+1. 在左侧 `Project` 选中 `Stages -> stage_1`
+2. 在右侧 `Properties`（若未显示：`View -> Properties` 打开）：
    - `analysis_type`：`static`
-   - `num_steps`：例如 `10`
+   - `num_steps`：例如 `8`
    - `dt`：例如 `1.0`
-4. 在 `Stage output_requests` 表格中 `Add` 三行（示例）：
+3. 在 `Stage BCs` 表格中 `Add` 两行（示例）：
+   - `type=displacement`，`set=bottom`，`value={"ux":0.0,"uy":0.0}`
+   - `type=displacement`，`set=left`，`value={"ux":0.0}`
+4. 在 `Stage Loads` 表格中 `Add` 一行（示例）：
+   - `type=traction`，`set=top`，`value=[0.0,-1.0e5]`
+5. 在 `Stage output_requests` 表格中 `Add` 两行（示例）：
    - `u` / `node` / `every_n=1`
-   - `p` / `node` / `every_n=1`
    - `vm` / `element` / `every_n=1`
-5. 点击 `Apply`
+6. 点击 `Apply`
 
-## F. 校验与运行
+> 关于 `Stage BCs/Loads` 表格里的 `field/type/set/value`：
+> - `type`：边界/荷载“类型”（建议从下拉选择；会随 solver capabilities 变化）。例如 `displacement`/`traction`/`p`/`flux`。
+> - `set`：作用的集合名（来自 mesh 的 `node_set__/edge_set__/elem_set__`）。
+> - `value`：**JSON 值**（不是随意字符串）。可以是数字、数组或对象：
+>   - 位移（displacement）：`{"ux":0.0,"uy":0.0}` 或 `{"ux":0.0}`
+>   - 面力（traction）：`[0.0, -1.0e5]`
+>   - 给定孔压（p）：`100000.0`
+>   - 通量（flux）：`-1.0e-6`
+> - `field`：目标物理量名（开发期为可选/预留字段；当前参考 solver 主要以 `type` 解释含义）。UI 会根据 `type` 自动填入常见的 `u/p`。
+
+## H. 校验与运行
 
 1. `Tools -> Validate Inputs... (F7)`
    - 若有 WARN 可先继续；若有 ERROR 需要先修正（例如引用了不存在的 set）
-2. `Solve -> Run (...)`
-   - solver 选 `fake` 即可
+2. `Solve -> Run (...)`（应显示 `Run (ref_elastic)`）
 3. 成功后会自动切到 Output 工作区（或点 Input 面板里的 `Go to Output`）
 
 ## G. Output 后处理（必做）
 
 在 Output 工作区：
 
-1. 左侧 `Registry` 选择一个字段（例如 `p (node)` 或 `vm (element)`）
+1. 左侧 `Registry` 选择一个字段（例如 `u (node)` 或 `vm (element)`）
 2. `Step` 选择不同步号，观察云图变化
 3. Probe：在渲染窗口左键点击，观察上方 Probe 文本更新
 4. Pin：

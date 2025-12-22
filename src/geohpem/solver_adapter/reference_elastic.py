@@ -433,8 +433,57 @@ class ReferenceElasticSolver:
         if not isinstance(stages, list) or not stages:
             raise ValueError("request.stages must be a non-empty list")
 
-        total_steps = sum(int(st.get("num_steps", 1) or 1) for st in stages if isinstance(st, dict))
-        total_steps = max(int(total_steps), 1)
+        global_outreq = request.get("output_requests", [])
+        if not isinstance(global_outreq, list):
+            global_outreq = []
+
+        def requested_outputs(stage: dict[str, Any]) -> tuple[set[str], int]:
+            """
+            Returns (requested_names, every_n).
+
+            Policy:
+            - If stage/global output_requests are empty, output all supported fields.
+            - every_n is interpreted as a stage-level output stride (min of all requested entries).
+            """
+            reqs: list[dict[str, Any]] = []
+            for src in (global_outreq, stage.get("output_requests", [])):
+                if isinstance(src, list):
+                    for it in src:
+                        if isinstance(it, dict):
+                            reqs.append(it)
+            names: set[str] = set()
+            strides: list[int] = []
+            for it in reqs:
+                nm = it.get("name")
+                if isinstance(nm, str) and nm.strip():
+                    names.add(nm.strip())
+                en = it.get("every_n", 1)
+                try:
+                    en_i = int(en)
+                except Exception:
+                    en_i = 1
+                if en_i >= 1:
+                    strides.append(en_i)
+            supported = {"u", "sx", "sy", "sxy", "vm"}
+            names = {n for n in names if n in supported}
+            if not names:
+                names = set(supported)
+            every_n = min(strides) if strides else 1
+            every_n = max(int(every_n), 1)
+            return names, every_n
+
+        def stage_output_steps(num_steps: int, every_n: int) -> list[int]:
+            idx = sorted({i for i in range(max(int(num_steps), 1)) if (i % max(int(every_n), 1) == 0) or (i == int(num_steps) - 1)})
+            return idx or [int(num_steps) - 1]
+
+        total_frames = 0
+        for st in stages:
+            if not isinstance(st, dict):
+                continue
+            ns = int(st.get("num_steps", 1) or 1)
+            _names, ev = requested_outputs(st)
+            total_frames += len(stage_output_steps(ns, ev))
+        total_frames = max(int(total_frames), 1)
 
         arrays: dict[str, Any] = {}
         stage_infos: list[dict[str, Any]] = []
@@ -442,23 +491,28 @@ class ReferenceElasticSolver:
         step_counter = 0
         t_acc = 0.0
 
-        # Solve per stage-step (linear ramp of current-stage loads)
+        # Solve per output frame (linear ramp of current-stage loads)
         for si, st in enumerate(stages):
             if not isinstance(st, dict):
                 continue
             stage_id = str(st.get("id") or st.get("uid") or st.get("name") or f"stage_{si+1}")
             num_steps = int(st.get("num_steps", 1) or 1)
             dt = float(st.get("dt", 1.0) or 1.0)
+            want, every_n = requested_outputs(st)
+            out_steps = stage_output_steps(num_steps, every_n)
+            need_stress = bool(want.intersection({"sx", "sy", "sxy", "vm"}))
             times: list[float] = []
+            stage_step_ids: list[int] = []
+            t_stage0 = float(t_acc)
 
-            for sstep in range(num_steps):
+            for sstep in out_steps:
                 if should_cancel():
                     from geohpem.app.errors import CancelledError
 
                     raise CancelledError("Cancelled by user")
                 step_counter += 1
                 fac = float(sstep + 1) / float(num_steps)
-                p = float(step_counter) / float(total_steps)
+                p = float(step_counter) / float(total_frames)
                 cb_progress(p, "reference_elastic solving...", stage_id, sstep)
 
                 active_stages = [ss for ss in stages[: si + 1] if isinstance(ss, dict)]
@@ -476,107 +530,132 @@ class ReferenceElasticSolver:
                 u[free] = np.asarray(uff, dtype=float).reshape(-1)
                 u_xy = u.reshape(n_nodes, 2)
 
-                # stresses in VTK cell order: tri then quad
+                # stresses in VTK cell order: tri then quad (compute only if requested)
                 sx_list: list[float] = []
                 sy_list: list[float] = []
                 sxy_list: list[float] = []
                 vm_list: list[float] = []
-
-                for eid, conn in enumerate(tri):
-                    midx = int(tri_mat[eid]) if tri_mat.size else 0
-                    m = mats[midx]
-                    D = _plane_D(E=m.E, nu=m.nu, mode=mode)
-                    B, _A = _tri_B_area(xy[np.asarray(conn, dtype=np.int64)])
-                    ue = u[np.array([2 * int(n) + d for n in conn for d in (0, 1)], dtype=np.int64)]
-                    eps = B @ ue
-                    sig = D @ eps
-                    sx_list.append(float(sig[0]))
-                    sy_list.append(float(sig[1]))
-                    sxy_list.append(float(sig[2]))
-                    vm_list.append(_von_mises_2d(sig))
-
-                for eid, conn in enumerate(quad):
-                    midx = int(quad_mat[eid]) if quad_mat.size else 0
-                    m = mats[midx]
-                    D = _plane_D(E=m.E, nu=m.nu, mode=mode)
-                    # average stress over Gauss points
-                    gp = 1.0 / np.sqrt(3.0)
-                    pts = [(-gp, -gp), (gp, -gp), (gp, gp), (-gp, gp)]
-                    sigs: list[np.ndarray] = []
-                    conn_i = np.asarray(conn, dtype=np.int64)
-                    xy_e = xy[conn_i]
-                    ue = u[np.array([2 * int(n) + d for n in conn_i for d in (0, 1)], dtype=np.int64)]
-                    for xi, eta in pts:
-                        dN_dxi, dN_deta = _quad_shape_derivs(float(xi), float(eta))
-                        J = np.zeros((2, 2), dtype=float)
-                        J[0, 0] = float(np.dot(dN_dxi, xy_e[:, 0]))
-                        J[0, 1] = float(np.dot(dN_dxi, xy_e[:, 1]))
-                        J[1, 0] = float(np.dot(dN_deta, xy_e[:, 0]))
-                        J[1, 1] = float(np.dot(dN_deta, xy_e[:, 1]))
-                        invJ = np.linalg.inv(J)
-                        grads = np.vstack([dN_dxi, dN_deta]).T @ invJ.T
-                        B = np.zeros((3, 8), dtype=float)
-                        for i in range(4):
-                            dNdx = float(grads[i, 0])
-                            dNdy = float(grads[i, 1])
-                            B[0, 2 * i + 0] = dNdx
-                            B[1, 2 * i + 1] = dNdy
-                            B[2, 2 * i + 0] = dNdy
-                            B[2, 2 * i + 1] = dNdx
+                if need_stress:
+                    for eid, conn in enumerate(tri):
+                        midx = int(tri_mat[eid]) if tri_mat.size else 0
+                        m = mats[midx]
+                        D = _plane_D(E=m.E, nu=m.nu, mode=mode)
+                        B, _A = _tri_B_area(xy[np.asarray(conn, dtype=np.int64)])
+                        ue = u[np.array([2 * int(n) + d for n in conn for d in (0, 1)], dtype=np.int64)]
                         eps = B @ ue
-                        sigs.append(D @ eps)
-                    sig = np.mean(np.vstack(sigs), axis=0)
-                    sx_list.append(float(sig[0]))
-                    sy_list.append(float(sig[1]))
-                    sxy_list.append(float(sig[2]))
-                    vm_list.append(_von_mises_2d(sig))
+                        sig = D @ eps
+                        sx_list.append(float(sig[0]))
+                        sy_list.append(float(sig[1]))
+                        sxy_list.append(float(sig[2]))
+                        vm_list.append(_von_mises_2d(sig))
+
+                    for eid, conn in enumerate(quad):
+                        midx = int(quad_mat[eid]) if quad_mat.size else 0
+                        m = mats[midx]
+                        D = _plane_D(E=m.E, nu=m.nu, mode=mode)
+                        # average stress over Gauss points
+                        gp = 1.0 / np.sqrt(3.0)
+                        pts = [(-gp, -gp), (gp, -gp), (gp, gp), (-gp, gp)]
+                        sigs: list[np.ndarray] = []
+                        conn_i = np.asarray(conn, dtype=np.int64)
+                        xy_e = xy[conn_i]
+                        ue = u[np.array([2 * int(n) + d for n in conn_i for d in (0, 1)], dtype=np.int64)]
+                        for xi, eta in pts:
+                            dN_dxi, dN_deta = _quad_shape_derivs(float(xi), float(eta))
+                            J = np.zeros((2, 2), dtype=float)
+                            J[0, 0] = float(np.dot(dN_dxi, xy_e[:, 0]))
+                            J[0, 1] = float(np.dot(dN_dxi, xy_e[:, 1]))
+                            J[1, 0] = float(np.dot(dN_deta, xy_e[:, 0]))
+                            J[1, 1] = float(np.dot(dN_deta, xy_e[:, 1]))
+                            invJ = np.linalg.inv(J)
+                            grads = np.vstack([dN_dxi, dN_deta]).T @ invJ.T
+                            B = np.zeros((3, 8), dtype=float)
+                            for i in range(4):
+                                dNdx = float(grads[i, 0])
+                                dNdy = float(grads[i, 1])
+                                B[0, 2 * i + 0] = dNdx
+                                B[1, 2 * i + 1] = dNdy
+                                B[2, 2 * i + 0] = dNdy
+                                B[2, 2 * i + 1] = dNdx
+                            eps = B @ ue
+                            sigs.append(D @ eps)
+                        sig = np.mean(np.vstack(sigs), axis=0)
+                        sx_list.append(float(sig[0]))
+                        sy_list.append(float(sig[1]))
+                        sxy_list.append(float(sig[2]))
+                        vm_list.append(_von_mises_2d(sig))
 
                 step_key = f"{step_counter:06d}"
-                arrays[f"nodal__u__step{step_key}"] = u_xy
-                arrays[f"elem__sx__step{step_key}"] = np.asarray(sx_list, dtype=float)
-                arrays[f"elem__sy__step{step_key}"] = np.asarray(sy_list, dtype=float)
-                arrays[f"elem__sxy__step{step_key}"] = np.asarray(sxy_list, dtype=float)
-                arrays[f"elem__vm__step{step_key}"] = np.asarray(vm_list, dtype=float)
+                arrays_out: dict[str, Any] = {}
+                if "u" in want:
+                    arrays[f"nodal__u__step{step_key}"] = u_xy
+                    arrays_out[f"nodal__u__step{step_key}"] = arrays[f"nodal__u__step{step_key}"]
+                if "sx" in want:
+                    arrays[f"elem__sx__step{step_key}"] = np.asarray(sx_list, dtype=float)
+                    arrays_out[f"elem__sx__step{step_key}"] = arrays[f"elem__sx__step{step_key}"]
+                if "sy" in want:
+                    arrays[f"elem__sy__step{step_key}"] = np.asarray(sy_list, dtype=float)
+                    arrays_out[f"elem__sy__step{step_key}"] = arrays[f"elem__sy__step{step_key}"]
+                if "sxy" in want:
+                    arrays[f"elem__sxy__step{step_key}"] = np.asarray(sxy_list, dtype=float)
+                    arrays_out[f"elem__sxy__step{step_key}"] = arrays[f"elem__sxy__step{step_key}"]
+                if "vm" in want:
+                    arrays[f"elem__vm__step{step_key}"] = np.asarray(vm_list, dtype=float)
+                    arrays_out[f"elem__vm__step{step_key}"] = arrays[f"elem__vm__step{step_key}"]
 
-                t_acc += dt
-                times.append(float(t_acc))
-                global_steps.append({"id": int(step_counter), "stage_id": stage_id, "stage_step": int(sstep), "time": float(t_acc)})
+                t = t_stage0 + float(sstep + 1) * float(dt)
+                times.append(float(t))
+                stage_step_ids.append(int(sstep))
+                global_steps.append({"id": int(step_counter), "stage_id": stage_id, "stage_step": int(sstep), "time": float(t)})
 
                 cb_frame(
                     {
                         "id": int(step_counter),
-                        "time": float(t_acc),
+                        "time": float(t),
                         "stage_id": str(stage_id),
                         "stage_step": int(sstep),
                         "substep": None,
                         "events": [],
                     },
                     mesh_out=None,
-                    arrays_out={
-                        f"nodal__u__step{step_key}": arrays[f"nodal__u__step{step_key}"],
-                        f"elem__vm__step{step_key}": arrays[f"elem__vm__step{step_key}"],
-                    },
+                    arrays_out=arrays_out,
                 )
 
-            stage_infos.append({"id": stage_id, "num_steps": int(num_steps), "times": list(times)})
+            # Advance stage physical time to its end (even if we downsampled frames).
+            t_acc = t_stage0 + float(num_steps) * float(dt)
+            stage_infos.append({"id": stage_id, "num_steps": int(num_steps), "output_every_n": int(every_n), "output_stage_steps": stage_step_ids, "times": list(times)})
 
         unit_len = request.get("unit_system", {}).get("length", "m")
         unit_p = request.get("unit_system", {}).get("pressure", "Pa")
+        # Only expose fields we actually wrote (so Output doesn't list missing arrays).
+        reg_all = [
+            {"name": "u", "location": "node", "shape": "vector2", "unit": unit_len, "npz_pattern": "nodal__u__step{step:06d}"},
+            {"name": "sx", "location": "element", "shape": "scalar", "unit": unit_p, "npz_pattern": "elem__sx__step{step:06d}"},
+            {"name": "sy", "location": "element", "shape": "scalar", "unit": unit_p, "npz_pattern": "elem__sy__step{step:06d}"},
+            {"name": "sxy", "location": "element", "shape": "scalar", "unit": unit_p, "npz_pattern": "elem__sxy__step{step:06d}"},
+            {"name": "vm", "location": "element", "shape": "scalar", "unit": unit_p, "npz_pattern": "elem__vm__step{step:06d}"},
+        ]
+        present: set[str] = set()
+        for k in arrays.keys():
+            if k.startswith("nodal__u__step"):
+                present.add("u")
+            elif k.startswith("elem__sx__step"):
+                present.add("sx")
+            elif k.startswith("elem__sy__step"):
+                present.add("sy")
+            elif k.startswith("elem__sxy__step"):
+                present.add("sxy")
+            elif k.startswith("elem__vm__step"):
+                present.add("vm")
         meta = {
-            "schema_version": "0.1",
+            "schema_version": "0.2",
             "status": "success",
             "solver_info": {"name": "reference_elastic", "note": "linear elastic reference solver (scipy.sparse)"},
             "stages": stage_infos,
             "global_steps": global_steps,
             "warnings": [],
             "errors": [],
-            "registry": [
-                {"name": "u", "location": "node", "shape": "vector2", "unit": unit_len, "npz_pattern": "nodal__u__step{step:06d}"},
-                {"name": "sx", "location": "element", "shape": "scalar", "unit": unit_p, "npz_pattern": "elem__sx__step{step:06d}"},
-                {"name": "sy", "location": "element", "shape": "scalar", "unit": unit_p, "npz_pattern": "elem__sy__step{step:06d}"},
-                {"name": "sxy", "location": "element", "shape": "scalar", "unit": unit_p, "npz_pattern": "elem__sxy__step{step:06d}"},
-                {"name": "vm", "location": "element", "shape": "scalar", "unit": unit_p, "npz_pattern": "elem__vm__step{step:06d}"},
-            ],
+            "registry": [r for r in reg_all if str(r.get("name")) in present],
         }
         return meta, arrays
 

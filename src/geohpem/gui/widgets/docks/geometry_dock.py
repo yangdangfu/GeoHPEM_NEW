@@ -664,10 +664,35 @@ class GeometryDock:
         layout.addLayout(form)
 
         mesh_size = QDoubleSpinBox()
-        mesh_size.setRange(1e-6, 1e6)
-        mesh_size.setDecimals(6)
-        mesh_size.setValue(0.5)
-        form.addRow("mesh_size", mesh_size)
+        mesh_size.setRange(1e-12, 1e12)
+        mesh_size.setDecimals(9)
+        # Default mesh size based on polygon size (in base units), displayed in current display units.
+        default_base = 0.5
+        try:
+            verts = list(self._poly.vertices)
+            xs = [float(x) for x, _y in verts]
+            ys = [float(y) for _x, y in verts]
+            dx = max(xs) - min(xs)
+            dy = max(ys) - min(ys)
+            span = max(dx, dy)
+            if span > 0:
+                default_base = float(span) / 20.0
+        except Exception:
+            default_base = 0.5
+        default_display = default_base
+        unit_label = ""
+        if self._units is not None:
+            try:
+                default_display = float(self._units.convert_base_to_display("length", float(default_base)))
+                unit_label = self._units.display_unit("length", "") or ""
+            except Exception:
+                default_display = default_base
+                unit_label = ""
+        mesh_size.setValue(float(default_display))
+        label = "mesh_size"
+        if unit_label:
+            label += f" ({unit_label})"
+        form.addRow(label, mesh_size)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         layout.addWidget(buttons)
@@ -676,7 +701,14 @@ class GeometryDock:
         if dialog.exec() != QDialog.Accepted:
             return
 
-        cfg = PygmshConfig(mesh_size=float(mesh_size.value()))
+        mesh_size_display = float(mesh_size.value())
+        mesh_size_base = mesh_size_display
+        if self._units is not None:
+            try:
+                mesh_size_base = float(self._units.convert_display_to_base("length", mesh_size_display))
+            except Exception:
+                mesh_size_base = mesh_size_display
+        cfg = PygmshConfig(mesh_size=float(mesh_size_base))
         try:
             mesh_dict, report = generate_from_polygon(self._poly, cfg)
         except Exception as exc:

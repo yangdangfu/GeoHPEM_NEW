@@ -1,6 +1,6 @@
 # GeoHPEM（当前版本）预使用指南
 
-本指南描述当前仓库“已经能做什么、怎么操作”。当前阶段重点是 **导入网格 → 配置阶段 → 运行（fake solver）→ Output 云图/探针 → 保存工程**。
+本指南描述当前仓库“已经能做什么、怎么操作”。当前阶段重点是 **导入网格 → 配置材料/分配/阶段 → 运行（选择 solver）→ Output 云图/探针 → 保存工程**。
 
 > 说明：Output 已接入 VTK（PyVistaQt）云图渲染与 Probe，并提供 Profile line / Time history / 导出截图（PNG）/ steps→PNG 批量导出；GIF/MP4 等仍在后续里程碑完善。
 
@@ -45,7 +45,7 @@ GUI 菜单：
   - Mode：Plane strain / Axisymmetric
   - Template：
     - `Empty project`：空工程（mesh 为空，会在 pre-check 提示 warning）
-    - `Sample (unit square)`：自带一个最小网格 + stage，可直接跑 fake solver
+    - `Sample (unit square)`：自带一个最小网格 + stage，便于快速验证流程（可跑 fake / ref_elastic；渗流需改为 ref_seepage 并调整 stage 配置）
 
 ## 4. 打开/保存工程（单文件）
 
@@ -141,10 +141,11 @@ GUI 菜单：
   - 当前实现：三角形单元（`cells_tri3`）的最小角与长宽比统计
   - 会列出最差的若干三角形索引（后续会做“定位到视图”）
 
-## 9. 运行求解（目前为 fake solver）
+## 9. 运行求解（选择 solver）
 
 - 选择 solver：`Solve -> Select Solver...`
-  - `Fake`：内置的假 solver，用于跑通流程与 UI
+  - `Reference Elastic / Reference Seepage`：内置参考真实 solver（可运行模板，便于对标与给 solver 团队参考）
+  - `Fake`：内置的假 solver，用于快速跑通流程与 UI 回归
   - `Python module`：通过 `python:<module>` 加载外部 solver 包（未来将以 submodule 方式集成）
   - 快速切换：`Solve -> Recent Solvers`（保存最近使用的 solver selector）
 
@@ -215,8 +216,9 @@ GUI 菜单：
 
 用于回归/对标：对一个目录下的多个 case folder 批量运行 solver，并输出汇总报告。
 
-- 命令：`python -m geohpem.cli batch-run <cases_root> --solver fake`
-  - 开发态（无需安装包）也可用：`python geohpem_cli.py batch-run <cases_root> --solver fake`
+- 命令：`python -m geohpem.cli batch-run <cases_root> --solver <selector>`
+  - 开发态（无需安装包）也可用：`python geohpem_cli.py batch-run <cases_root> --solver <selector>`
+  - `<selector>`：`fake | ref_elastic | ref_seepage | python:<module>`
   - `<cases_root>`：包含多个 case folder 的目录（每个子目录含 `request.json + mesh.npz`）
   - 输出：默认写到 `<cases_root>/batch_report.json`
   - 失败会生成 `_diagnostics/diag_*.zip`（每个 case 自己的工作目录里）

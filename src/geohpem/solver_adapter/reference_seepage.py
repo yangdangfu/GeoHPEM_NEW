@@ -262,8 +262,50 @@ class ReferenceSeepageSolver:
         if not isinstance(stages, list) or not stages:
             raise ValueError("request.stages must be a non-empty list")
 
-        total_steps = sum(int(st.get("num_steps", 1) or 1) for st in stages if isinstance(st, dict))
-        total_steps = max(int(total_steps), 1)
+        global_outreq = request.get("output_requests", [])
+        if not isinstance(global_outreq, list):
+            global_outreq = []
+
+        def requested_outputs(stage: dict[str, Any]) -> tuple[set[str], int]:
+            reqs: list[dict[str, Any]] = []
+            for src in (global_outreq, stage.get("output_requests", [])):
+                if isinstance(src, list):
+                    for it in src:
+                        if isinstance(it, dict):
+                            reqs.append(it)
+            names: set[str] = set()
+            strides: list[int] = []
+            for it in reqs:
+                nm = it.get("name")
+                if isinstance(nm, str) and nm.strip():
+                    names.add(nm.strip())
+                en = it.get("every_n", 1)
+                try:
+                    en_i = int(en)
+                except Exception:
+                    en_i = 1
+                if en_i >= 1:
+                    strides.append(en_i)
+            supported = {"p"}
+            names = {n for n in names if n in supported}
+            if not names:
+                names = set(supported)
+            every_n = min(strides) if strides else 1
+            every_n = max(int(every_n), 1)
+            return names, every_n
+
+        def stage_output_steps(num_steps: int, every_n: int) -> list[int]:
+            idx = sorted({i for i in range(max(int(num_steps), 1)) if (i % max(int(every_n), 1) == 0) or (i == int(num_steps) - 1)})
+            return idx or [int(num_steps) - 1]
+
+        total_frames = 0
+        for st in stages:
+            if not isinstance(st, dict):
+                continue
+            ns = int(st.get("num_steps", 1) or 1)
+            _names, ev = requested_outputs(st)
+            total_frames += len(stage_output_steps(ns, ev))
+        total_frames = max(int(total_frames), 1)
 
         arrays: dict[str, Any] = {}
         stage_infos: list[dict[str, Any]] = []
@@ -277,16 +319,20 @@ class ReferenceSeepageSolver:
             stage_id = str(st.get("id") or st.get("uid") or st.get("name") or f"stage_{si+1}")
             num_steps = int(st.get("num_steps", 1) or 1)
             dt = float(st.get("dt", 1.0) or 1.0)
+            want, every_n = requested_outputs(st)
+            out_steps = stage_output_steps(num_steps, every_n)
             times: list[float] = []
+            stage_step_ids: list[int] = []
+            t_stage0 = float(t_acc)
 
-            for sstep in range(num_steps):
+            for sstep in out_steps:
                 if should_cancel():
                     from geohpem.app.errors import CancelledError
 
                     raise CancelledError("Cancelled by user")
                 step_counter += 1
                 fac = float(sstep + 1) / float(num_steps)
-                pprog = float(step_counter) / float(total_steps)
+                pprog = float(step_counter) / float(total_frames)
                 cb_progress(pprog, "reference_seepage solving...", stage_id, sstep)
 
                 active_stages = [ss for ss in stages[: si + 1] if isinstance(ss, dict)]
@@ -304,39 +350,43 @@ class ReferenceSeepageSolver:
                 p[free] = np.asarray(pff, dtype=float).reshape(-1)
 
                 step_key = f"{step_counter:06d}"
-                arrays[f"nodal__p__step{step_key}"] = p.reshape(-1)
+                arrays_out: dict[str, Any] = {}
+                if "p" in want:
+                    arrays[f"nodal__p__step{step_key}"] = p.reshape(-1)
+                    arrays_out[f"nodal__p__step{step_key}"] = arrays[f"nodal__p__step{step_key}"]
 
-                t_acc += dt
-                times.append(float(t_acc))
-                global_steps.append({"id": int(step_counter), "stage_id": stage_id, "stage_step": int(sstep), "time": float(t_acc)})
+                t = t_stage0 + float(sstep + 1) * float(dt)
+                times.append(float(t))
+                stage_step_ids.append(int(sstep))
+                global_steps.append({"id": int(step_counter), "stage_id": stage_id, "stage_step": int(sstep), "time": float(t)})
 
                 cb_frame(
                     {
                         "id": int(step_counter),
-                        "time": float(t_acc),
+                        "time": float(t),
                         "stage_id": str(stage_id),
                         "stage_step": int(sstep),
                         "substep": None,
                         "events": [],
                     },
                     mesh_out=None,
-                    arrays_out={f"nodal__p__step{step_key}": arrays[f"nodal__p__step{step_key}"]},
+                    arrays_out=arrays_out,
                 )
 
-            stage_infos.append({"id": stage_id, "num_steps": int(num_steps), "times": list(times)})
+            t_acc = t_stage0 + float(num_steps) * float(dt)
+            stage_infos.append({"id": stage_id, "num_steps": int(num_steps), "output_every_n": int(every_n), "output_stage_steps": stage_step_ids, "times": list(times)})
 
         unit_p = request.get("unit_system", {}).get("pressure", "Pa")
+        present = any(k.startswith("nodal__p__step") for k in arrays.keys())
         meta = {
-            "schema_version": "0.1",
+            "schema_version": "0.2",
             "status": "success",
             "solver_info": {"name": "reference_seepage", "note": "steady seepage reference solver (scipy.sparse)"},
             "stages": stage_infos,
             "global_steps": global_steps,
             "warnings": [],
             "errors": [],
-            "registry": [
-                {"name": "p", "location": "node", "shape": "scalar", "unit": unit_p, "npz_pattern": "nodal__p__step{step:06d}"},
-            ],
+            "registry": ([{"name": "p", "location": "node", "shape": "scalar", "unit": unit_p, "npz_pattern": "nodal__p__step{step:06d}"}] if present else []),
         }
         return meta, arrays
 

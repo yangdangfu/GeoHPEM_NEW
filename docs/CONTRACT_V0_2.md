@@ -186,7 +186,7 @@ Sets 的命名约定（由平台生成/导入）：
 
 ### 4.1 result.json（最小）
 
-- `schema_version`：暂沿用 `0.1`（平台当前已实现）
+- `schema_version`：推荐使用 `0.2`（平台当前已实现；同时兼容读取 `0.1` 便于过渡）
 - `status`：`success | failed | canceled`
 - `registry`：结果字段列表（用于 Output UI）
 - `global_steps`：可选，但强烈建议提供（time/stage/step 语义）
