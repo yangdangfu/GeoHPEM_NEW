@@ -48,6 +48,7 @@ class SolverDialog:
         self._type.addItem("Fake (built-in)", "fake")
         self._type.addItem("Reference Elastic (built-in)", "ref_elastic")
         self._type.addItem("Reference Seepage (built-in)", "ref_seepage")
+        self._type.addItem("Kratos (built-in skeleton)", "kratos")
         self._type.addItem("Python module (python:<module>)", "python")
         form.addRow("Solver", self._type)
 
@@ -94,6 +95,10 @@ class SolverDialog:
             self._type.setCurrentIndex(self._type.findData("ref_seepage"))
             self._module.setText("")
             return
+        if selector in ("kratos", "kratos_backend", "kratos_adapter"):
+            self._type.setCurrentIndex(self._type.findData("kratos"))
+            self._module.setText("")
+            return
         if selector.startswith("python:"):
             self._type.setCurrentIndex(self._type.findData("python"))
             self._module.setText(selector.split("python:", 1)[1].strip())
@@ -108,7 +113,7 @@ class SolverDialog:
 
     def _selector(self) -> str:
         t = str(self._type.currentData())
-        if t in ("fake", "ref_elastic", "ref_seepage"):
+        if t in ("fake", "ref_elastic", "ref_seepage", "kratos"):
             return t
         module = self._module.text().strip()
         return f"python:{module}"
