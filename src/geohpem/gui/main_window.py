@@ -3,12 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from geohpem.contract.io import read_result_folder
-from geohpem.contract.io import write_case_folder
-from geohpem.gui.dialogs.import_mesh_dialog import ImportMeshDialog
-from geohpem.gui.dialogs.batch_run_dialog import BatchRunDialog
+from geohpem.contract.io import read_result_folder, write_case_folder
 from geohpem.gui.dialogs.batch_report_dialog import BatchReportDialog
+from geohpem.gui.dialogs.batch_run_dialog import BatchRunDialog
 from geohpem.gui.dialogs.compare_outputs_dialog import CompareOutputsDialog
+from geohpem.gui.dialogs.import_mesh_dialog import ImportMeshDialog
 from geohpem.gui.dialogs.issues_dialog import IssuesDialog
 from geohpem.gui.dialogs.mesh_quality_dialog import MeshQualityDialog
 from geohpem.gui.dialogs.precheck_dialog import PrecheckDialog
@@ -36,7 +35,12 @@ class MainWindow:
     def __init__(self) -> None:
         from PySide6.QtCore import QObject, Qt, Slot  # type: ignore
         from PySide6.QtGui import QAction  # type: ignore
-        from PySide6.QtWidgets import QFileDialog, QMainWindow, QMenu, QMessageBox  # type: ignore
+        from PySide6.QtWidgets import (  # type: ignore
+            QFileDialog,
+            QMainWindow,
+            QMenu,
+            QMessageBox,
+        )
 
         from geohpem.gui.settings import SettingsStore
 
@@ -88,20 +92,21 @@ class MainWindow:
         self.tasks_dock = TasksDock()
 
         self._win.addDockWidget(Qt.LeftDockWidgetArea, self.project_dock.dock)
-        self._win.addDockWidget(Qt.LeftDockWidgetArea, self.geometry_dock.dock)
         self._win.addDockWidget(Qt.RightDockWidgetArea, self.properties_dock.dock)
         self._win.addDockWidget(Qt.RightDockWidgetArea, self.stage_dock.dock)
         self._win.addDockWidget(Qt.BottomDockWidgetArea, self.log_dock.dock)
         self._win.addDockWidget(Qt.BottomDockWidgetArea, self.tasks_dock.dock)
 
-        self._win.tabifyDockWidget(self.project_dock.dock, self.geometry_dock.dock)
         # Keep Properties and Stages visible simultaneously: Properties on top, Stages below.
         try:
             self._win.splitDockWidget(self.properties_dock.dock, self.stage_dock.dock, Qt.Vertical)
         except Exception:
             # Fallback to tabbing if splitting isn't available (should be rare).
             self._win.tabifyDockWidget(self.properties_dock.dock, self.stage_dock.dock)
-        self._win.tabifyDockWidget(self.log_dock.dock, self.tasks_dock.dock)
+        try:
+            self._win.splitDockWidget(self.log_dock.dock, self.tasks_dock.dock, Qt.Horizontal)
+        except Exception:
+            self._win.tabifyDockWidget(self.log_dock.dock, self.tasks_dock.dock)
         self.log_dock.dock.raise_()
         self.properties_dock.dock.raise_()
 
@@ -204,6 +209,8 @@ class MainWindow:
 
         self._action_about = QAction("About", self._win)
         self._action_about.triggered.connect(self._on_about)
+        self._action_input_guide = QAction("Input Workspace Guide", self._win)
+        self._action_input_guide.triggered.connect(self._on_input_workspace_guide)
 
         menu_file = self._win.menuBar().addMenu("File")
         menu_file.addAction(self._action_new)
@@ -242,7 +249,6 @@ class MainWindow:
         menu_view.addAction(self._action_units)
         menu_view.addSeparator()
         menu_view.addAction(self.project_dock.dock.toggleViewAction())
-        menu_view.addAction(self.geometry_dock.dock.toggleViewAction())
         menu_view.addAction(self.properties_dock.dock.toggleViewAction())
         menu_view.addAction(self.stage_dock.dock.toggleViewAction())
         menu_view.addAction(self.log_dock.dock.toggleViewAction())
@@ -262,6 +268,7 @@ class MainWindow:
         menu_solve.addAction(self._action_run)
 
         menu_help = self._win.menuBar().addMenu("Help")
+        menu_help.addAction(self._action_input_guide)
         menu_help.addAction(self._action_about)
 
         self.project_dock.case_open_requested.connect(self.open_case_folder)
@@ -312,6 +319,10 @@ class MainWindow:
 
             input_ws = self.workspace_stack.get("input")
             if isinstance(input_ws, InputWorkspace):
+                try:
+                    input_ws.attach_geometry_widget(self.geometry_dock.take_widget())
+                except Exception:
+                    pass
                 input_ws.new_project_requested.connect(self._on_new_project)
                 input_ws.open_project_requested.connect(self._on_open_project_dialog)
                 input_ws.open_case_requested.connect(self._on_open_case_dialog)
@@ -333,6 +344,7 @@ class MainWindow:
                 # Keep the center preview in sync with current in-memory project data.
                 self.model.request_changed.connect(_push_input_preview)
                 self.model.mesh_changed.connect(_push_input_preview)
+                self.model.mesh_changed.connect(lambda *_: input_ws.show_mesh_preview())
         except Exception:
             pass
 
@@ -366,10 +378,6 @@ class MainWindow:
 
         if name == "output":
             try:
-                self.geometry_dock.dock.hide()
-            except Exception:
-                pass
-            try:
                 self.properties_dock.dock.hide()
             except Exception:
                 pass
@@ -394,10 +402,6 @@ class MainWindow:
         # input default
         try:
             self.project_dock.dock.show()
-        except Exception:
-            pass
-        try:
-            self.geometry_dock.dock.show()
         except Exception:
             pass
         try:
@@ -638,7 +642,12 @@ class MainWindow:
         self._set_workspace("output")
 
     def _apply_unit_context_from_request(self, request: dict[str, Any]) -> None:
-        from geohpem.units import UnitContext, merge_display_units, normalize_unit_system, request_unit_system
+        from geohpem.units import (
+            UnitContext,
+            merge_display_units,
+            normalize_unit_system,
+            request_unit_system,
+        )
 
         base = normalize_unit_system(request_unit_system(request))
         base.setdefault("length", "m")
@@ -805,7 +814,14 @@ class MainWindow:
         if not self._confirm_discard_if_dirty():
             return
 
-        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QFormLayout, QComboBox, QVBoxLayout  # type: ignore
+        from PySide6.QtWidgets import (  # type: ignore
+            QComboBox,
+            QDialog,
+            QDialogButtonBox,
+            QFormLayout,
+            QVBoxLayout,
+        )
+
         from geohpem.project.templates import new_empty_project, new_sample_project
 
         dialog = QDialog(self._win)
@@ -887,7 +903,9 @@ class MainWindow:
             self._QMessageBox.critical(self._win, "Export Case Folder Failed", str(exc))
             return
 
-        self._QMessageBox.information(self._win, "Export Case Folder", f"Wrote:\n{out_dir / 'request.json'}\n{out_dir / 'mesh.npz'}")
+        self._QMessageBox.information(
+            self._win, "Export Case Folder", f"Wrote:\n{out_dir / 'request.json'}\n{out_dir / 'mesh.npz'}"
+        )
         self.log_dock.append_info(f"Exported case folder: {out_dir}")
 
     def _on_validate_inputs(self) -> None:
@@ -969,7 +987,9 @@ class MainWindow:
             worker = SolveWorker(case_dir=state.work_case_dir, solver_selector=solver_selector)
             # Keep strong reference during run to prevent GC-related crashes.
             self._active_workers.append(worker)
-            worker.finished.connect(lambda: self._active_workers.remove(worker) if worker in self._active_workers else None)
+            worker.finished.connect(
+                lambda: self._active_workers.remove(worker) if worker in self._active_workers else None
+            )
             self.tasks_dock.attach_worker(worker)
             self.log_dock.attach_worker(worker)
             worker.output_ready.connect(self._ui_slots.on_output_ready)
@@ -1044,7 +1064,7 @@ class MainWindow:
             if btn != self._QMessageBox.Yes:
                 return
 
-        self.model.set_material(mid, "placeholder", {})
+        self.model.set_material(mid, "unnamed material", {})
         self.log_dock.append_info(f"Added material: {mid}")
 
     def _on_delete_material(self, *, material_id: str | None = None) -> None:
@@ -1165,6 +1185,17 @@ class MainWindow:
             f"node_sets={len(res.report.node_sets)}, edge_sets={len(res.report.edge_sets)}, elem_sets={len(res.report.element_sets)}"
         )
 
+    def _on_input_workspace_guide(self) -> None:
+        msg = (
+            "Input workspace quick guide:\n"
+            "1) Geometry tab: draw polygon or rectangle, then Generate Mesh.\n"
+            "2) Mesh Preview tab: highlight sets, pick nodes/cells, and create sets.\n"
+            "3) Configure Model/Materials/Assignments/Stages in the Properties dock.\n"
+            "4) Validate (F7) before Run.\n"
+            "5) Switch to Output workspace for visualization.\n"
+        )
+        self._QMessageBox.information(self._win, "Input Workspace Guide", msg)
+
     def _on_about(self) -> None:
         import platform
 
@@ -1188,7 +1219,9 @@ class MainWindow:
             return
         for p in items:
             act = QAction(str(p), self._win)
-            act.triggered.connect(lambda checked=False, pp=p: self.open_case_folder(pp) if pp.is_dir() else self.open_project_file(pp))
+            act.triggered.connect(
+                lambda checked=False, pp=p: self.open_case_folder(pp) if pp.is_dir() else self.open_project_file(pp)
+            )
             self._menu_recent.addAction(act)
 
     def _rebuild_recent_solvers_menu(self) -> None:

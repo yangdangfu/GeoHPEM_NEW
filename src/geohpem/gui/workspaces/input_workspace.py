@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QObject, QTimer, Signal, Qt  # type: ignore
-from PySide6.QtGui import QCursor, QFont, QKeySequence, QShortcut  # type: ignore
+from PySide6.QtGui import QCursor, QKeySequence, QShortcut  # type: ignore
 from PySide6.QtWidgets import (  # type: ignore
     QCheckBox,
     QComboBox,
@@ -13,8 +13,8 @@ from PySide6.QtWidgets import (  # type: ignore
     QMenu,
     QMessageBox,
     QPushButton,
-    QScrollArea,
-    QSplitter,
+    QTabWidget,
+    QToolBar,
     QVBoxLayout,
     QWidget,
 )
@@ -52,85 +52,61 @@ class InputWorkspace:
         outer = QVBoxLayout(self.widget)
         outer.setContentsMargins(0, 0, 0, 0)
 
-        split = QSplitter()
-        outer.addWidget(split, 1)
+        top = QWidget()
+        tl = QHBoxLayout(top)
+        tl.setContentsMargins(10, 6, 10, 6)
 
-        # Left: dashboard
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        split.addWidget(scroll)
-
-        root = QWidget()
-        scroll.setWidget(root)
-        layout = QVBoxLayout(root)
-        layout.setContentsMargins(14, 14, 14, 14)
-
-        title = QLabel("Input Workspace")
-        f = QFont()
-        f.setPointSize(14)
-        f.setBold(True)
-        title.setFont(f)
-        layout.addWidget(title)
-        layout.addWidget(
-            QLabel("建模主要在左/右侧 Dock（Project/Geometry/Properties/Stages）完成。这里提供流程导航与快捷入口。")
-        )
-
-        # Status
-        gb_status = QGroupBox("Status")
-        st = QVBoxLayout(gb_status)
+        status = QWidget()
+        sl = QHBoxLayout(status)
+        sl.setContentsMargins(0, 0, 0, 0)
         self._lbl_project = QLabel("Project: (none)")
         self._lbl_solver = QLabel("Solver: fake")
         self._lbl_dirty = QLabel("State: clean")
-        st.addWidget(self._lbl_project)
-        st.addWidget(self._lbl_solver)
-        st.addWidget(self._lbl_dirty)
-        layout.addWidget(gb_status)
+        sl.addWidget(self._lbl_project)
+        sl.addWidget(self._lbl_solver)
+        sl.addWidget(self._lbl_dirty)
+        sl.addStretch(1)
+        tl.addWidget(status, 1)
 
-        # Quick actions
-        gb_actions = QGroupBox("Quick Actions")
-        al = QHBoxLayout(gb_actions)
-        self._btn_new = QPushButton("New Project...")
-        self._btn_open_proj = QPushButton("Open Project...")
-        self._btn_open_case = QPushButton("Open Case Folder...")
-        self._btn_import = QPushButton("Import Mesh...")
-        self._btn_validate = QPushButton("Validate (F7)")
+        quick = QToolBar()
+        quick.setMovable(False)
+        quick.setFloatable(False)
+        self._btn_new = QPushButton("New")
+        self._btn_open_proj = QPushButton("Open")
+        self._btn_open_case = QPushButton("Open Case")
+        self._btn_import = QPushButton("Import Mesh")
+        self._btn_validate = QPushButton("Validate")
         self._btn_run = QPushButton("Run")
-        self._btn_output = QPushButton("Go to Output")
-        al.addWidget(self._btn_new)
-        al.addWidget(self._btn_open_proj)
-        al.addWidget(self._btn_open_case)
-        al.addWidget(self._btn_import)
-        al.addWidget(self._btn_validate)
-        al.addWidget(self._btn_run)
-        al.addWidget(self._btn_output)
-        layout.addWidget(gb_actions)
+        self._btn_output = QPushButton("Output")
+        quick.addWidget(self._btn_new)
+        quick.addWidget(self._btn_open_proj)
+        quick.addWidget(self._btn_open_case)
+        quick.addSeparator()
+        quick.addWidget(self._btn_import)
+        quick.addWidget(self._btn_validate)
+        quick.addWidget(self._btn_run)
+        quick.addSeparator()
+        quick.addWidget(self._btn_output)
+        tl.addWidget(quick, 0)
+        outer.addWidget(top, 0)
 
-        # Workflow checklist (static guidance)
-        gb_flow = QGroupBox("Recommended Workflow")
-        fl = QVBoxLayout(gb_flow)
-        fl.addWidget(QLabel("1) 几何/网格：导入现成网格（Import Mesh）或画几何→网格化（Geometry Dock）。"))
-        fl.addWidget(QLabel("2) Sets：检查/重命名/创建 sets（Edit -> Manage Sets...）。"))
-        fl.addWidget(QLabel("3) 输入：配置 Model/Materials/Assignments/Stages（Properties Dock）。"))
-        fl.addWidget(QLabel("4) 校验：Tools -> Validate Inputs... (F7)。"))
-        fl.addWidget(QLabel("5) 求解：Solve -> Run (...)（后台运行，可取消，失败会生成诊断包）。"))
-        fl.addWidget(QLabel("6) 后处理：切换到 Output（云图/Probe/Profiles/Pins/导出）。"))
-        layout.addWidget(gb_flow)
+        self._tabs = QTabWidget()
+        outer.addWidget(self._tabs, 1)
 
-        gb_tips = QGroupBox("Tips")
-        tl = QVBoxLayout(gb_tips)
-        tl.addWidget(
-            QLabel("- Output 场景建议隐藏编辑 Dock（Geometry/Properties/Stages），专注可视化；可在 View 菜单随时打开。")
-        )
-        tl.addWidget(QLabel("- 若要与 solver 团队联调：File -> Export Case Folder... 导出 request.json + mesh.npz。"))
-        layout.addWidget(gb_tips)
+        self._geometry_host = QWidget()
+        self._geometry_host_layout = QVBoxLayout(self._geometry_host)
+        self._geometry_host_layout.setContentsMargins(0, 0, 0, 0)
+        self._geometry_placeholder = QLabel("Geometry panel will appear here.")
+        self._geometry_placeholder.setAlignment(Qt.AlignCenter)
+        self._geometry_host_layout.addWidget(self._geometry_placeholder, 1)
+        self._tabs.addTab(self._geometry_host, "Geometry")
 
-        layout.addStretch(1)
-
-        # Right: mesh preview
         preview = QWidget()
         pv = QVBoxLayout(preview)
         pv.setContentsMargins(10, 10, 10, 10)
-        pv.addWidget(QLabel("Mesh Preview (Input)"))
+        toolbar = QToolBar()
+        toolbar.setMovable(False)
+        toolbar.setFloatable(False)
 
         row = QWidget()
         rl = QHBoxLayout(row)
@@ -143,59 +119,51 @@ class InputWorkspace:
         rl.addWidget(self._btn_fit)
         pv.addWidget(row)
 
-        self._sel_info = QLabel("Pick: (none)")
-        self._sel_info.setWordWrap(True)
-        pv.addWidget(self._sel_info)
-
-        gb_sel = QGroupBox("Selection (from preview)")
-        sl = QVBoxLayout(gb_sel)
-        self._lbl_sel_nodes = QLabel("Nodes: 0")
-        self._lbl_sel_edges = QLabel("Edges: 0")
-        self._lbl_sel_elems = QLabel("Elements: 0")
-        sl.addWidget(self._lbl_sel_nodes)
-        sl.addWidget(self._lbl_sel_edges)
-        sl.addWidget(self._lbl_sel_elems)
-
-        row_box = QWidget()
-        bxl = QHBoxLayout(row_box)
-        bxl.setContentsMargins(0, 0, 0, 0)
         self._chk_box_replace = QCheckBox("Replace")
         self._chk_box_subtract = QCheckBox("Subtract")
         self._chk_box_brush = QCheckBox("Brush")
         self._chk_box_brush.setToolTip("Keep box selection active for repeated drags.")
+        toolbar.addWidget(self._chk_box_replace)
+        toolbar.addWidget(self._chk_box_subtract)
+        toolbar.addWidget(self._chk_box_brush)
+        toolbar.addSeparator()
         self._btn_box_nodes = QPushButton("Box nodes")
         self._btn_box_cells = QPushButton("Box elems")
-        bxl.addWidget(self._chk_box_replace)
-        bxl.addWidget(self._chk_box_subtract)
-        bxl.addWidget(self._chk_box_brush)
-        bxl.addStretch(1)
-        bxl.addWidget(self._btn_box_nodes)
-        bxl.addWidget(self._btn_box_cells)
-        sl.addWidget(row_box)
-
-        row_sel = QWidget()
-        rsl = QHBoxLayout(row_sel)
-        rsl.setContentsMargins(0, 0, 0, 0)
-        self._btn_add_node = QPushButton("Add picked node")
-        self._btn_add_edge = QPushButton("Add edge (last 2 picks)")
-        self._btn_add_cell = QPushButton("Add picked cell")
+        toolbar.addWidget(self._btn_box_nodes)
+        toolbar.addWidget(self._btn_box_cells)
+        toolbar.addSeparator()
+        self._btn_add_node = QPushButton("Add node")
+        self._btn_add_edge = QPushButton("Add edge")
+        self._btn_add_cell = QPushButton("Add cell")
         self._btn_clear_sel = QPushButton("Clear")
-        rsl.addWidget(self._btn_add_node)
-        rsl.addWidget(self._btn_add_edge)
-        rsl.addWidget(self._btn_add_cell)
-        rsl.addWidget(self._btn_clear_sel)
-        sl.addWidget(row_sel)
+        toolbar.addWidget(self._btn_add_node)
+        toolbar.addWidget(self._btn_add_edge)
+        toolbar.addWidget(self._btn_add_cell)
+        toolbar.addWidget(self._btn_clear_sel)
+        toolbar.addSeparator()
+        self._btn_create_node_set = QPushButton("Create node set")
+        self._btn_create_edge_set = QPushButton("Create edge set")
+        self._btn_create_elem_set = QPushButton("Create elem set")
+        toolbar.addWidget(self._btn_create_node_set)
+        toolbar.addWidget(self._btn_create_edge_set)
+        toolbar.addWidget(self._btn_create_elem_set)
+        pv.addWidget(toolbar)
 
-        row_create = QWidget()
-        crl = QHBoxLayout(row_create)
-        crl.setContentsMargins(0, 0, 0, 0)
-        self._btn_create_node_set = QPushButton("Create node set...")
-        self._btn_create_edge_set = QPushButton("Create edge set...")
-        self._btn_create_elem_set = QPushButton("Create elem set...")
-        crl.addWidget(self._btn_create_node_set)
-        crl.addWidget(self._btn_create_edge_set)
-        crl.addWidget(self._btn_create_elem_set)
-        sl.addWidget(row_create)
+        self._sel_info = QLabel("Pick: (none)")
+        self._sel_info.setWordWrap(True)
+        pv.addWidget(self._sel_info)
+
+        sel_counts = QWidget()
+        scl = QHBoxLayout(sel_counts)
+        scl.setContentsMargins(0, 0, 0, 0)
+        self._lbl_sel_nodes = QLabel("Nodes: 0")
+        self._lbl_sel_edges = QLabel("Edges: 0")
+        self._lbl_sel_elems = QLabel("Elements: 0")
+        scl.addWidget(self._lbl_sel_nodes)
+        scl.addWidget(self._lbl_sel_edges)
+        scl.addWidget(self._lbl_sel_elems)
+        scl.addStretch(1)
+        pv.addWidget(sel_counts)
 
         gb_boundary = QGroupBox("Boundary helpers (auto)")
         bdl_outer = QVBoxLayout(gb_boundary)
@@ -246,21 +214,15 @@ class InputWorkspace:
         pdl.addWidget(self._btn_boundary_component)
         pdl.addStretch(1)
         bdl_outer.addWidget(row_poly)
-        sl.addWidget(gb_boundary)
-        pv.addWidget(gb_sel)
+        pv.addWidget(gb_boundary)
 
         self._viewer = None
         self._viewer_host = QWidget()
         self._viewer_host_layout = QVBoxLayout(self._viewer_host)
         self._viewer_host_layout.setContentsMargins(0, 0, 0, 0)
         pv.addWidget(self._viewer_host, 1)
-        split.addWidget(preview)
-        try:
-            split.setStretchFactor(0, 0)
-            split.setStretchFactor(1, 1)
-            split.setSizes([420, 1000])
-        except Exception:
-            pass
+        self._tabs.addTab(preview, "Mesh Preview")
+        self._mesh_tab_index = self._tabs.indexOf(preview)
 
         # Wire buttons to signals
         self._btn_new.clicked.connect(self.new_project_requested.emit)
@@ -356,6 +318,39 @@ class InputWorkspace:
             self._sc_box_elems.activated.connect(lambda: self._toggle_box_select("cell"))
         except Exception:
             self._sc_box_elems = None
+
+    def attach_geometry_widget(self, widget: QWidget) -> None:
+        if widget is None:
+            return
+        try:
+            widget.setParent(self._geometry_host)
+        except Exception:
+            pass
+        try:
+            while self._geometry_host_layout.count() > 0:
+                item = self._geometry_host_layout.takeAt(0)
+                w = item.widget()
+                if w is not None:
+                    w.setParent(None)
+        except Exception:
+            pass
+        try:
+            if self._geometry_placeholder is not None:
+                self._geometry_placeholder.setParent(None)
+        except Exception:
+            pass
+        try:
+            self._geometry_host_layout.addWidget(widget, 1)
+            widget.show()
+        except Exception:
+            pass
+
+    def show_mesh_preview(self) -> None:
+        try:
+            if self._mesh_tab_index is not None:
+                self._tabs.setCurrentIndex(self._mesh_tab_index)
+        except Exception:
+            pass
 
     def set_status(self, *, project: str | None, dirty: bool, solver: str) -> None:
         """

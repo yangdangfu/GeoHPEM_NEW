@@ -46,6 +46,7 @@ class GeometryDock:
 
         root = QWidget()
         layout = QVBoxLayout(root)
+        self.widget = root
         self.dock.setWidget(root)
 
         bar = QWidget()
@@ -263,6 +264,22 @@ class GeometryDock:
         self.btn_mesh.clicked.connect(self._generate_mesh)
         self.btn_fit.clicked.connect(self._fit_view)
         self.btn_reset_view.clicked.connect(self._reset_view)
+
+    def take_widget(self):
+        from PySide6.QtWidgets import QSizePolicy, QWidget  # type: ignore
+
+        widget = self.widget
+        try:
+            widget.setParent(None)
+            widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+            widget.show()
+        except Exception:
+            pass
+        try:
+            self.dock.setWidget(QWidget())
+        except Exception:
+            pass
+        return widget
 
     def bind_model(self, model: ProjectModel) -> None:
         self._model = model

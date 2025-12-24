@@ -39,6 +39,17 @@ class PropertiesDock:
         empty_layout.addStretch(1)
         self._stack.addWidget(self._page_empty)
 
+        # Page: info
+        self._page_info = QWidget()
+        info_layout = QVBoxLayout(self._page_info)
+        self._info_title = QLabel("Info")
+        self._info_title.setStyleSheet("font-weight: 600;")
+        info_layout.addWidget(self._info_title)
+        self._info_text = QPlainTextEdit()
+        self._info_text.setReadOnly(True)
+        info_layout.addWidget(self._info_text, 1)
+        self._stack.addWidget(self._page_info)
+
         # Page: model
         self._page_model = QWidget()
         model_layout = QVBoxLayout(self._page_model)
@@ -359,6 +370,11 @@ class PropertiesDock:
 
     def show_empty(self) -> None:
         self._stack.setCurrentWidget(self._page_empty)
+
+    def show_info(self, title: str, lines: list[str]) -> None:
+        self._info_title.setText(title or "Info")
+        self._info_text.setPlainText("\n".join(lines))
+        self._stack.setCurrentWidget(self._page_info)
 
     def show_model(self, request: dict[str, Any]) -> None:
         model = request.get("model", {}) if isinstance(request.get("model"), dict) else {}
