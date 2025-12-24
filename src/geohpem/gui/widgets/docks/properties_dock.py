@@ -82,7 +82,7 @@ class PropertiesDock:
         stage_form.addRow("Stage ID", self._stage_id)
 
         self._analysis_type = QComboBox()
-        for v in ("static", "dynamic", "seepage_steady", "seepage_transient", "consolidation_u_p"):
+        for v in ("static", "dynamic", "seepage_steady", "seepage_transient", "consolidation_u_p", "pfem"):
             self._analysis_type.addItem(v, v)
         stage_form.addRow("Analysis Type", self._analysis_type)
 

@@ -93,17 +93,23 @@ def cell_type_code_to_name(code: int) -> str | None:
 
 def available_steps_from_arrays(arrays: dict[str, Any]) -> list[int]:
     """
-    Extract integer step ids from result array keys like 'nodal__p__step000010'.
+    Extract integer step/frame ids from result array keys like 'nodal__p__step000010'
+    or 'nodal__p__frame000010'.
     """
     steps: set[int] = set()
     for k in arrays.keys():
-        if "__step" not in k:
-            continue
-        try:
-            s = k.split("__step", 1)[1]
-            steps.add(int(s))
-        except Exception:
-            continue
+        if "__step" in k:
+            try:
+                s = k.split("__step", 1)[1]
+                steps.add(int(s))
+            except Exception:
+                pass
+        if "__frame" in k:
+            try:
+                s = k.split("__frame", 1)[1]
+                steps.add(int(s))
+            except Exception:
+                pass
     return sorted(steps)
 
 
@@ -118,6 +124,8 @@ def get_array_for(
     if not prefix:
         return None
     key = f"{prefix}__{name}__step{step:06d}"
+    if key not in arrays:
+        key = f"{prefix}__{name}__frame{step:06d}"
     if key not in arrays:
         return None
     return np.asarray(arrays[key])

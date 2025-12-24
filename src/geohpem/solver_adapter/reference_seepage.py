@@ -219,15 +219,21 @@ class ReferenceSeepageSolver:
             fixed: dict[int, float] = {}
             for st in stages_upto:
                 for bc in st.get("bcs", []) if isinstance(st.get("bcs"), list) else []:
-                    if not isinstance(bc, dict) or str(bc.get("type", "")) != "p":
+                    if not isinstance(bc, dict) or str(bc.get("type", "")) not in ("p", "pressure"):
                         continue
                     set_name = str(bc.get("set", "")).strip()
                     if not set_name:
                         continue
                     nodes = _nodes_from_set(mesh, set_name)
-                    val = float(bc.get("value"))
+                    val = bc.get("value")
+                    if isinstance(val, dict) and "p" in val:
+                        val = val.get("p")
+                    try:
+                        p_value = float(val)
+                    except Exception:
+                        p_value = 0.0
                     for nid in nodes:
-                        fixed[int(nid)] = val
+                        fixed[int(nid)] = p_value
             if not fixed:
                 return np.zeros((0,), dtype=np.int64), np.zeros((0,), dtype=float)
             dofs = np.fromiter(fixed.keys(), dtype=np.int64)

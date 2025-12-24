@@ -1,4 +1,4 @@
-# GeoHPEM_NEW 开发计划与 Checklist（可迭代调整）
+﻿# GeoHPEM_NEW 开发计划与 Checklist（可迭代调整）
 
 本文件用于把“软件可用闭环”拆解成可执行步骤。每个条目都有 **Definition of Done（DoD）**，完成后在方括号中打勾。
 
@@ -18,7 +18,6 @@
   - Contract / API 设计从一开始就能承载 PFEM/HPEM 的真实输入与输出（可以分小步落地，但不走“先做一个临时简化契约、再推翻重来”的路线）。
   - GUI/Domain 的数据结构与交互围绕“可驱动 solver、可对标输出”组织，不做无意义的功能堆叠。
 - 开发阶段**不要求跨版本兼容**：工程文件/contract/schema 可以迭代变更；但要预留扩展点（例如 schema_version 字段、migrations 入口），等正式版再收敛兼容策略。
-- **后端求解器决策（已定）**：偏岩土工程 + PFEM 能力优先，选择 **Kratos Multiphysics** 作为主后端；FEniCSx 作为可选 FEM-only 备选，不作为主线。
 
 **主流程（MVP 必须顺滑）**
 1) `File -> New Project...`（或 Open Project / Open Case Folder）
@@ -313,7 +312,6 @@
 
 ### M15.3：参考求解器 A（开源 FE：线弹性静力，PLAXIS 对标基础）
 
-> 说明：reference solvers 继续保留为“接口范例 + 回归基准”。真实工程能力将由 Kratos 后端提供。
 
 - [ ] `solver_reference_elastic`（plane strain/stress，tri3/quad4）
   - DoD：支持：
@@ -369,24 +367,6 @@
 
 ---
 
-## M16：Kratos 后端集成（岩土工程 + PFEM 方向主线）
-
-> 目标：在不依赖 solver 团队的情况下，把“工程级 FEM + PFEM 路线”打通到平台的 Contract/GUI/Output。Kratos 负责求解，GeoHPEM 负责建模/调度/后处理。
-
-- [x] M16.1：Kratos 接入设计与映射文档（第一步）
-  - DoD：明确 request → Kratos 的映射、SubModelPart/sets 的命名规则、材料/BC/Load/Stage 的对应；明确 PFEM/HPEM 扩展点与输出约定。
-- [x] M16.2：Kratos Adapter 框架（可运行骨架）
-  - DoD：提供 `solver_adapter/kratos_*` 模块，完成：
-    - `capabilities()`（modes/analysis_types/materials/bcs/loads）
-    - `solve()` 接口骨架（导入 Kratos、模型装配、结果写出），支持缺依赖时给出清晰错误提示
-- [ ] M16.3：FEM 经典能力（Kratos 版）
-  - DoD：至少落地：线弹性 + Mohr-Coulomb + Hardening Soil（或等价岩土模型）；支持 static/dynamic；输出 u/应力/应变/塑性应变/孔压。
-- [ ] M16.4：渗流/固结（Kratos 版）
-  - DoD：稳态/非稳态渗流；u–p 固结（Biot），支持 stage 级别 BC/Load。
-- [ ] M16.5：PFEM 路线（Kratos PFEM2）
-  - DoD：粒子生成/自由面/重网格；支持 frames/events 输出与多载体结果写出（mesh__/particles__）。
-- [ ] M16.6：算例与对标套件
-  - DoD：补充一套 Kratos 对标算例（边坡、堤坝渗流、基坑、地震）与输出对标清单。
 
 ## 建议执行顺序（最短路径到“可用软件闭环”）
 

@@ -622,10 +622,29 @@ class OutputWorkspace:
 
     def _infer_steps(self, meta: dict[str, Any], arrays: dict[str, Any]) -> tuple[list[int], dict[int, dict[str, Any]]]:
         """
-        Prefer meta['global_steps'] when available, otherwise fall back to parsing array keys.
+        Prefer meta['frames'] when available (PFEM/HPEM), otherwise meta['global_steps'],
+        otherwise fall back to parsing array keys.
         Returns (sorted_step_ids, step_info_by_id).
         """
         infos: dict[int, dict[str, Any]] = {}
+        frames = meta.get("frames")
+        if isinstance(frames, list) and frames:
+            step_ids: list[int] = []
+            for it in frames:
+                if not isinstance(it, dict):
+                    continue
+                sid = it.get("id")
+                try:
+                    sid_i = int(sid)
+                except Exception:
+                    continue
+                step_ids.append(sid_i)
+                info = dict(it)
+                info["_kind"] = "frame"
+                infos[sid_i] = info
+            step_ids = sorted(set(step_ids))
+            if step_ids:
+                return step_ids, infos
         gs = meta.get("global_steps")
         if isinstance(gs, list) and gs:
             step_ids: list[int] = []
@@ -1175,6 +1194,7 @@ class OutputWorkspace:
         else:
             title = f"{scalar_name} (step {step_id:06d})"
         self._viewer.add_scalar_bar(title=title)
+        self._add_particle_overlay(step_id)
         self._add_profile_overlays()
         self._add_pin_overlays(grid)
         if not bool(getattr(self, "_export_keep_camera", False)):
@@ -1419,12 +1439,30 @@ class OutputWorkspace:
         if not isinstance(info, dict):
             self.step_info.setText(f"global_step_id={step_id:06d}")
             return
-        parts = [f"global_step_id={int(step_id):06d}"]
+        label = "global_step_id"
+        if str(info.get("_kind")) == "frame":
+            label = "frame_id"
+        parts = [f"{label}={int(step_id):06d}"]
         if "stage_id" in info:
             parts.append(f"stage={info.get('stage_id')}")
         if "stage_step" in info:
             try:
                 parts.append(f"stage_step={int(info.get('stage_step'))}")
+            except Exception:
+                pass
+        if "substep" in info:
+            try:
+                parts.append(f"substep={int(info.get('substep'))}")
+            except Exception:
+                pass
+        if "dt" in info:
+            try:
+                parts.append(f"dt={float(info.get('dt')):.6g}")
+            except Exception:
+                pass
+        if "events" in info and isinstance(info.get("events"), list):
+            try:
+                parts.append(f"events={len(info.get('events'))}")
             except Exception:
                 pass
         if "time" in info:
@@ -1545,6 +1583,99 @@ class OutputWorkspace:
         # Update highlight overlays immediately (last-picked cell orange outline).
         self._schedule_rerender_preserve_camera()
 
+    def _fill_cells_from_base(self, mesh: dict[str, Any], pts: np.ndarray) -> dict[str, Any]:
+        base = self._mesh or {}
+        if pts.ndim != 2:
+            return mesh
+        n_pts = int(pts.shape[0])
+        for cell_type in ("tri3", "quad4"):
+            key = f"cells_{cell_type}"
+            if key in mesh:
+                continue
+            if key not in base:
+                continue
+            try:
+                arr = np.asarray(base[key], dtype=np.int64)
+            except Exception:
+                continue
+            if arr.size == 0:
+                mesh[key] = arr
+                continue
+            try:
+                if int(arr.max()) < n_pts:
+                    mesh[key] = arr
+            except Exception:
+                continue
+        return mesh
+
+    def _mesh_for_step(self, step_id: int) -> dict[str, Any]:
+        if self._mesh is None or self._arrays is None:
+            raise RuntimeError("Missing mesh/results")
+        arrays = self._arrays
+        sid = int(step_id)
+        for tag in ("frame", "step"):
+            key_points = f"mesh__points__{tag}{sid:06d}"
+            if key_points in arrays:
+                pts = np.asarray(arrays[key_points], dtype=float)
+                mesh: dict[str, Any] = {"points": pts}
+                for cell_type in ("tri3", "quad4"):
+                    key_cells = f"mesh__cells_{cell_type}__{tag}{sid:06d}"
+                    if key_cells in arrays:
+                        mesh[f"cells_{cell_type}"] = np.asarray(arrays[key_cells], dtype=np.int64)
+                return self._fill_cells_from_base(mesh, pts)
+        return self._mesh
+
+    def _particle_points_for_step(self, step_id: int) -> np.ndarray | None:
+        if self._arrays is None:
+            return None
+        arrays = self._arrays
+        sid = int(step_id)
+        for tag in ("frame", "step"):
+            key_pts = f"particles__points__{tag}{sid:06d}"
+            if key_pts in arrays:
+                pts = np.asarray(arrays[key_pts], dtype=float)
+                if pts.ndim == 2 and pts.shape[1] >= 2:
+                    if pts.shape[1] == 2:
+                        z = np.zeros((pts.shape[0], 1), dtype=float)
+                        return np.hstack([pts[:, :2], z])
+                    return pts[:, :3]
+            kx = f"particles__x__{tag}{sid:06d}"
+            ky = f"particles__y__{tag}{sid:06d}"
+            kz = f"particles__z__{tag}{sid:06d}"
+            if kx in arrays and ky in arrays:
+                x = np.asarray(arrays[kx], dtype=float).reshape(-1)
+                y = np.asarray(arrays[ky], dtype=float).reshape(-1)
+                if x.size != y.size:
+                    continue
+                if kz in arrays:
+                    z = np.asarray(arrays[kz], dtype=float).reshape(-1)
+                    if z.size != x.size:
+                        z = np.zeros_like(x)
+                else:
+                    z = np.zeros_like(x)
+                return np.stack([x, y, z], axis=1)
+        return None
+
+    def _add_particle_overlay(self, step_id: int) -> None:
+        if self._viewer is None:
+            return
+        pts = self._particle_points_for_step(step_id)
+        if pts is None or pts.size == 0:
+            return
+        try:
+            import pyvista as pv  # type: ignore
+
+            cloud = pv.PolyData(np.asarray(pts, dtype=float))
+            self._viewer.add_mesh(
+                cloud,
+                color="#333333",
+                point_size=5,
+                render_points_as_spheres=True,
+                pickable=False,
+            )
+        except Exception:
+            return
+
     def _build_grid_with_scalars(
         self,
         reg: dict[str, Any],
@@ -1567,7 +1698,8 @@ class OutputWorkspace:
         if not name:
             raise RuntimeError("Invalid registry entry")
 
-        vtk_mesh = contract_mesh_to_pyvista(self._mesh)
+        mesh = self._mesh_for_step(step_id)
+        vtk_mesh = contract_mesh_to_pyvista(mesh)
         grid = vtk_mesh.grid.copy()
 
         arr = get_array_for(arrays=self._arrays, location=location, name=name, step=int(step_id))
@@ -2218,6 +2350,20 @@ class OutputWorkspace:
         """
         if not self._meta:
             return {}
+        frames = self._meta.get("frames")
+        if isinstance(frames, list) and frames:
+            out: dict[int, float] = {}
+            for it in frames:
+                if not isinstance(it, dict):
+                    continue
+                try:
+                    fid = int(it.get("id"))
+                    t = float(it.get("time"))
+                except Exception:
+                    continue
+                out[fid] = t
+            if out:
+                return out
         # Preferred: explicit mapping from meta['global_steps'].
         gs = self._meta.get("global_steps")
         if isinstance(gs, list) and gs:

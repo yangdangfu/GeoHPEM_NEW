@@ -19,7 +19,7 @@ def _build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--solver",
         default="fake",
-        help="Solver backend: fake | ref_elastic | ref_seepage | kratos | python:<module> (default: fake)",
+        help="Solver backend: fake | ref_elastic | ref_seepage | python:<module> (default: fake)",
     )
 
     batch = sub.add_parser("batch-run", help="Run many case folders under a root directory.")
@@ -27,7 +27,7 @@ def _build_parser() -> argparse.ArgumentParser:
     batch.add_argument(
         "--solver",
         default="fake",
-        help="Solver backend: fake | ref_elastic | ref_seepage | kratos | python:<module> (default: fake)",
+        help="Solver backend: fake | ref_elastic | ref_seepage | python:<module> (default: fake)",
     )
     batch.add_argument("--baseline", default=None, help="Baseline root folder for optional comparisons.")
     batch.add_argument("--report", default=None, help="Write a JSON report to this path (default: <root>/batch_report.json)")

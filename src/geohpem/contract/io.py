@@ -18,7 +18,8 @@ def read_case_folder(case_dir: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     if not mesh_path.exists():
         raise FileNotFoundError(mesh_path)
 
-    request = json.loads(request_path.read_text(encoding="utf-8"))
+    # Accept UTF-8 with BOM (common on Windows editors).
+    request = json.loads(request_path.read_text(encoding="utf-8-sig"))
     validate_request_basic(request)
 
     mesh_npz = np.load(mesh_path, allow_pickle=False)
@@ -59,4 +60,3 @@ def safe_npz_key(name: str) -> str:
     if not name or any(ch.isspace() for ch in name):
         raise ContractError(f"Invalid npz key: {name!r}")
     return name
-

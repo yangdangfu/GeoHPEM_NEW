@@ -16,6 +16,11 @@ def run_case(
 ) -> Path:
     case_path = Path(case_dir)
     request, mesh = read_case_folder(case_path)
+    # Provide case path for solver adapters that need to resolve relative files.
+    try:
+        request.setdefault("_geohpem", {})["case_dir"] = str(case_path)
+    except Exception:
+        request["_geohpem"] = {"case_dir": str(case_path)}
     from geohpem.project.normalize import ensure_request_ids
 
     ensure_request_ids(request, mesh)
