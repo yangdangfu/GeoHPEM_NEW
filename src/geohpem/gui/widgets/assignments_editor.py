@@ -91,6 +91,14 @@ class AssignmentsEditor:
         self.btn_add.clicked.connect(self._on_add)
         self.btn_delete.clicked.connect(self._on_delete)
         self.btn_sync.clicked.connect(self._on_sync_json_to_table)
+        self.tabs.currentChanged.connect(self._on_tab_changed)
+
+    def _on_tab_changed(self, index: int) -> None:
+        if index == self.tabs.indexOf(self.json_edit):
+            try:
+                self.assignments()
+            except Exception:
+                pass
 
     def set_options(self, options: AssignmentOptions) -> None:
         self._options = options
@@ -293,4 +301,7 @@ class AssignmentsEditor:
             if isinstance(it, dict):
                 cleaned.append(it)
         self.set_assignments(cleaned)
-
+        try:
+            self.tabs.setCurrentIndex(self.tabs.indexOf(self.table))
+        except Exception:
+            pass

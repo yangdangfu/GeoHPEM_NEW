@@ -65,7 +65,13 @@ def new_sample_project(
         "schema_version": "0.2",
         "unit_system": unit_system or {"force": "kN", "length": "m", "time": "s", "pressure": "kPa"},
         "model": {"dimension": 2, "mode": mode, "gravity": [0.0, -9.81]},
-        "materials": {"soil_1": {"model_name": "linear_elastic", "parameters": {"E": 3.0e7, "nu": 0.3, "rho": 1800.0}}},
+        "materials": {
+            "soil_1": {
+                "behavior": "elastic",
+                "model_name": "linear_elastic",
+                "parameters": {"E": 3.0e7, "nu": 0.3, "rho": 1800.0},
+            }
+        },
         "assignments": [{"element_set": "domain", "cell_type": "tri3", "material_id": "soil_1"}],
         "stages": [
             {

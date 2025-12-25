@@ -99,6 +99,15 @@ class StageItemTableEditor:
         self.btn_add.clicked.connect(self._on_add)
         self.btn_delete.clicked.connect(self._on_delete)
         self.btn_sync.clicked.connect(self._on_sync_json_to_table)
+        self.tabs.currentChanged.connect(self._on_tab_changed)
+
+    def _on_tab_changed(self, index: int) -> None:
+        # Keep JSON tab in sync with the table when user views it.
+        if index == self.tabs.indexOf(self.json_edit):
+            try:
+                self.items()
+            except Exception:
+                pass
 
     def set_set_options(self, names: list[str]) -> None:
         self._set_options = list(names)
@@ -403,3 +412,7 @@ class StageItemTableEditor:
                 continue
             cleaned.append(it)
         self.set_items(cleaned)
+        try:
+            self.tabs.setCurrentIndex(self.tabs.indexOf(self.table))
+        except Exception:
+            pass

@@ -92,6 +92,14 @@ class OutputRequestsEditor:
         self.btn_add.clicked.connect(self._on_add)
         self.btn_delete.clicked.connect(self._on_delete)
         self.btn_sync.clicked.connect(self._on_sync_json_to_table)
+        self.tabs.currentChanged.connect(self._on_tab_changed)
+
+    def _on_tab_changed(self, index: int) -> None:
+        if index == self.tabs.indexOf(self.json_edit):
+            try:
+                self.requests()
+            except Exception:
+                pass
 
     def set_options(self, options: OutputRequestOptions) -> None:
         self._options = options
@@ -252,4 +260,7 @@ class OutputRequestsEditor:
             return
         cleaned: list[dict[str, Any]] = [it for it in data if isinstance(it, dict)]
         self.set_requests(cleaned)
-
+        try:
+            self.tabs.setCurrentIndex(self.tabs.indexOf(self.table))
+        except Exception:
+            pass

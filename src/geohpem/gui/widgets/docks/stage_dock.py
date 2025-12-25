@@ -36,16 +36,16 @@ def _stage_diff(prev: dict[str, Any] | None, cur: dict[str, Any]) -> str:
 class StageDock:
     def __init__(self) -> None:
         from PySide6.QtCore import Signal  # type: ignore
-        from PySide6.QtWidgets import (
+        from PySide6.QtWidgets import (  # type: ignore
             QDockWidget,
             QHBoxLayout,
             QListWidget,
-            QPushButton,
             QPlainTextEdit,
+            QPushButton,
             QSplitter,
             QVBoxLayout,
             QWidget,
-        )  # type: ignore
+        )
 
         class _Signals(QWidget):
             stage_selected = Signal(str)  # uid
@@ -87,6 +87,7 @@ class StageDock:
 
         splitter.addWidget(self.list)
         splitter.addWidget(self.diff)
+        splitter.setStretchFactor(0, 2)
         splitter.setStretchFactor(1, 1)
 
         self._stages: list[dict[str, Any]] = []

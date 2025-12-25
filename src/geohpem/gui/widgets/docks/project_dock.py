@@ -48,6 +48,14 @@ class ProjectDock:
         self._request = request
         self._mesh = mesh
 
+        prev_payload = None
+        try:
+            cur = self.tree.currentItem()
+            if cur is not None:
+                prev_payload = cur.data(0, self._Qt.UserRole)
+        except Exception:
+            prev_payload = None
+
         self.tree.clear()
         root = QTreeWidgetItem([case_dir.name])
         root.setData(0, self._Qt.UserRole, {"type": "project"})
@@ -157,7 +165,51 @@ class ProjectDock:
         edge_sets_item.setExpanded(True)
         elem_sets_item.setExpanded(True)
 
-        self.tree.setCurrentItem(model_item)
+        self._restore_selection(root, prev_payload, fallback=model_item)
+
+    def _restore_selection(self, root, payload, fallback=None) -> None:  # noqa: ANN001
+        if payload:
+            try:
+                found = self._find_item_by_payload(root, payload)
+                if found is not None:
+                    self.tree.setCurrentItem(found)
+                    return
+            except Exception:
+                pass
+        if fallback is not None:
+            self.tree.setCurrentItem(fallback)
+
+    def _find_item_by_payload(self, root, payload):  # noqa: ANN001
+        target_type = str(payload.get("type", ""))
+
+        def matches(item_payload: dict[str, Any]) -> bool:
+            if str(item_payload.get("type", "")) != target_type:
+                return False
+            if target_type == "stage":
+                return str(item_payload.get("uid", "")) == str(payload.get("uid", ""))
+            if target_type == "material":
+                return str(item_payload.get("id", "")) == str(payload.get("id", ""))
+            if target_type in ("node_set", "edge_set"):
+                return str(item_payload.get("name", "")) == str(payload.get("name", ""))
+            if target_type == "element_set":
+                return (
+                    str(item_payload.get("name", "")) == str(payload.get("name", ""))
+                    and str(item_payload.get("cell_type", "")) == str(payload.get("cell_type", ""))
+                )
+            # For general nodes (model/mesh/sets/etc.), type match is enough.
+            return True
+
+        def walk(item):
+            data = item.data(0, self._Qt.UserRole) or {}
+            if isinstance(data, dict) and matches(data):
+                return item
+            for i in range(item.childCount()):
+                got = walk(item.child(i))
+                if got is not None:
+                    return got
+            return None
+
+        return walk(root)
 
     def _open_out_folder(self) -> None:
         if not self._case_dir:

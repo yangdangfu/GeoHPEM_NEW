@@ -297,7 +297,7 @@ class MainWindow:
         main_tb.setObjectName("toolbar_main")
         main_tb.setMovable(False)
         main_tb.setFloatable(False)
-        main_tb.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        main_tb.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
         self._win.addToolBar(main_tb)
 
         main_tb.addAction(self._action_new)
@@ -1085,13 +1085,63 @@ class MainWindow:
             self._QMessageBox.information(self._win, "Material", "Open a project/case first.")
             return
 
-        from PySide6.QtWidgets import QInputDialog  # type: ignore
+        from PySide6.QtWidgets import (  # type: ignore
+            QCheckBox,
+            QComboBox,
+            QDialog,
+            QDialogButtonBox,
+            QFormLayout,
+            QLineEdit,
+            QVBoxLayout,
+        )
+        from geohpem.domain.material_catalog import behavior_options, model_defaults, models_for_behavior
 
         default_id = preferred_id or self._suggest_material_id()
-        mid, ok = QInputDialog.getText(self._win, "Add Material", "Material ID:", text=str(default_id))
-        if not ok:
+
+        dialog = QDialog(self._win)
+        dialog.setWindowTitle("Add Material")
+        layout = QVBoxLayout(dialog)
+        form = QFormLayout()
+        layout.addLayout(form)
+
+        inp_id = QLineEdit(str(default_id))
+        form.addRow("Material ID", inp_id)
+
+        cbo_behavior = QComboBox()
+        for key, label in behavior_options():
+            cbo_behavior.addItem(label, key)
+        form.addRow("Behavior", cbo_behavior)
+
+        cbo_model = QComboBox()
+        cbo_model.setEditable(True)
+        form.addRow("Model", cbo_model)
+
+        chk_template = QCheckBox("Load template parameters")
+        chk_template.setChecked(True)
+        layout.addWidget(chk_template)
+
+        def refresh_models() -> None:
+            behavior = str(cbo_behavior.currentData() or "").strip()
+            cbo_model.blockSignals(True)
+            cbo_model.clear()
+            for m in models_for_behavior(behavior):
+                cbo_model.addItem(m.label, m.name)
+            if cbo_model.count() > 0:
+                cbo_model.setCurrentIndex(0)
+            cbo_model.blockSignals(False)
+
+        cbo_behavior.currentIndexChanged.connect(lambda *_: refresh_models())
+        refresh_models()
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        layout.addWidget(buttons)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+
+        if dialog.exec() != QDialog.Accepted:
             return
-        mid = str(mid).strip()
+
+        mid = str(inp_id.text()).strip()
         if not mid:
             return
 
@@ -1107,7 +1157,11 @@ class MainWindow:
             if btn != self._QMessageBox.Yes:
                 return
 
-        self.model.set_material(mid, "unnamed material", {})
+        behavior = str(cbo_behavior.currentData() or "").strip() or None
+        model_name = str(cbo_model.currentData() or "").strip() or str(cbo_model.currentText()).strip()
+        defaults = model_defaults(model_name) if chk_template.isChecked() else None
+        params = defaults or {}
+        self.model.set_material(mid, model_name or "custom", params, behavior=behavior)
         self.log_dock.append_info(f"Added material: {mid}")
 
     def _on_delete_material(self, *, material_id: str | None = None) -> None:
@@ -1387,6 +1441,7 @@ class MainWindow:
         request = state.project.request
         if t in ("project", "inputs"):
             fields: list[tuple[str, str]] = []
+            general: list[tuple[str, str]] = []
             cards: list[tuple[str, str]] = []
             project_name = ""
             if state.display_path:
@@ -1404,19 +1459,26 @@ class MainWindow:
             cards.append(("Project", project_name or "(unnamed)"))
             cards.append(("Solver", solver_name))
             cards.append(("Dirty", "yes" if state.dirty else "no"))
-            fields.append(("Dirty", "yes" if state.dirty else "no"))
+            general.append(("Solver", solver_name))
+            general.append(("Dirty", "yes" if state.dirty else "no"))
             self.properties_dock.show_info(
                 "Project",
                 fields,
                 details="Case paths and runtime state.",
                 cards=cards,
+                sections=[
+                    ("General", general),
+                    ("Paths", fields),
+                ],
             )
             return
         if t == "mesh":
             pts = mesh.get("points")
             n_pts = int(getattr(pts, "shape", [0])[0]) if pts is not None else 0
             n_tri = int(getattr(mesh.get("cells_tri3"), "shape", [0])[0]) if mesh.get("cells_tri3") is not None else 0
-            n_quad = int(getattr(mesh.get("cells_quad4"), "shape", [0])[0]) if mesh.get("cells_quad4") is not None else 0
+            n_quad = (
+                int(getattr(mesh.get("cells_quad4"), "shape", [0])[0]) if mesh.get("cells_quad4") is not None else 0
+            )
             cards = [
                 ("Points", str(n_pts)),
                 ("Tri3", str(n_tri)),
@@ -1432,6 +1494,7 @@ class MainWindow:
                 fields,
                 details="Counts reflect the active mesh in Inputs.",
                 cards=cards,
+                sections=[("Counts", fields)],
             )
             return
         if t in ("sets", "node_sets", "edge_sets", "element_sets"):
@@ -1449,6 +1512,7 @@ class MainWindow:
                 fields,
                 details="Logical groups used by BCs, loads, and assignments.",
                 cards=cards,
+                sections=[("Counts", fields)],
             )
             return
         if t == "node_set":
@@ -1461,6 +1525,7 @@ class MainWindow:
                 fields,
                 details="Applies to nodal BCs and point outputs.",
                 cards=[("Count", str(count))],
+                sections=[("General", fields)],
             )
             return
         if t == "edge_set":
@@ -1473,6 +1538,7 @@ class MainWindow:
                 fields,
                 details="Applies to line BCs and loads.",
                 cards=[("Count", str(count))],
+                sections=[("General", fields)],
             )
             return
         if t == "element_set":
@@ -1490,6 +1556,7 @@ class MainWindow:
                 fields,
                 details="Used for material assignments.",
                 cards=[("Count", str(count))],
+                sections=[("General", fields)],
             )
             return
         if t == "materials":
@@ -1500,6 +1567,7 @@ class MainWindow:
                 [("Count", str(count))],
                 details="Define constitutive models for assignments.",
                 cards=[("Count", str(count))],
+                sections=[("Overview", [("Count", str(count))])],
             )
             return
         if t == "stages":
@@ -1510,6 +1578,7 @@ class MainWindow:
                 [("Count", str(count))],
                 details="Each stage defines analysis type and BCs/loads.",
                 cards=[("Count", str(count))],
+                sections=[("Overview", [("Count", str(count))])],
             )
             return
         if t in ("outputs", "out_folder"):
@@ -1522,6 +1591,7 @@ class MainWindow:
                 fields,
                 details=None if fields else "No output folder yet.",
                 cards=[("Folder", str(out_dir.name if out_dir else "-"))],
+                sections=[("General", fields)],
             )
             return
 
@@ -1561,8 +1631,8 @@ class MainWindow:
         self.model.update_stage_by_uid(stage_uid, patch)
         self.log_dock.append_info(f"Updated stage uid={stage_uid}")
 
-    def _apply_material(self, material_id: str, model_name: str, parameters: dict[str, Any]) -> None:
-        self.model.set_material(material_id, model_name, parameters)
+    def _apply_material(self, material_id: str, model_name: str, parameters: dict[str, Any], behavior: str | None) -> None:
+        self.model.set_material(material_id, model_name, parameters, behavior=behavior)
         self.log_dock.append_info(f"Updated material: {material_id}")
 
     def _apply_assignments(self, assignments: list[dict[str, Any]]) -> None:

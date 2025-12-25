@@ -71,7 +71,13 @@ def set_model(request: dict[str, Any], *, mode: str | None = None, gravity: tupl
     return req
 
 
-def upsert_material(request: dict[str, Any], material_id: str, model_name: str, parameters: dict[str, Any]) -> dict[str, Any]:
+def upsert_material(
+    request: dict[str, Any],
+    material_id: str,
+    model_name: str,
+    parameters: dict[str, Any],
+    behavior: str | None = None,
+) -> dict[str, Any]:
     req = copy.deepcopy(request)
     mats = req.setdefault("materials", {})
     if not isinstance(mats, dict):
@@ -82,6 +88,10 @@ def upsert_material(request: dict[str, Any], material_id: str, model_name: str, 
     if isinstance(existing, dict):
         uid = existing.get("uid")
     payload: dict[str, Any] = {"model_name": str(model_name), "parameters": dict(parameters)}
+    if isinstance(behavior, str) and behavior:
+        payload["behavior"] = behavior
+    elif isinstance(existing, dict) and isinstance(existing.get("behavior"), str):
+        payload["behavior"] = existing.get("behavior")
     if uid:
         payload["uid"] = uid
     else:
