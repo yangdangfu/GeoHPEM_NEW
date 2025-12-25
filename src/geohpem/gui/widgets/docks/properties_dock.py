@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from typing import Any, Callable
 
+from PySide6.QtWidgets import QLabel, QWidget
+
 
 class PropertiesDock:
     """
@@ -11,26 +13,24 @@ class PropertiesDock:
 
     def __init__(self) -> None:
         from PySide6.QtCore import Qt  # type: ignore
-        from PySide6.QtWidgets import (
+        from PySide6.QtWidgets import (  # type: ignore
+            QAbstractItemView,
             QComboBox,
             QDockWidget,
             QDoubleSpinBox,
-            QFrame,
             QFormLayout,
             QHBoxLayout,
             QHeaderView,
             QLabel,
             QLineEdit,
-            QAbstractItemView,
-            QPushButton,
             QPlainTextEdit,
+            QPushButton,
             QSpinBox,
             QStackedWidget,
             QTabWidget,
             QTreeWidget,
             QVBoxLayout,
-            QWidget,
-        )  # type: ignore
+        )
 
         self._Qt = Qt
         self._QAbstractItemView = QAbstractItemView
@@ -148,18 +148,25 @@ class PropertiesDock:
         self._stage_out_editor = OutputRequestsEditor(self._page_stage, title="Stage output_requests")
         stage_layout.addWidget(self._stage_out_editor.widget, 1)
 
-        from geohpem.gui.widgets.stage_table_editor import StageItemTableConfig, StageItemTableEditor
+        from geohpem.gui.widgets.stage_table_editor import (
+            StageItemTableConfig,
+            StageItemTableEditor,
+        )
 
         self._available_sets: list[str] = []
         self._bcs_editor = StageItemTableEditor(
             self._page_stage,
-            config=StageItemTableConfig(kind="bc", uid_prefix="bc", title="Stage BCs", default_field="u", default_type="dirichlet"),
+            config=StageItemTableConfig(
+                kind="bc", uid_prefix="bc", title="Stage BCs", default_field="u", default_type="dirichlet"
+            ),
         )
         stage_layout.addWidget(self._bcs_editor.widget, 1)
 
         self._loads_editor = StageItemTableEditor(
             self._page_stage,
-            config=StageItemTableConfig(kind="load", uid_prefix="load", title="Stage Loads", default_field="p", default_type="neumann"),
+            config=StageItemTableConfig(
+                kind="load", uid_prefix="load", title="Stage Loads", default_field="p", default_type="neumann"
+            ),
         )
         stage_layout.addWidget(self._loads_editor.widget, 1)
 
@@ -228,7 +235,10 @@ class PropertiesDock:
         self._stack.addWidget(self._page_material)
 
         # Page: assignments
-        from geohpem.gui.widgets.assignments_editor import AssignmentsEditor, AssignmentOptions
+        from geohpem.gui.widgets.assignments_editor import (
+            AssignmentOptions,
+            AssignmentsEditor,
+        )
 
         self._page_assignments = QWidget()
         asg_layout = QVBoxLayout(self._page_assignments)
@@ -519,9 +529,7 @@ class PropertiesDock:
         from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout  # type: ignore
 
         header = QFrame()
-        header.setStyleSheet(
-            "QFrame { background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 6px; }"
-        )
+        header.setStyleSheet("QFrame { background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 6px; }")
         layout = QVBoxLayout(header)
         layout.setContentsMargins(10, 8, 10, 8)
         title_label = QLabel(title)
@@ -541,12 +549,10 @@ class PropertiesDock:
                 w.setParent(None)
 
     def _make_info_card(self, title: str, value: str) -> QWidget:
-        from PySide6.QtWidgets import QLabel, QFrame, QVBoxLayout  # type: ignore
+        from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout  # type: ignore
 
         card = QFrame()
-        card.setStyleSheet(
-            "QFrame { border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px; }"
-        )
+        card.setStyleSheet("QFrame { border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px; }")
         lay = QVBoxLayout(card)
         lay.setContentsMargins(8, 6, 8, 6)
         lab_title = QLabel(str(title))
@@ -556,7 +562,6 @@ class PropertiesDock:
         lay.addWidget(lab_title)
         lay.addWidget(lab_val)
         return card
-
 
     def show_model(self, request: dict[str, Any]) -> None:
         model = request.get("model", {}) if isinstance(request.get("model"), dict) else {}
@@ -609,7 +614,11 @@ class PropertiesDock:
         self._stack.setCurrentWidget(self._page_stage)
 
     def show_material(self, material_id: str, material: dict[str, Any]) -> None:
-        from geohpem.domain.material_catalog import behavior_for_model, behavior_options, models_for_behavior
+        from geohpem.domain.material_catalog import (
+            behavior_for_model,
+            behavior_options,
+            models_for_behavior,
+        )
 
         self._current_material_id = material_id
         self._mat_id.setText(material_id)
@@ -697,7 +706,10 @@ class PropertiesDock:
     def _assign_options(self):
         from geohpem.gui.widgets.assignments_editor import AssignmentOptions
 
-        return AssignmentOptions(element_sets=getattr(self, "_element_sets", []), materials=sorted(list((getattr(self, "_materials", set()) or set()))))
+        return AssignmentOptions(
+            element_sets=getattr(self, "_element_sets", []),
+            materials=sorted(list((getattr(self, "_materials", set()) or set()))),
+        )
 
     def set_available_element_sets(self, pairs: list[tuple[str, str]]) -> None:
         self._element_sets = list(pairs)
@@ -903,7 +915,7 @@ class PropertiesDock:
                 pass
 
     def _on_material_add_child(self) -> None:
-        from PySide6.QtWidgets import QTreeWidgetItem, QMessageBox  # type: ignore
+        from PySide6.QtWidgets import QMessageBox, QTreeWidgetItem  # type: ignore
 
         item = self._mat_tree.currentItem()
         if item is None:
