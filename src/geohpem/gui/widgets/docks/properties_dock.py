@@ -10,6 +10,7 @@ class PropertiesDock:
     """
 
     def __init__(self) -> None:
+        from PySide6.QtCore import Qt  # type: ignore
         from PySide6.QtWidgets import (
             QComboBox,
             QDockWidget,
@@ -18,6 +19,7 @@ class PropertiesDock:
             QHBoxLayout,
             QLabel,
             QLineEdit,
+            QScrollArea,
             QPushButton,
             QPlainTextEdit,
             QSpinBox,
@@ -26,6 +28,7 @@ class PropertiesDock:
             QWidget,
         )  # type: ignore
 
+        self._Qt = Qt
         self.dock = QDockWidget("Properties")
         self.dock.setObjectName("dock_properties")
 
@@ -45,9 +48,25 @@ class PropertiesDock:
         self._info_title = QLabel("Info")
         self._info_title.setStyleSheet("font-weight: 600;")
         info_layout.addWidget(self._info_title)
-        self._info_text = QPlainTextEdit()
-        self._info_text.setReadOnly(True)
-        info_layout.addWidget(self._info_text, 1)
+        self._info_details = QLabel("")
+        self._info_details.setWordWrap(True)
+        self._info_details.setStyleSheet("color: #4b5563;")
+        info_layout.addWidget(self._info_details)
+        self._info_cards = QWidget()
+        self._info_cards_layout = QHBoxLayout(self._info_cards)
+        self._info_cards_layout.setContentsMargins(0, 0, 0, 0)
+        self._info_cards_layout.setSpacing(8)
+        info_layout.addWidget(self._info_cards)
+        self._info_section = QLabel("Details")
+        self._info_section.setStyleSheet("color: #6b7280; font-size: 11px; font-weight: 600;")
+        info_layout.addWidget(self._info_section)
+        info_scroll = QScrollArea()
+        info_scroll.setWidgetResizable(True)
+        info_container = QWidget()
+        self._info_form = QFormLayout(info_container)
+        self._info_form.setContentsMargins(6, 6, 6, 6)
+        info_scroll.setWidget(info_container)
+        info_layout.addWidget(info_scroll, 1)
         self._stack.addWidget(self._page_info)
 
         # Page: model
@@ -371,10 +390,66 @@ class PropertiesDock:
     def show_empty(self) -> None:
         self._stack.setCurrentWidget(self._page_empty)
 
-    def show_info(self, title: str, lines: list[str]) -> None:
+    def show_info(
+        self,
+        title: str,
+        fields: list[tuple[str, str]],
+        details: str | None = None,
+        cards: list[tuple[str, str]] | None = None,
+    ) -> None:
         self._info_title.setText(title or "Info")
-        self._info_text.setPlainText("\n".join(lines))
+        self._info_details.setText(details or "")
+        self._clear_form(self._info_form)
+        self._clear_layout(self._info_cards_layout)
+        if cards:
+            for key, value in cards:
+                self._info_cards_layout.addWidget(self._make_info_card(key, value))
+            self._info_cards_layout.addStretch(1)
+        self._info_cards.setVisible(bool(cards))
+        if not fields:
+            self._add_form_row(self._info_form, "Info", "(no details)")
+        else:
+            for key, value in fields:
+                self._add_form_row(self._info_form, key, value)
         self._stack.setCurrentWidget(self._page_info)
+
+    def _clear_layout(self, layout) -> None:  # noqa: ANN001
+        while layout.count():
+            item = layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.setParent(None)
+
+    def _clear_form(self, form: QFormLayout) -> None:
+        while form.rowCount():
+            form.removeRow(0)
+
+    def _make_info_card(self, title: str, value: str) -> QWidget:
+        from PySide6.QtWidgets import QLabel, QFrame, QVBoxLayout  # type: ignore
+
+        card = QFrame()
+        card.setStyleSheet(
+            "QFrame { border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px; }"
+        )
+        lay = QVBoxLayout(card)
+        lay.setContentsMargins(8, 6, 8, 6)
+        lab_title = QLabel(str(title))
+        lab_title.setStyleSheet("color: #6b7280; font-size: 11px;")
+        lab_val = QLabel(str(value))
+        lab_val.setStyleSheet("font-weight: 600; font-size: 12px;")
+        lay.addWidget(lab_title)
+        lay.addWidget(lab_val)
+        return card
+
+    def _add_form_row(self, form: QFormLayout, key: str, value: str) -> None:
+        from PySide6.QtWidgets import QLabel  # type: ignore
+
+        key_label = QLabel(str(key))
+        key_label.setStyleSheet("color: #374151; font-weight: 600;")
+        val_label = QLabel(str(value))
+        val_label.setTextInteractionFlags(self._Qt.TextSelectableByMouse)
+        val_label.setWordWrap(True)
+        form.addRow(key_label, val_label)
 
     def show_model(self, request: dict[str, Any]) -> None:
         model = request.get("model", {}) if isinstance(request.get("model"), dict) else {}

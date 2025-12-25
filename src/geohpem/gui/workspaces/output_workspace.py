@@ -72,6 +72,7 @@ class OutputWorkspace:
         left = QWidget()
         left_layout = QVBoxLayout(left)
         left_layout.setContentsMargins(6, 6, 6, 6)
+        left.setMinimumWidth(320)
 
         # --- Field panel (always visible) ---
         gb_field = QGroupBox("Field")
@@ -170,6 +171,16 @@ class OutputWorkspace:
 
         left_layout.addWidget(gb_field, 3)
 
+        gb_probe = QGroupBox("Probe")
+        probe_layout = QVBoxLayout(gb_probe)
+        probe_layout.setContentsMargins(6, 6, 6, 6)
+        self.probe = QPlainTextEdit()
+        self.probe.setReadOnly(True)
+        self.probe.setMinimumHeight(90)
+        self.probe.setPlainText("Probe: left-click in the viewport to read value.")
+        probe_layout.addWidget(self.probe, 1)
+        left_layout.addWidget(gb_probe, 1)
+
         # --- Tools panel (profiles/pins) ---
         tabs = QTabWidget()
         self._tabs = tabs
@@ -254,35 +265,17 @@ class OutputWorkspace:
 
         splitter.addWidget(left)
 
-        # Right panel: viewer + probe readout (resizable)
+        # Right panel: viewer
         right = QWidget()
         right_layout = QVBoxLayout(right)
-        self._right_layout = right_layout
-
-        v_split = QSplitter(self._Qt.Vertical)
-        right_layout.addWidget(v_split, 1)
-
-        probe_host = QWidget()
-        probe_layout = QVBoxLayout(probe_host)
-        probe_layout.setContentsMargins(0, 0, 0, 0)
-        self.probe = QPlainTextEdit()
-        self.probe.setReadOnly(True)
-        self.probe.setMinimumHeight(70)
-        self.probe.setPlainText("Probe: left-click in the viewport to read value.")
-        probe_layout.addWidget(self.probe)
-        v_split.addWidget(probe_host)
+        right_layout.setContentsMargins(0, 0, 0, 0)
 
         self._viewer = None  # QtInteractor
         self._viewer_host = QWidget()
         self._viewer_host_layout = QVBoxLayout(self._viewer_host)
         self._viewer_host_layout.setContentsMargins(0, 0, 0, 0)
-        v_split.addWidget(self._viewer_host)
-        try:
-            v_split.setStretchFactor(0, 0)
-            v_split.setStretchFactor(1, 1)
-            v_split.setSizes([90, 1000])
-        except Exception:
-            pass
+        right_layout.addWidget(self._viewer_host, 1)
+
         splitter.addWidget(right)
         splitter.setStretchFactor(1, 1)
 

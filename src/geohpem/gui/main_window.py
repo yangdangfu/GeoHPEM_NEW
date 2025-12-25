@@ -40,6 +40,8 @@ class MainWindow:
             QMainWindow,
             QMenu,
             QMessageBox,
+            QStyle,
+            QToolBar,
         )
 
         from geohpem.gui.settings import SettingsStore
@@ -92,21 +94,26 @@ class MainWindow:
         self.tasks_dock = TasksDock()
 
         self._win.addDockWidget(Qt.LeftDockWidgetArea, self.project_dock.dock)
+        self._win.addDockWidget(Qt.LeftDockWidgetArea, self.stage_dock.dock)
         self._win.addDockWidget(Qt.RightDockWidgetArea, self.properties_dock.dock)
-        self._win.addDockWidget(Qt.RightDockWidgetArea, self.stage_dock.dock)
         self._win.addDockWidget(Qt.BottomDockWidgetArea, self.log_dock.dock)
         self._win.addDockWidget(Qt.BottomDockWidgetArea, self.tasks_dock.dock)
 
-        # Keep Properties and Stages visible simultaneously: Properties on top, Stages below.
+        # Keep Project and Stages visible simultaneously: Project on top, Stages below.
         try:
-            self._win.splitDockWidget(self.properties_dock.dock, self.stage_dock.dock, Qt.Vertical)
+            self._win.splitDockWidget(self.project_dock.dock, self.stage_dock.dock, Qt.Vertical)
         except Exception:
-            # Fallback to tabbing if splitting isn't available (should be rare).
-            self._win.tabifyDockWidget(self.properties_dock.dock, self.stage_dock.dock)
+            self._win.tabifyDockWidget(self.project_dock.dock, self.stage_dock.dock)
         try:
             self._win.splitDockWidget(self.log_dock.dock, self.tasks_dock.dock, Qt.Horizontal)
         except Exception:
             self._win.tabifyDockWidget(self.log_dock.dock, self.tasks_dock.dock)
+        try:
+            self._win.resizeDocks([self.project_dock.dock, self.stage_dock.dock], [260, 200], Qt.Vertical)
+            self._win.resizeDocks([self.project_dock.dock, self.properties_dock.dock], [300, 420], Qt.Horizontal)
+            self._win.resizeDocks([self.log_dock.dock, self.tasks_dock.dock], [700, 260], Qt.Horizontal)
+        except Exception:
+            pass
         self.log_dock.dock.raise_()
         self.properties_dock.dock.raise_()
 
@@ -212,6 +219,21 @@ class MainWindow:
         self._action_input_guide = QAction("Input Workspace Guide", self._win)
         self._action_input_guide.triggered.connect(self._on_input_workspace_guide)
 
+        style = self._win.style()
+        try:
+            self._action_new.setIcon(style.standardIcon(QStyle.SP_FileIcon))
+            self._action_open.setIcon(style.standardIcon(QStyle.SP_DialogOpenButton))
+            self._action_save.setIcon(style.standardIcon(QStyle.SP_DialogSaveButton))
+            self._action_import_mesh.setIcon(style.standardIcon(QStyle.SP_DialogOpenButton))
+            self._action_open_results.setIcon(style.standardIcon(QStyle.SP_DirOpenIcon))
+            self._action_validate_inputs.setIcon(style.standardIcon(QStyle.SP_MessageBoxInformation))
+            self._action_select_solver.setIcon(style.standardIcon(QStyle.SP_ComputerIcon))
+            self._action_run.setIcon(style.standardIcon(QStyle.SP_MediaPlay))
+            self._action_ws_input.setIcon(style.standardIcon(QStyle.SP_DirHomeIcon))
+            self._action_ws_output.setIcon(style.standardIcon(QStyle.SP_DirOpenIcon))
+        except Exception:
+            pass
+
         menu_file = self._win.menuBar().addMenu("File")
         menu_file.addAction(self._action_new)
         menu_file.addAction(self._action_open)
@@ -270,6 +292,27 @@ class MainWindow:
         menu_help = self._win.menuBar().addMenu("Help")
         menu_help.addAction(self._action_input_guide)
         menu_help.addAction(self._action_about)
+
+        main_tb = QToolBar("Main")
+        main_tb.setObjectName("toolbar_main")
+        main_tb.setMovable(False)
+        main_tb.setFloatable(False)
+        main_tb.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self._win.addToolBar(main_tb)
+
+        main_tb.addAction(self._action_new)
+        main_tb.addAction(self._action_open)
+        main_tb.addAction(self._action_save)
+        main_tb.addSeparator()
+        main_tb.addAction(self._action_import_mesh)
+        main_tb.addAction(self._action_open_results)
+        main_tb.addSeparator()
+        main_tb.addAction(self._action_validate_inputs)
+        main_tb.addAction(self._action_select_solver)
+        main_tb.addAction(self._action_run)
+        main_tb.addSeparator()
+        main_tb.addAction(self._action_ws_input)
+        main_tb.addAction(self._action_ws_output)
 
         self.project_dock.case_open_requested.connect(self.open_case_folder)
         self.project_dock.output_open_requested.connect(self.open_output_folder)
@@ -1338,6 +1381,148 @@ class MainWindow:
             return
         if t == "global_output_requests":
             self.properties_dock.show_global_output_requests(state.project.request)
+            return
+
+        mesh = state.project.mesh
+        request = state.project.request
+        if t in ("project", "inputs"):
+            fields: list[tuple[str, str]] = []
+            cards: list[tuple[str, str]] = []
+            project_name = ""
+            if state.display_path:
+                fields.append(("Path", str(state.display_path)))
+                project_name = Path(state.display_path).name
+            if state.project_file:
+                fields.append(("Project file", str(state.project_file)))
+                if not project_name:
+                    project_name = Path(state.project_file).name
+            if state.work_case_dir:
+                fields.append(("Case folder", str(state.work_case_dir)))
+                if not project_name:
+                    project_name = Path(state.work_case_dir).name
+            solver_name = str(request.get("solver", "reference"))
+            cards.append(("Project", project_name or "(unnamed)"))
+            cards.append(("Solver", solver_name))
+            cards.append(("Dirty", "yes" if state.dirty else "no"))
+            fields.append(("Dirty", "yes" if state.dirty else "no"))
+            self.properties_dock.show_info(
+                "Project",
+                fields,
+                details="Case paths and runtime state.",
+                cards=cards,
+            )
+            return
+        if t == "mesh":
+            pts = mesh.get("points")
+            n_pts = int(getattr(pts, "shape", [0])[0]) if pts is not None else 0
+            n_tri = int(getattr(mesh.get("cells_tri3"), "shape", [0])[0]) if mesh.get("cells_tri3") is not None else 0
+            n_quad = int(getattr(mesh.get("cells_quad4"), "shape", [0])[0]) if mesh.get("cells_quad4") is not None else 0
+            cards = [
+                ("Points", str(n_pts)),
+                ("Tri3", str(n_tri)),
+                ("Quad4", str(n_quad)),
+            ]
+            fields = [
+                ("Points", str(n_pts)),
+                ("Cells tri3", str(n_tri)),
+                ("Cells quad4", str(n_quad)),
+            ]
+            self.properties_dock.show_info(
+                "Mesh",
+                fields,
+                details="Counts reflect the active mesh in Inputs.",
+                cards=cards,
+            )
+            return
+        if t in ("sets", "node_sets", "edge_sets", "element_sets"):
+            n_node = len([k for k in mesh.keys() if k.startswith("node_set__")])
+            n_edge = len([k for k in mesh.keys() if k.startswith("edge_set__")])
+            n_elem = len([k for k in mesh.keys() if k.startswith("elem_set__")])
+            cards = [
+                ("Node", str(n_node)),
+                ("Edge", str(n_edge)),
+                ("Element", str(n_elem)),
+            ]
+            fields = [("Node sets", str(n_node)), ("Edge sets", str(n_edge)), ("Element sets", str(n_elem))]
+            self.properties_dock.show_info(
+                "Sets",
+                fields,
+                details="Logical groups used by BCs, loads, and assignments.",
+                cards=cards,
+            )
+            return
+        if t == "node_set":
+            name = str(ref.get("name", ""))
+            arr = mesh.get(f"node_set__{name}")
+            count = int(getattr(arr, "size", 0))
+            fields = [("Name", name), ("Count", str(count))]
+            self.properties_dock.show_info(
+                "Node set",
+                fields,
+                details="Applies to nodal BCs and point outputs.",
+                cards=[("Count", str(count))],
+            )
+            return
+        if t == "edge_set":
+            name = str(ref.get("name", ""))
+            arr = mesh.get(f"edge_set__{name}")
+            count = int(getattr(arr, "shape", [0])[0]) if arr is not None else 0
+            fields = [("Name", name), ("Count", str(count))]
+            self.properties_dock.show_info(
+                "Edge set",
+                fields,
+                details="Applies to line BCs and loads.",
+                cards=[("Count", str(count))],
+            )
+            return
+        if t == "element_set":
+            name = str(ref.get("name", ""))
+            cell_type = str(ref.get("cell_type", ""))
+            key = f"elem_set__{name}__{cell_type}" if cell_type else f"elem_set__{name}"
+            arr = mesh.get(key)
+            count = int(getattr(arr, "size", 0))
+            fields = [("Name", name)]
+            if cell_type:
+                fields.append(("Cell type", cell_type))
+            fields.append(("Count", str(count)))
+            self.properties_dock.show_info(
+                "Element set",
+                fields,
+                details="Used for material assignments.",
+                cards=[("Count", str(count))],
+            )
+            return
+        if t == "materials":
+            mats = request.get("materials", {})
+            count = len(mats) if isinstance(mats, dict) else 0
+            self.properties_dock.show_info(
+                "Materials",
+                [("Count", str(count))],
+                details="Define constitutive models for assignments.",
+                cards=[("Count", str(count))],
+            )
+            return
+        if t == "stages":
+            stages = request.get("stages", [])
+            count = len(stages) if isinstance(stages, list) else 0
+            self.properties_dock.show_info(
+                "Stages",
+                [("Count", str(count))],
+                details="Each stage defines analysis type and BCs/loads.",
+                cards=[("Count", str(count))],
+            )
+            return
+        if t in ("outputs", "out_folder"):
+            out_dir = (state.work_case_dir / "out") if state.work_case_dir else None
+            fields: list[tuple[str, str]] = []
+            if out_dir:
+                fields.append(("Folder", str(out_dir)))
+            self.properties_dock.show_info(
+                "Outputs",
+                fields,
+                details=None if fields else "No output folder yet.",
+                cards=[("Folder", str(out_dir.name if out_dir else "-"))],
+            )
             return
 
         self.properties_dock.show_empty()

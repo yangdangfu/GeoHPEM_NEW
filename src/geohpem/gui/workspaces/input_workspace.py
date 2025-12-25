@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (  # type: ignore
     QCheckBox,
     QComboBox,
     QGroupBox,
+    QGridLayout,
     QHBoxLayout,
     QInputDialog,
     QLabel,
@@ -17,6 +18,7 @@ from PySide6.QtWidgets import (  # type: ignore
     QToolBar,
     QVBoxLayout,
     QWidget,
+    QSplitter,
 )
 
 
@@ -62,6 +64,8 @@ class InputWorkspace:
         self._lbl_project = QLabel("Project: (none)")
         self._lbl_solver = QLabel("Solver: fake")
         self._lbl_dirty = QLabel("State: clean")
+        self._lbl_project.setStyleSheet("font-weight: 600;")
+        self._lbl_solver.setStyleSheet("color: #4b5563;")
         sl.addWidget(self._lbl_project)
         sl.addWidget(self._lbl_solver)
         sl.addWidget(self._lbl_dirty)
@@ -78,10 +82,10 @@ class InputWorkspace:
         self._btn_validate = QPushButton("Validate")
         self._btn_run = QPushButton("Run")
         self._btn_output = QPushButton("Output")
-        quick.addWidget(self._btn_new)
-        quick.addWidget(self._btn_open_proj)
-        quick.addWidget(self._btn_open_case)
-        quick.addSeparator()
+        self._btn_import.setToolTip("Import a mesh file into the current project.")
+        self._btn_validate.setToolTip("Validate inputs for the current project.")
+        self._btn_run.setToolTip("Run solver with current inputs.")
+        self._btn_output.setToolTip("Switch to Output workspace.")
         quick.addWidget(self._btn_import)
         quick.addWidget(self._btn_validate)
         quick.addWidget(self._btn_run)
@@ -103,11 +107,18 @@ class InputWorkspace:
 
         preview = QWidget()
         pv = QVBoxLayout(preview)
-        pv.setContentsMargins(10, 10, 10, 10)
-        toolbar = QToolBar()
-        toolbar.setMovable(False)
-        toolbar.setFloatable(False)
+        pv.setContentsMargins(0, 0, 0, 0)
 
+        preview_split = QSplitter(Qt.Horizontal)
+        pv.addWidget(preview_split, 1)
+
+        controls = QWidget()
+        cl = QVBoxLayout(controls)
+        cl.setContentsMargins(10, 10, 10, 10)
+        controls.setMinimumWidth(320)
+
+        gb_highlight = QGroupBox("Highlight / View")
+        hl = QVBoxLayout(gb_highlight)
         row = QWidget()
         rl = QHBoxLayout(row)
         rl.setContentsMargins(0, 0, 0, 0)
@@ -117,41 +128,47 @@ class InputWorkspace:
         rl.addWidget(self._combo_set, 1)
         self._btn_fit = QPushButton("Fit")
         rl.addWidget(self._btn_fit)
-        pv.addWidget(row)
+        hl.addWidget(row)
+        cl.addWidget(gb_highlight)
 
+        gb_select = QGroupBox("Selection")
+        sl = QVBoxLayout(gb_select)
+        mode_row = QWidget()
+        ml = QHBoxLayout(mode_row)
+        ml.setContentsMargins(0, 0, 0, 0)
         self._chk_box_replace = QCheckBox("Replace")
         self._chk_box_subtract = QCheckBox("Subtract")
         self._chk_box_brush = QCheckBox("Brush")
         self._chk_box_brush.setToolTip("Keep box selection active for repeated drags.")
-        toolbar.addWidget(self._chk_box_replace)
-        toolbar.addWidget(self._chk_box_subtract)
-        toolbar.addWidget(self._chk_box_brush)
-        toolbar.addSeparator()
+        ml.addWidget(self._chk_box_replace)
+        ml.addWidget(self._chk_box_subtract)
+        ml.addWidget(self._chk_box_brush)
+        ml.addStretch(1)
+        sl.addWidget(mode_row)
+
+        grid = QGridLayout()
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setHorizontalSpacing(6)
+        grid.setVerticalSpacing(6)
         self._btn_box_nodes = QPushButton("Box nodes")
         self._btn_box_cells = QPushButton("Box elems")
-        toolbar.addWidget(self._btn_box_nodes)
-        toolbar.addWidget(self._btn_box_cells)
-        toolbar.addSeparator()
         self._btn_add_node = QPushButton("Add node")
         self._btn_add_edge = QPushButton("Add edge")
         self._btn_add_cell = QPushButton("Add cell")
         self._btn_clear_sel = QPushButton("Clear")
-        toolbar.addWidget(self._btn_add_node)
-        toolbar.addWidget(self._btn_add_edge)
-        toolbar.addWidget(self._btn_add_cell)
-        toolbar.addWidget(self._btn_clear_sel)
-        toolbar.addSeparator()
-        self._btn_create_node_set = QPushButton("Create node set")
-        self._btn_create_edge_set = QPushButton("Create edge set")
-        self._btn_create_elem_set = QPushButton("Create elem set")
-        toolbar.addWidget(self._btn_create_node_set)
-        toolbar.addWidget(self._btn_create_edge_set)
-        toolbar.addWidget(self._btn_create_elem_set)
-        pv.addWidget(toolbar)
+        self._btn_box_nodes.setToolTip("Box select nodes (B).")
+        self._btn_box_cells.setToolTip("Box select elements (Shift+B).")
+        grid.addWidget(self._btn_box_nodes, 0, 0)
+        grid.addWidget(self._btn_box_cells, 0, 1)
+        grid.addWidget(self._btn_add_node, 0, 2)
+        grid.addWidget(self._btn_add_edge, 1, 0)
+        grid.addWidget(self._btn_add_cell, 1, 1)
+        grid.addWidget(self._btn_clear_sel, 1, 2)
+        sl.addLayout(grid)
 
         self._sel_info = QLabel("Pick: (none)")
         self._sel_info.setWordWrap(True)
-        pv.addWidget(self._sel_info)
+        sl.addWidget(self._sel_info)
 
         sel_counts = QWidget()
         scl = QHBoxLayout(sel_counts)
@@ -163,7 +180,19 @@ class InputWorkspace:
         scl.addWidget(self._lbl_sel_edges)
         scl.addWidget(self._lbl_sel_elems)
         scl.addStretch(1)
-        pv.addWidget(sel_counts)
+        sl.addWidget(sel_counts)
+        cl.addWidget(gb_select)
+
+        gb_sets = QGroupBox("Create Sets")
+        gsl = QHBoxLayout(gb_sets)
+        gsl.setContentsMargins(6, 6, 6, 6)
+        self._btn_create_node_set = QPushButton("Node set")
+        self._btn_create_edge_set = QPushButton("Edge set")
+        self._btn_create_elem_set = QPushButton("Elem set")
+        gsl.addWidget(self._btn_create_node_set)
+        gsl.addWidget(self._btn_create_edge_set)
+        gsl.addWidget(self._btn_create_elem_set)
+        cl.addWidget(gb_sets)
 
         gb_boundary = QGroupBox("Boundary helpers (auto)")
         bdl_outer = QVBoxLayout(gb_boundary)
@@ -214,13 +243,25 @@ class InputWorkspace:
         pdl.addWidget(self._btn_boundary_component)
         pdl.addStretch(1)
         bdl_outer.addWidget(row_poly)
-        pv.addWidget(gb_boundary)
+        cl.addWidget(gb_boundary)
+        cl.addStretch(1)
 
         self._viewer = None
         self._viewer_host = QWidget()
         self._viewer_host_layout = QVBoxLayout(self._viewer_host)
         self._viewer_host_layout.setContentsMargins(0, 0, 0, 0)
-        pv.addWidget(self._viewer_host, 1)
+        viewer_wrap = QWidget()
+        vw = QVBoxLayout(viewer_wrap)
+        vw.setContentsMargins(0, 0, 0, 0)
+        vw.addWidget(self._viewer_host, 1)
+
+        preview_split.addWidget(controls)
+        preview_split.addWidget(viewer_wrap)
+        preview_split.setStretchFactor(1, 1)
+        try:
+            preview_split.setSizes([340, 1000])
+        except Exception:
+            pass
         self._tabs.addTab(preview, "Mesh Preview")
         self._mesh_tab_index = self._tabs.indexOf(preview)
 
@@ -356,9 +397,18 @@ class InputWorkspace:
         """
         Update dashboard status labels and button enablement (best-effort).
         """
-        self._lbl_project.setText(f"Project: {project or '(none)'}")
+        label = project or "(none)"
+        if isinstance(project, str) and project:
+            if len(project) > 48:
+                label = f"{project[:20]}…{project[-20:]}"
+            self._lbl_project.setToolTip(project)
+        self._lbl_project.setText(f"Project: {label}")
         self._lbl_solver.setText(f"Solver: {solver or 'fake'}")
         self._lbl_dirty.setText("State: dirty" if dirty else "State: clean")
+        if dirty:
+            self._lbl_dirty.setStyleSheet("color: #b91c1c; font-weight: 600;")
+        else:
+            self._lbl_dirty.setStyleSheet("color: #065f46; font-weight: 600;")
 
         has_project = bool(project)
         self._btn_import.setEnabled(has_project)
