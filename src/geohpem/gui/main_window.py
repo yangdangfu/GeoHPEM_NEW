@@ -33,7 +33,7 @@ from geohpem.project.workdir import materialize_to_workdir, update_project_from_
 
 class MainWindow:
     def __init__(self) -> None:
-        from PySide6.QtCore import QObject, Qt, Slot  # type: ignore
+        from PySide6.QtCore import QObject, Qt, Slot, QSize  # type: ignore
         from PySide6.QtGui import QAction  # type: ignore
         from PySide6.QtWidgets import (  # type: ignore
             QFileDialog,
@@ -64,6 +64,14 @@ class MainWindow:
 
         self._win = _GeoMainWindow()
         self._win.setWindowTitle("GeoHPEM")
+        try:
+            from PySide6.QtGui import QIcon  # type: ignore
+
+            icon_path = Path(__file__).resolve().parents[2] / "assets" / "branding" / "geohpem.xpm"
+            if icon_path.exists():
+                self._win.setWindowIcon(QIcon(str(icon_path)))
+        except Exception:
+            pass
         self._win.resize(1400, 900)
 
         outer = self
@@ -234,6 +242,13 @@ class MainWindow:
             self._action_run.setIcon(style.standardIcon(QStyle.SP_MediaPlay))
             self._action_ws_input.setIcon(style.standardIcon(QStyle.SP_DirHomeIcon))
             self._action_ws_output.setIcon(style.standardIcon(QStyle.SP_DirOpenIcon))
+            self._action_sets.setIcon(style.standardIcon(QStyle.SP_DirIcon))
+            self._action_mesh_quality.setIcon(style.standardIcon(QStyle.SP_MessageBoxWarning))
+            self._action_units.setIcon(style.standardIcon(QStyle.SP_FileDialogDetailedView))
+            self._action_material_catalog.setIcon(style.standardIcon(QStyle.SP_FileDialogListView))
+            self._action_batch_run.setIcon(style.standardIcon(QStyle.SP_MediaPlay))
+            self._action_batch_report.setIcon(style.standardIcon(QStyle.SP_FileDialogContentsView))
+            self._action_compare_outputs.setIcon(style.standardIcon(QStyle.SP_BrowserReload))
         except Exception:
             pass
 
@@ -303,6 +318,10 @@ class MainWindow:
         main_tb.setMovable(False)
         main_tb.setFloatable(False)
         main_tb.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+        try:
+            main_tb.setIconSize(QSize(18, 18))
+        except Exception:
+            pass
         self._win.addToolBar(main_tb)
 
         main_tb.addAction(self._action_new)
@@ -316,8 +335,19 @@ class MainWindow:
         main_tb.addAction(self._action_select_solver)
         main_tb.addAction(self._action_run)
         main_tb.addSeparator()
-        main_tb.addAction(self._action_ws_input)
-        main_tb.addAction(self._action_ws_output)
+
+        ws_tb = QToolBar("Workspace")
+        ws_tb.setObjectName("toolbar_workspace")
+        ws_tb.setMovable(False)
+        ws_tb.setFloatable(False)
+        ws_tb.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+        try:
+            ws_tb.setIconSize(QSize(18, 18))
+        except Exception:
+            pass
+        ws_tb.addAction(self._action_ws_input)
+        ws_tb.addAction(self._action_ws_output)
+        self._win.addToolBar(ws_tb)
 
         self.project_dock.case_open_requested.connect(self.open_case_folder)
         self.project_dock.output_open_requested.connect(self.open_output_folder)
@@ -683,6 +713,7 @@ class MainWindow:
                     mesh = m
                 except Exception:
                     mesh = None
+            output_ws.set_source_path(out_dir)
             output_ws.set_result(meta, arrays, mesh=mesh)
             if req is not None:
                 self._apply_unit_context_from_request(req)
@@ -984,6 +1015,46 @@ class MainWindow:
         dlg = IssuesDialog(self._win, title="Validate Inputs", issues=issues, ok_text="Close")
         dlg.exec()
 
+    def _on_precheck_jump(self, issue) -> None:  # noqa: ANN001
+        jump = getattr(issue, "jump", None)
+        if not isinstance(jump, dict):
+            return
+        t = str(jump.get("type", "")).strip()
+        if not t:
+            return
+        if t in (
+            "project",
+            "inputs",
+            "mesh",
+            "sets",
+            "assignments",
+            "materials",
+            "global_output_requests",
+            "stages",
+            "stage",
+            "model",
+        ):
+            self._set_workspace("input")
+        payload = {"type": t}
+        if t == "stage":
+            uid = str(jump.get("uid", "")).strip()
+            if uid:
+                payload["uid"] = uid
+            else:
+                try:
+                    payload["index"] = int(jump.get("index"))
+                except Exception:
+                    payload = {"type": "stages"}
+            try:
+                if "index" in payload and isinstance(payload["index"], int):
+                    self.stage_dock.select_stage(payload["index"])
+            except Exception:
+                pass
+        try:
+            self.project_dock.select_payload(payload)
+        except Exception:
+            pass
+
     def _on_open_output_dialog(self) -> None:
         folder = self._QFileDialog.getExistingDirectory(self._win, "Open Output Folder")
         if not folder:
@@ -1028,7 +1099,7 @@ class MainWindow:
             from geohpem.app.validate_inputs import validate_inputs
 
             issues = validate_inputs(state.project.request, state.project.mesh, capabilities=caps)
-            dlg = PrecheckDialog(self._win, issues)
+            dlg = PrecheckDialog(self._win, issues, on_jump=self._on_precheck_jump)
             if not dlg.exec():
                 return
             # Ensure work dir reflects latest in-memory inputs.
@@ -1421,6 +1492,10 @@ class MainWindow:
 
     def _on_stage_selected(self, uid: str) -> None:
         self.selection.set(Selection(kind="stage", ref={"type": "stage", "uid": uid}))
+        try:
+            self.project_dock.select_payload({"type": "stage", "uid": uid})
+        except Exception:
+            pass
         # Improve discoverability: bring Properties to front if it was hidden behind tabs/other docks.
         try:
             self.properties_dock.dock.show()
@@ -1441,7 +1516,12 @@ class MainWindow:
             return
         if t == "stage":
             uid = str(ref.get("uid", ""))
-            idx = find_stage_index_by_uid(state.project.request, uid)
+            idx = find_stage_index_by_uid(state.project.request, uid) if uid else None
+            if idx is None:
+                try:
+                    idx = int(ref.get("index"))
+                except Exception:
+                    idx = None
             if idx is None:
                 self.properties_dock.show_empty()
                 return

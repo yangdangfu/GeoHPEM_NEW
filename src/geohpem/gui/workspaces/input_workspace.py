@@ -396,10 +396,14 @@ class InputWorkspace:
         """
         Update dashboard status labels and button enablement (best-effort).
         """
-        label = project or "(none)"
+        label = "(none)"
         if isinstance(project, str) and project:
-            if len(project) > 48:
-                label = f"{project[:20]}…{project[-20:]}"
+            try:
+                from pathlib import Path
+
+                label = Path(project).name or project
+            except Exception:
+                label = project
             self._lbl_project.setToolTip(project)
         self._lbl_project.setText(f"Project: {label}")
         self._lbl_solver.setText(f"Solver: {solver or 'fake'}")

@@ -14,6 +14,20 @@ def run_gui(open_case_dir: str | None = None) -> int:
     from geohpem.gui.settings import SettingsStore
 
     app = QApplication(sys.argv)
+    try:
+        from PySide6.QtGui import QIcon  # type: ignore
+
+        icon_path = Path(__file__).resolve().parents[2] / "assets" / "branding" / "geohpem.xpm"
+        if icon_path.exists():
+            app.setWindowIcon(QIcon(str(icon_path)))
+    except Exception:
+        pass
+    try:
+        from geohpem.gui.theme import apply_theme
+
+        apply_theme(app)
+    except Exception:
+        pass
     _install_excepthook(app)
     window = MainWindow()
     window.show()

@@ -54,6 +54,7 @@ class PropertiesDock:
         # Page: info
         self._page_info = QWidget()
         info_layout = QVBoxLayout(self._page_info)
+        self._apply_page_layout(info_layout)
         info_header, self._info_header_title, self._info_header_subtitle = self._build_header("Info", "")
         info_layout.addWidget(info_header)
         self._info_cards = QWidget()
@@ -66,7 +67,7 @@ class PropertiesDock:
         self._info_tree.setHeaderLabels(["Property", "Value"])
         self._info_tree.setAlternatingRowColors(True)
         self._info_tree.setRootIsDecorated(True)
-        self._info_tree.setStyleSheet("QTreeWidget::item { padding: 2px 4px; }")
+        self._info_tree.setUniformRowHeights(True)
         header = self._info_tree.header()
         header.setStretchLastSection(True)
         try:
@@ -80,6 +81,7 @@ class PropertiesDock:
         # Page: model
         self._page_model = QWidget()
         model_layout = QVBoxLayout(self._page_model)
+        self._apply_page_layout(model_layout)
         model_header, self._model_header_title, self._model_header_subtitle = self._build_header(
             "Model",
             "Global analysis settings for the project.",
@@ -89,6 +91,7 @@ class PropertiesDock:
         self._cap_hint_model.setStyleSheet("color: #b45309;")  # amber-ish
         model_layout.addWidget(self._cap_hint_model)
         model_form = QFormLayout()
+        self._configure_form_layout(model_form)
         model_layout.addLayout(model_form)
 
         self._mode = QComboBox()
@@ -107,13 +110,14 @@ class PropertiesDock:
         model_form.addRow("Gravity Y", self._gy)
 
         self._btn_apply_model = QPushButton("Apply")
-        model_layout.addWidget(self._btn_apply_model)
+        self._add_footer_button(model_layout, self._btn_apply_model)
         model_layout.addStretch(1)
         self._stack.addWidget(self._page_model)
 
         # Page: stage
         self._page_stage = QWidget()
         stage_layout = QVBoxLayout(self._page_stage)
+        self._apply_page_layout(stage_layout)
         stage_header, self._stage_header_title, self._stage_header_subtitle = self._build_header(
             "Stage",
             "Configure analysis, loads, and outputs.",
@@ -123,6 +127,7 @@ class PropertiesDock:
         self._cap_hint_stage.setStyleSheet("color: #b45309;")  # amber-ish
         stage_layout.addWidget(self._cap_hint_stage)
         stage_form = QFormLayout()
+        self._configure_form_layout(stage_form)
         stage_layout.addLayout(stage_form)
 
         self._stage_id = QLineEdit()
@@ -194,18 +199,20 @@ class PropertiesDock:
         stage_layout.addWidget(self._loads_editor.widget, 1)
 
         self._btn_apply_stage = QPushButton("Apply")
-        stage_layout.addWidget(self._btn_apply_stage)
+        self._add_footer_button(stage_layout, self._btn_apply_stage)
         self._stack.addWidget(self._page_stage)
 
         # Page: material
         self._page_material = QWidget()
         mat_layout = QVBoxLayout(self._page_material)
+        self._apply_page_layout(mat_layout)
         mat_header, self._mat_header_title, self._mat_header_subtitle = self._build_header(
             "Material",
             "Define constitutive model and parameters.",
         )
         mat_layout.addWidget(mat_header)
         mat_form = QFormLayout()
+        self._configure_form_layout(mat_form)
         mat_layout.addLayout(mat_form)
 
         self._mat_id = QLineEdit()
@@ -241,6 +248,14 @@ class PropertiesDock:
         self._mat_tree.setHeaderLabels(["param", "value"])
         self._mat_tree.setAlternatingRowColors(True)
         self._mat_tree.setRootIsDecorated(True)
+        self._mat_tree.setUniformRowHeights(True)
+        try:
+            header = self._mat_tree.header()
+            header.setStretchLastSection(True)
+            header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+            header.setSectionResizeMode(1, QHeaderView.Stretch)
+        except Exception:
+            pass
         self._mat_tree.setEditTriggers(
             self._QAbstractItemView.DoubleClicked
             | self._QAbstractItemView.EditKeyPressed
@@ -254,7 +269,7 @@ class PropertiesDock:
         mat_layout.addWidget(self._mat_tabs, 1)
 
         self._btn_apply_material = QPushButton("Apply")
-        mat_layout.addWidget(self._btn_apply_material)
+        self._add_footer_button(mat_layout, self._btn_apply_material)
         self._stack.addWidget(self._page_material)
 
         # Page: assignments
@@ -262,6 +277,7 @@ class PropertiesDock:
 
         self._page_assignments = QWidget()
         asg_layout = QVBoxLayout(self._page_assignments)
+        self._apply_page_layout(asg_layout)
         asg_header, self._asg_header_title, self._asg_header_subtitle = self._build_header(
             "Assignments",
             "Map element sets to materials.",
@@ -273,7 +289,7 @@ class PropertiesDock:
         self._assign_editor = AssignmentsEditor(self._page_assignments)
         asg_layout.addWidget(self._assign_editor.widget, 1)
         self._btn_apply_assign = QPushButton("Apply")
-        asg_layout.addWidget(self._btn_apply_assign)
+        self._add_footer_button(asg_layout, self._btn_apply_assign)
         self._stack.addWidget(self._page_assignments)
 
         # Page: global output requests
@@ -281,6 +297,7 @@ class PropertiesDock:
 
         self._page_global_out = QWidget()
         g_layout = QVBoxLayout(self._page_global_out)
+        self._apply_page_layout(g_layout)
         gout_header, self._gout_header_title, self._gout_header_subtitle = self._build_header(
             "Global Outputs",
             "Optional outputs shared by all stages.",
@@ -290,7 +307,7 @@ class PropertiesDock:
         self._global_out_editor = OutputRequestsEditor(self._page_global_out, title="Global output_requests")
         g_layout.addWidget(self._global_out_editor.widget, 1)
         self._btn_apply_global_out = QPushButton("Apply")
-        g_layout.addWidget(self._btn_apply_global_out)
+        self._add_footer_button(g_layout, self._btn_apply_global_out)
         self._stack.addWidget(self._page_global_out)
 
         # Callbacks configured by MainWindow
@@ -565,6 +582,33 @@ class PropertiesDock:
         layout.addWidget(title_label)
         layout.addWidget(subtitle_label)
         return header, title_label, subtitle_label
+
+    def _apply_page_layout(self, layout) -> None:  # noqa: ANN001
+        try:
+            layout.setContentsMargins(10, 8, 10, 8)
+            layout.setSpacing(8)
+        except Exception:
+            pass
+
+    def _configure_form_layout(self, layout) -> None:  # noqa: ANN001
+        try:
+            layout.setFormAlignment(self._Qt.AlignLeft | self._Qt.AlignTop)
+            layout.setLabelAlignment(self._Qt.AlignLeft | self._Qt.AlignVCenter)
+            layout.setFieldGrowthPolicy(layout.ExpandingFieldsGrow)
+            layout.setHorizontalSpacing(10)
+            layout.setVerticalSpacing(6)
+        except Exception:
+            pass
+
+    def _add_footer_button(self, layout, button) -> None:  # noqa: ANN001
+        from PySide6.QtWidgets import QHBoxLayout, QWidget  # type: ignore
+
+        row = QWidget()
+        rl = QHBoxLayout(row)
+        rl.setContentsMargins(0, 0, 0, 0)
+        rl.addStretch(1)
+        rl.addWidget(button)
+        layout.addWidget(row)
 
     def _clear_layout(self, layout) -> None:  # noqa: ANN001
         while layout.count():

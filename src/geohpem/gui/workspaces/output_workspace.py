@@ -57,6 +57,23 @@ class OutputWorkspace:
 
         self.widget = QWidget()
         layout = QVBoxLayout(self.widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        status = QWidget()
+        sl = QHBoxLayout(status)
+        sl.setContentsMargins(10, 6, 10, 6)
+        self._lbl_output = QLabel("Output: (none)")
+        self._lbl_output.setStyleSheet("font-weight: 600;")
+        self._lbl_solver = QLabel("Solver: -")
+        self._lbl_solver.setStyleSheet("color: #4b5563;")
+        self._lbl_field = QLabel("Field: -")
+        self._lbl_step = QLabel("Step: -")
+        sl.addWidget(self._lbl_output)
+        sl.addWidget(self._lbl_solver)
+        sl.addWidget(self._lbl_field)
+        sl.addWidget(self._lbl_step)
+        sl.addStretch(1)
+        layout.addWidget(status, 0)
 
         # Shortcuts (Output workspace scope)
         try:
@@ -282,6 +299,7 @@ class OutputWorkspace:
         self._meta: dict[str, Any] | None = None
         self._arrays: dict[str, Any] | None = None
         self._mesh: dict[str, Any] | None = None
+        self._source_path: Path | None = None
         self._units = None  # UnitContext | None
         self._steps: list[int] = []
         self._step_infos: dict[int, dict[str, Any]] = {}
@@ -331,6 +349,7 @@ class OutputWorkspace:
         self._pins: list[dict[str, Any]] = []
         self._ui_state: dict[str, Any] | None = None
         self._on_color_range_changed()
+        self._refresh_status()
 
     def set_unit_context(self, units) -> None:  # noqa: ANN001
         """
@@ -339,6 +358,10 @@ class OutputWorkspace:
         self._units = units
         self._clear_color_cache()
         self._render()
+
+    def set_source_path(self, path: Path | None) -> None:
+        self._source_path = path
+        self._refresh_status()
 
     def set_result(self, meta: dict[str, Any], arrays: dict[str, Any], mesh: dict[str, Any] | None = None) -> None:
         self._meta = meta
@@ -377,6 +400,7 @@ class OutputWorkspace:
         self.btn_pin_elem.setEnabled(True)
         self._refresh_pin_list()
         self._apply_ui_state_if_ready()
+        self._refresh_status()
 
     def _clear_color_cache(self) -> None:
         try:
@@ -399,6 +423,45 @@ class OutputWorkspace:
         else:
             self.color_range_info.setText("")
         self._render()
+
+    def _refresh_status(self) -> None:
+        label = "(none)"
+        if isinstance(self._source_path, Path):
+            label = self._source_path.name or str(self._source_path)
+            try:
+                self._lbl_output.setToolTip(str(self._source_path))
+            except Exception:
+                pass
+        self._lbl_output.setText(f"Output: {label}")
+
+        solver = "-"
+        if isinstance(self._meta, dict):
+            solver_info = self._meta.get("solver_info", {})
+            if isinstance(solver_info, dict):
+                solver = str(solver_info.get("name") or solver_info.get("id") or solver or "-")
+        self._lbl_solver.setText(f"Solver: {solver}")
+
+        field = "-"
+        try:
+            idx = int(self.registry_list.currentRow())
+        except Exception:
+            idx = -1
+        if 0 <= idx < len(self._reg_items):
+            reg = self._reg_items[idx]
+            name = str(reg.get("name", "-"))
+            loc = str(reg.get("location", ""))
+            field = f"{name} ({loc})" if loc else name
+        self._lbl_field.setText(f"Field: {field}")
+
+        step_label = "-"
+        try:
+            if self._steps:
+                idx = int(self.step.value())
+                if 0 <= idx < len(self._steps):
+                    step_label = str(int(self._steps[idx]))
+        except Exception:
+            pass
+        self._lbl_step.setText(f"Step: {step_label}")
 
     def _parse_float(self, text: str) -> float | None:
         s = str(text or "").strip()
@@ -1380,6 +1443,7 @@ class OutputWorkspace:
                     )
         except Exception:
             pass
+        self._refresh_status()
 
     def _rerender_preserve_camera(self) -> None:
         """

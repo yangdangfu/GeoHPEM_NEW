@@ -186,7 +186,19 @@ class ProjectDock:
             if str(item_payload.get("type", "")) != target_type:
                 return False
             if target_type == "stage":
-                return str(item_payload.get("uid", "")) == str(payload.get("uid", ""))
+                uid = str(payload.get("uid", ""))
+                if uid:
+                    return str(item_payload.get("uid", "")) == uid
+                try:
+                    idx = int(payload.get("index"))
+                except Exception:
+                    idx = None
+                if idx is not None:
+                    try:
+                        return int(item_payload.get("index", -1)) == idx
+                    except Exception:
+                        return False
+                return False
             if target_type == "material":
                 return str(item_payload.get("id", "")) == str(payload.get("id", ""))
             if target_type in ("node_set", "edge_set"):
@@ -210,6 +222,23 @@ class ProjectDock:
             return None
 
         return walk(root)
+
+    def select_payload(self, payload: dict[str, Any]) -> None:
+        if not payload:
+            return
+        root = self.tree.topLevelItem(0)
+        if root is None:
+            return
+        try:
+            item = self._find_item_by_payload(root, payload)
+        except Exception:
+            item = None
+        if item is None:
+            return
+        try:
+            self.tree.setCurrentItem(item)
+        except Exception:
+            pass
 
     def _open_out_folder(self) -> None:
         if not self._case_dir:

@@ -24,19 +24,30 @@ def validate_inputs(
     try:
         validate_request_basic(request)
     except ContractError as exc:
-        issues.append(PrecheckIssue(severity="ERROR", code="CONTRACT", message=str(exc)))
+        issues.append(PrecheckIssue(severity="ERROR", code="CONTRACT", message=str(exc), jump={"type": "project"}))
     except Exception as exc:
-        issues.append(PrecheckIssue(severity="ERROR", code="CONTRACT", message=f"Contract validation failed: {exc}"))
+        issues.append(
+            PrecheckIssue(
+                severity="ERROR",
+                code="CONTRACT",
+                message=f"Contract validation failed: {exc}",
+                jump={"type": "project"},
+            )
+        )
 
     try:
         validate_request_jsonschema_if_available(request)
     except Exception as exc:
-        issues.append(PrecheckIssue(severity="ERROR", code="SCHEMA", message=f"Schema validation failed: {exc}"))
+        issues.append(
+            PrecheckIssue(severity="ERROR", code="SCHEMA", message=f"Schema validation failed: {exc}", jump={"type": "project"})
+        )
 
     try:
         issues.extend(precheck_request_mesh(request, mesh, capabilities=capabilities))
     except Exception as exc:
-        issues.append(PrecheckIssue(severity="ERROR", code="PRECHECK", message=f"Pre-check failed: {exc}"))
+        issues.append(
+            PrecheckIssue(severity="ERROR", code="PRECHECK", message=f"Pre-check failed: {exc}", jump={"type": "project"})
+        )
 
     # De-duplicate while preserving order.
     seen: set[tuple[str, str, str]] = set()
@@ -52,4 +63,3 @@ def validate_inputs(
 
 def has_errors(issues: list[PrecheckIssue]) -> bool:
     return any(i.severity == "ERROR" for i in issues)
-
