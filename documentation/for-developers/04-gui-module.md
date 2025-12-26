@@ -52,11 +52,15 @@ gui/
 │       ├── properties_dock.py# Property editor
 │       ├── stage_dock.py     # Stage list
 │       └── tasks_dock.py     # Running tasks
-├── dialogs/                  # Modal dialogs
-│   ├── import_mesh_dialog.py # Mesh import
-│   ├── mesh_quality_dialog.py# Quality statistics
-│   ├── precheck_dialog.py    # Pre-run validation
-│   └── sets_dialog.py        # Set management
+├── dialogs/                      # Modal dialogs
+│   ├── import_mesh_dialog.py     # Mesh import
+│   ├── mesh_quality_dialog.py    # Quality statistics
+│   ├── precheck_dialog.py        # Pre-run validation
+│   ├── sets_dialog.py            # Set management
+│   └── material_catalog_dialog.py # Material catalog editor
+├── widgets/                  # Reusable widgets
+│   ├── json_editor.py        # JSON editor widget (tree + raw)
+│   └── ...
 └── workers/                  # Background tasks
     └── solve_worker.py       # Solver execution
 ```
@@ -177,7 +181,7 @@ class MainWindow:
 | Edit | Undo, Redo |
 | Mesh | Import Mesh, Mesh Quality, Manage Sets |
 | View | Display Units... |
-| **Tools** | **Batch Run..., Compare Outputs...** |
+| **Tools** | **Material Catalog..., Batch Run..., Compare Outputs...** |
 | Solve | Select Solver..., Run |
 | Workspace | Switch Input/Output |
 | Help | About |
@@ -713,7 +717,17 @@ Context-sensitive property editor with solver capabilities awareness:
 **Pages**:
 - Model properties (mode, gravity)
 - Stage properties (type, steps, output requests, BCs, loads)
-- Material properties (model, parameters)
+- Material properties (model, parameters) - **Enhanced with material catalog integration**
+- Assignments (element set → material mapping)
+- Global output requests
+
+**Material Editor Enhancements**:
+- **Model Combo Box**: Populated from material catalog (`all_models()`)
+- **Behavior Display**: Shows behavior label from catalog
+- **Parameter Editor**: Tree + JSON dual-view (using `JsonEditorWidget`)
+- **Default Values**: Loads defaults from catalog when model changes
+- **Parameter Metadata**: Shows labels and tooltips from catalog `meta`
+- **Solver Mapping**: (Visible in catalog dialog, used by solver adapters)
 
 **Solver Capabilities Integration**:
 ```python
@@ -762,6 +776,61 @@ Running task display with cancellation support:
 2. `TasksDock` calls `worker.cancel()`
 3. Status label shows "Cancel requested..."
 4. Worker detects cancellation via `should_cancel()` callback and stops
+
+### MaterialCatalogDialog (`dialogs/material_catalog_dialog.py`)
+
+Material catalog management dialog for editing user-defined material models.
+
+**Features**:
+- Model list with filter/search
+- Tree + JSON dual-view editor (using `JsonEditorWidget`)
+- Copy, Rename, Delete, Reset model operations
+- Visual status indicators (Default, Modified, User-defined)
+- Automatic backup before saving user catalog
+
+**Layout**:
+- Left: Model list with filter and action buttons
+- Right: Model definition editor (Definition, Parameters, Metadata, Solver Mapping tabs)
+
+**Operations**:
+- **Copy**: Duplicate a model with a new name
+- **Rename**: Change model name (with validation)
+- **Delete**: Remove user-defined model (can't delete defaults)
+- **Reset Model**: Revert user model to default catalog values
+
+**Integration**:
+- Opens from **Tools → Material Catalog...** menu
+- After saving, catalog is reloaded and PropertiesDock material editors are refreshed
+
+---
+
+### JsonEditorWidget (`widgets/json_editor.py`)
+
+Dual-view JSON editor widget with tree and raw JSON tabs.
+
+**Features**:
+- **Tree View**: Hierarchical editing with inline value editing
+- **JSON View**: Raw JSON text editing with syntax highlighting
+- Support for both object (`{}`) and array (`[]`) roots
+- Add/delete items via toolbar buttons
+- Bidirectional sync between tree and JSON views
+- Auto-parsing of JSON values (numbers, booleans, arrays, objects)
+
+**Toolbar Actions**:
+- **Add group**: Add nested object
+- **Add parameter**: Add key-value pair
+- **Delete**: Remove selected item
+- **JSON -> Tree**: Parse JSON text and update tree view
+
+**Usage**:
+Used by `MaterialCatalogDialog` and `PropertiesDock` for editing material parameters and catalog definitions.
+
+**Tree Interaction**:
+- Double-click or press F2 to edit values
+- Supports JSON value parsing (e.g., `"123"` → `123`, `"true"` → `true`)
+- Falls back to string if parsing fails
+
+---
 
 ### GeometryDock (`widgets/docks/geometry_dock.py`)
 
@@ -1115,5 +1184,5 @@ menu_edit.addAction(self._action_my)
 
 ---
 
-Last updated: 2024-12-22 (v10 - material management in main window)
+Last updated: 2024-12-26 (v11 - material catalog system, JSON editor, catalog dialog)
 

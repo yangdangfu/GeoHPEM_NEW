@@ -7,10 +7,13 @@ The `domain/` module contains pure domain operations for manipulating project da
 ```
 domain/
 ├── __init__.py
-├── project.py        # (placeholder for future domain models)
-├── mesh_ops.py       # Mesh manipulation operations
-├── request_ops.py    # Request manipulation operations
-└── boundary_ops.py   # Boundary edge computation and classification
+├── project.py                  # (placeholder for future domain models)
+├── mesh_ops.py                 # Mesh manipulation operations
+├── request_ops.py              # Request manipulation operations
+├── boundary_ops.py             # Boundary edge computation and classification
+├── material_catalog.py         # Material catalog system (templates, defaults)
+├── material_mapping.py         # Solver-specific material mapping
+└── materials_catalog.default.json  # Default material catalog
 ```
 
 ---
@@ -293,5 +296,245 @@ def update_stage(self, stage_uid: str, patch: dict) -> None:
 
 ---
 
-Last updated: 2024-12-19 (v3 - added boundary_ops module)
+## Material Catalog System (`material_catalog.py`)
+
+The material catalog provides a template-based system for managing material models with:
+- Default parameter values
+- Metadata (labels, tooltips) for UI display
+- Solver-specific mappings (e.g., GeoHPEM → Kratos)
+- User-customizable models
+
+### Catalog Structure
+
+```python
+@dataclass(frozen=True, slots=True)
+class MaterialModel:
+    name: str                    # Unique model identifier (e.g., "linear_elastic")
+    label: str                   # Display label (e.g., "Linear Elastic")
+    behavior: str                # Behavior category (e.g., "elastic", "plastic")
+    defaults: dict[str, Any]     # Default parameter values
+    meta: dict[str, dict[str, str]]  # Parameter metadata (label, tooltip)
+    solver_mapping: dict[str, Any]   # Solver-specific mappings
+    description: str = ""        # Description text
+```
+
+### Catalog Files
+
+- **Default Catalog**: `domain/materials_catalog.default.json` (bundled with GeoHPEM)
+- **User Catalog**: `~/.geohpem/materials_catalog.user.json` (user customization)
+- **Merging**: User catalog overrides/adds to default catalog
+- **Backup**: User catalog is automatically backed up before overwriting
+
+### Key Functions
+
+```python
+def load_catalog(force: bool = False) -> dict[str, Any]:
+    """
+    Load merged catalog (default + user).
+    Cached until force=True or reload_catalog() called.
+    """
+
+def reload_catalog() -> dict[str, Any]:
+    """Force reload catalog from disk (clears cache)."""
+
+def all_models() -> list[MaterialModel]:
+    """Get all material models from merged catalog."""
+
+def model_by_name(model_name: str) -> MaterialModel | None:
+    """Find a model by name."""
+
+def model_defaults(model_name: str) -> dict[str, Any] | None:
+    """Get default parameters for a model."""
+
+def model_meta(model_name: str) -> dict[str, dict[str, str]]:
+    """Get parameter metadata (labels, tooltips) for a model."""
+
+def behavior_for_model(model_name: str) -> str | None:
+    """Get behavior type for a model."""
+
+def behavior_options() -> list[tuple[str, str]]:
+    """Get available behavior types (elastic, plastic, etc.)."""
+
+def behavior_label(behavior: str) -> str:
+    """Get display label for a behavior type."""
+
+def validate_catalog(data: dict[str, Any]) -> list[str]:
+    """Validate catalog structure. Returns list of error messages."""
+
+def write_user_catalog(data: dict[str, Any]) -> None:
+    """
+    Write user catalog (creates backup before overwriting).
+    Backup stored in ~/.geohpem/catalog_backups/
+    """
+```
+
+### Catalog Schema
+
+See `docs/materials_catalog.schema.json` for JSON schema:
+
+```json
+{
+  "version": "string",
+  "behaviors": {
+    "elastic": "Elastic",
+    "plastic": "Elasto-plastic",
+    "poroelastic": "Poroelastic",
+    "seepage": "Seepage",
+    "custom": "Custom"
+  },
+  "models": [
+    {
+      "name": "linear_elastic",
+      "label": "Linear Elastic",
+      "behavior": "elastic",
+      "description": "...",
+      "defaults": {
+        "E": 10000.0,
+        "nu": 0.3,
+        "rho": 2000.0
+      },
+      "meta": {
+        "E": {
+          "label": "Young's Modulus",
+          "tooltip": "Elastic modulus in kPa"
+        },
+        ...
+      },
+      "solver_mapping": {
+        "kratos": {
+          "model_name": "LinearElasticPlaneStrain2DLaw",
+          "params": {
+            "YOUNG_MODULUS": "E",
+            "POISSON_RATIO": "nu"
+          }
+        }
+      }
+    }
+  ]
+}
+```
+
+---
+
+## Material Mapping (`material_mapping.py`)
+
+Maps GeoHPEM materials to solver-specific formats using catalog definitions.
+
+```python
+def map_material_for_solver(material: dict[str, Any], solver_id: str) -> dict[str, Any]:
+    """
+    Remap material for a solver using catalog solver_mapping.
+    
+    If no mapping exists, returns the material unchanged.
+    
+    Args:
+        material: GeoHPEM material dict with model_name and parameters
+        solver_id: Solver identifier (e.g., "kratos")
+    
+    Returns:
+        Remapped material dict (may change model_name and parameters)
+    
+    Example:
+        Input: {
+            "model_name": "linear_elastic",
+            "parameters": {"E": 10000, "nu": 0.3}
+        }
+        
+        Output (for kratos): {
+            "model_name": "LinearElasticPlaneStrain2DLaw",
+            "parameters": {"YOUNG_MODULUS": 10000, "POISSON_RATIO": 0.3}
+        }
+    """
+```
+
+**Mapping Logic**:
+1. Look up material model in catalog using `model_name`
+2. Check for `solver_mapping[solver_id]` entry
+3. Map `model_name` and `behavior` if specified
+4. Map parameters using `params` dictionary (target_key ← source_path)
+5. Use dot notation for nested paths (e.g., "nested.E" maps `parameters.nested.E`)
+
+**Parameter Path Resolution**:
+- Simple keys: `"E"` → `parameters["E"]`
+- Nested paths: `"nested.E"` → `parameters.get("nested", {}).get("E")`
+
+---
+
+## Usage Examples
+
+**Using Material Catalog**:
+
+```python
+from geohpem.domain import material_catalog as mc
+
+# Load catalog
+catalog = mc.load_catalog()
+
+# Get all models
+models = mc.all_models()
+for m in models:
+    print(f"{m.name}: {m.label} ({m.behavior})")
+
+# Get defaults for a model
+defaults = mc.model_defaults("linear_elastic")
+# {"E": 10000.0, "nu": 0.3, "rho": 2000.0}
+
+# Get parameter metadata
+meta = mc.model_meta("linear_elastic")
+# {"E": {"label": "Young's Modulus", "tooltip": "..."}, ...}
+
+# Get behavior label
+label = mc.behavior_label("elastic")
+# "Elastic"
+```
+
+**Material Mapping**:
+
+```python
+from geohpem.domain import material_mapping
+
+material = {
+    "model_name": "linear_elastic",
+    "parameters": {"E": 10000, "nu": 0.3}
+}
+
+# Map for Kratos solver
+kratos_material = material_mapping.map_material_for_solver(material, "kratos")
+# {
+#     "model_name": "LinearElasticPlaneStrain2DLaw",
+#     "parameters": {"YOUNG_MODULUS": 10000, "POISSON_RATIO": 0.3}
+# }
+```
+
+**User Catalog Customization**:
+
+Users can customize the material catalog by editing `~/.geohpem/materials_catalog.user.json`:
+
+```json
+{
+  "models": [
+    {
+      "name": "my_custom_model",
+      "label": "My Custom Model",
+      "behavior": "plastic",
+      "defaults": {
+        "E": 5000,
+        "nu": 0.2
+      },
+      "meta": {
+        "E": {
+          "label": "Young's Modulus",
+          "tooltip": "Custom tooltip"
+        }
+      }
+    }
+  ]
+}
+```
+
+The GUI provides a **Material Catalog** dialog (Tools → Material Catalog...) to manage the user catalog with a visual interface.
+
+---
+
+Last updated: 2024-12-26 (v4 - added material_catalog and material_mapping)
 

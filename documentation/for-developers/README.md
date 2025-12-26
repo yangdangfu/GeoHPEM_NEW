@@ -215,5 +215,5 @@ from geohpem.project.types import ProjectData
 
 ---
 
-Last updated: 2024-12-22 (v9 - reference solvers, solver team guide, workflow upgrades)
+Last updated: 2024-12-26 (v10 - material catalog system, JSON editor, catalog dialog)
 
