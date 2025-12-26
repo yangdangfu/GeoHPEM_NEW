@@ -33,7 +33,7 @@ from geohpem.project.workdir import materialize_to_workdir, update_project_from_
 
 class MainWindow:
     def __init__(self) -> None:
-        from PySide6.QtCore import QObject, Qt, Slot, QSize  # type: ignore
+        from PySide6.QtCore import QObject, QSize, Qt, Slot  # type: ignore
         from PySide6.QtGui import QAction  # type: ignore
         from PySide6.QtWidgets import (  # type: ignore
             QFileDialog,
@@ -67,7 +67,7 @@ class MainWindow:
         try:
             from PySide6.QtGui import QIcon  # type: ignore
 
-            icon_path = Path(__file__).resolve().parents[2] / "assets" / "branding" / "geohpem.xpm"
+            icon_path = Path(__file__).resolve().parents[1] / "assets" / "branding" / "geohpem.xpm"
             if icon_path.exists():
                 self._win.setWindowIcon(QIcon(str(icon_path)))
         except Exception:
