@@ -42,12 +42,12 @@ class JsonEditorWidget(QWidget):
         self._tool_bar = QWidget()
         tool = QHBoxLayout(self._tool_bar)
         tool.setContentsMargins(0, 0, 0, 0)
-        self._btn_add = QPushButton("Add key")
-        self._btn_add_child = QPushButton("Add child")
+        self._btn_add_group = QPushButton("Add group")
+        self._btn_add_param = QPushButton("Add parameter")
         self._btn_delete = QPushButton("Delete")
         self._btn_json_to_tree = QPushButton("JSON -> Tree")
-        tool.addWidget(self._btn_add)
-        tool.addWidget(self._btn_add_child)
+        tool.addWidget(self._btn_add_group)
+        tool.addWidget(self._btn_add_param)
         tool.addWidget(self._btn_delete)
         tool.addStretch(1)
         tool.addWidget(self._btn_json_to_tree)
@@ -73,12 +73,14 @@ class JsonEditorWidget(QWidget):
         self._json_edit.setPlaceholderText("{ ... }")
         self._tabs.addTab(self._json_edit, "JSON")
 
-        self._btn_add.clicked.connect(self._on_add)
-        self._btn_add_child.clicked.connect(self._on_add_child)
+        self._btn_add_group.clicked.connect(self._on_add_group)
+        self._btn_add_param.clicked.connect(self._on_add_param)
         self._btn_delete.clicked.connect(self._on_delete)
         self._btn_json_to_tree.clicked.connect(self._on_json_to_tree)
         self._tabs.currentChanged.connect(self._on_tab_changed)
         self._tree.itemChanged.connect(self._on_item_changed)
+        self._root_item: QTreeWidgetItem | None = None
+        self.set_data({})
 
     def set_data(self, data: Any) -> None:
         if not isinstance(data, (dict, list)):
@@ -86,7 +88,14 @@ class JsonEditorWidget(QWidget):
         self._root_type = "array" if isinstance(data, list) else "object"
         self._block = True
         self._tree.clear()
-        self._build_children(self._tree.invisibleRootItem(), data)
+        self._root_item = QTreeWidgetItem(["root", "{...}" if self._root_type == "object" else "[...]"])
+        try:
+            self._root_item.setFlags(self._root_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+        except Exception:
+            pass
+        self._root_item.setData(0, self._ROLE_TYPE, self._root_type)
+        self._tree.addTopLevelItem(self._root_item)
+        self._build_children(self._root_item, data)
         try:
             self._tree.expandAll()
         except Exception:
@@ -102,7 +111,7 @@ class JsonEditorWidget(QWidget):
         return self._tree_to_data()
 
     def _tree_to_data(self) -> Any:
-        root = self._tree.invisibleRootItem()
+        root = self._root_item or self._tree.invisibleRootItem()
         if self._root_type == "array":
             return [self._item_to_value(root.child(i)) for i in range(root.childCount())]
         out: dict[str, Any] = {}
@@ -124,6 +133,13 @@ class JsonEditorWidget(QWidget):
         text = str(item.text(1)).strip()
         if not text:
             return ""
+        lowered = text.lower()
+        if lowered == "true":
+            return True
+        if lowered == "false":
+            return False
+        if lowered == "null":
+            return None
         try:
             return json.loads(text)
         except Exception:
@@ -153,6 +169,9 @@ class JsonEditorWidget(QWidget):
             item.setData(0, self._ROLE_TYPE, "array")
             item.setText(1, "[...]")
             self._build_children(item, val)
+        elif isinstance(val, bool):
+            item.setData(0, self._ROLE_TYPE, "value")
+            item.setText(1, "true" if val else "false")
         else:
             item.setData(0, self._ROLE_TYPE, "value")
             if val is None:
@@ -196,48 +215,35 @@ class JsonEditorWidget(QWidget):
         if ok:
             self._tabs.setCurrentIndex(self._tabs.indexOf(self._tree))
 
-    def _on_add(self) -> None:
-        parent = self._tree.currentItem()
+    def _on_add_group(self) -> None:
+        parent = self._current_container()
         if parent is None:
-            parent = self._tree.invisibleRootItem()
-        if parent is not self._tree.invisibleRootItem():
-            typ = parent.data(0, self._ROLE_TYPE)
-            if typ not in ("object", "array"):
-                parent = parent.parent() or self._tree.invisibleRootItem()
-        if self._is_array_parent(parent):
-            key = str(parent.childCount())
-        else:
-            key = self._ask_key()
-            if not key:
-                return
-        item = self._new_item(key, "")
-        parent.addChild(item)
-        self._tree.setCurrentItem(item)
-
-    def _on_add_child(self) -> None:
-        item = self._tree.currentItem()
-        if item is None:
             return
-        typ = item.data(0, self._ROLE_TYPE)
-        if typ not in ("object", "array"):
-            # convert leaf into an object
-            item.setData(0, self._ROLE_TYPE, "object")
-            item.setText(1, "{...}")
-            item.takeChildren()
-        if self._is_array_parent(item):
-            key = str(item.childCount())
-        else:
-            key = self._ask_key()
-            if not key:
-                return
+        key = self._next_key(parent)
+        if key is None:
+            return
+        child = self._new_item(key, {})
+        parent.addChild(child)
+        parent.setExpanded(True)
+        self._tree.setCurrentItem(child)
+
+    def _on_add_param(self) -> None:
+        parent = self._current_container()
+        if parent is None:
+            return
+        key = self._next_key(parent)
+        if key is None:
+            return
         child = self._new_item(key, "")
-        item.addChild(child)
-        item.setExpanded(True)
+        parent.addChild(child)
+        parent.setExpanded(True)
         self._tree.setCurrentItem(child)
 
     def _on_delete(self) -> None:
         item = self._tree.currentItem()
         if item is None:
+            return
+        if item is self._root_item:
             return
         parent = item.parent()
         if parent is None:
@@ -254,13 +260,31 @@ class JsonEditorWidget(QWidget):
         key = str(text).strip()
         return key if key else None
 
+    def _current_container(self) -> QTreeWidgetItem | None:
+        if self._root_item is None:
+            return None
+        item = self._tree.currentItem() or self._root_item
+        if item is self._root_item:
+            return item
+        typ = item.data(0, self._ROLE_TYPE)
+        if typ in ("object", "array"):
+            return item
+        return item.parent() or self._root_item
+
+    def _next_key(self, parent: QTreeWidgetItem) -> str | None:
+        if self._is_array_parent(parent):
+            return str(parent.childCount())
+        return self._ask_key()
+
     def _is_array_parent(self, item: QTreeWidgetItem) -> bool:
-        if item is self._tree.invisibleRootItem():
+        if item is self._root_item:
             return self._root_type == "array"
         return item.data(0, self._ROLE_TYPE) == "array"
 
     def _on_item_changed(self, item: QTreeWidgetItem, col: int) -> None:
         if self._block:
+            return
+        if item is self._root_item:
             return
         if col != 1:
             return
