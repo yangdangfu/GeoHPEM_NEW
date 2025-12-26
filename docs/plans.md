@@ -98,3 +98,14 @@
 - 打包发布（conda/installer）
 
 ---
+## M17: Configurable Material Catalog (recommended)
+- [x] M17.1 Catalog schema
+  - DoD: add a `materials_catalog.json` schema for model/behavior/params/meta(tooltips)/grouping, plus a default catalog file.
+- [x] M17.2 User catalog merge
+  - DoD: support `catalogs/default + catalogs/user` merge with user override and rollback.
+- [x] M17.3 UI management
+  - DoD: UI supports copy/rename/edit/delete models; parameter Tree/JSON and tooltips stay consistent; save to user catalog.
+- [x] M17.4 Validation + safety
+  - DoD: validate required fields/types; clear error prompts; keep revision history for user edits.
+- [x] M17.5 Solver mapping hooks
+  - DoD: provide mapping hook from catalog model/params to solver input without breaking existing cases.

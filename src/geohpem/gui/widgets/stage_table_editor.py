@@ -42,7 +42,6 @@ class StageItemTableEditor:
             QLabel,
             QMessageBox,
             QPushButton,
-            QPlainTextEdit,
             QTableWidget,
             QTableWidgetItem,
             QTabWidget,
@@ -54,6 +53,7 @@ class StageItemTableEditor:
         self._QMessageBox = QMessageBox
         self._QTableWidgetItem = QTableWidgetItem
         self._QComboBox = QComboBox
+        from geohpem.gui.widgets.json_editor import JsonEditorWidget
 
         self.config = config
         self.widget = QWidget(parent)
@@ -87,8 +87,7 @@ class StageItemTableEditor:
         self.tabs.addTab(self.table, "Table")
 
         # JSON tab (advanced)
-        self.json_edit = QPlainTextEdit()
-        self.json_edit.setPlaceholderText("JSON list (advanced). Click 'JSON -> Table' to apply.")
+        self.json_edit = JsonEditorWidget(show_toolbar=False)
         self.tabs.addTab(self.json_edit, "JSON")
 
         self._set_options: list[str] = []
@@ -105,7 +104,7 @@ class StageItemTableEditor:
         # Keep JSON tab in sync with the table when user views it.
         if index == self.tabs.indexOf(self.json_edit):
             try:
-                self.items()
+                self.json_edit.set_data(self.items())
             except Exception:
                 pass
 
@@ -177,9 +176,9 @@ class StageItemTableEditor:
 
         # also refresh JSON view
         try:
-            self.json_edit.setPlainText(json.dumps(normalized, indent=2, ensure_ascii=False))
+            self.json_edit.set_data(normalized)
         except Exception:
-            self.json_edit.setPlainText("[]")
+            self.json_edit.set_data([])
 
     def items(self) -> list[dict[str, Any]]:
         out: list[dict[str, Any]] = []
@@ -222,7 +221,7 @@ class StageItemTableEditor:
 
         # Keep JSON tab in sync (read-only-ish)
         try:
-            self.json_edit.setPlainText(json.dumps(out, indent=2, ensure_ascii=False))
+            self.json_edit.set_data(out)
         except Exception:
             pass
         return out
@@ -398,9 +397,8 @@ class StageItemTableEditor:
         self.table.removeRow(row)
 
     def _on_sync_json_to_table(self) -> None:
-        text = self.json_edit.toPlainText() or "[]"
         try:
-            data = json.loads(text)
+            data = self.json_edit.data()
             if not isinstance(data, list):
                 raise ValueError("Expected a JSON list")
         except Exception as exc:

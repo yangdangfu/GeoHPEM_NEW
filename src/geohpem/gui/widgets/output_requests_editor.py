@@ -39,7 +39,6 @@ class OutputRequestsEditor:
             QLabel,
             QMessageBox,
             QPushButton,
-            QPlainTextEdit,
             QSpinBox,
             QTableWidget,
             QTableWidgetItem,
@@ -53,6 +52,7 @@ class OutputRequestsEditor:
         self._QComboBox = QComboBox
         self._QSpinBox = QSpinBox
         self._QTableWidgetItem = QTableWidgetItem
+        from geohpem.gui.widgets.json_editor import JsonEditorWidget
 
         self.widget = QWidget(parent)
         layout = QVBoxLayout(self.widget)
@@ -83,8 +83,7 @@ class OutputRequestsEditor:
         self.table.horizontalHeader().setStretchLastSection(True)
         self.tabs.addTab(self.table, "Table")
 
-        self.json_edit = QPlainTextEdit()
-        self.json_edit.setPlaceholderText("JSON list (advanced). Click 'JSON -> Table' to apply.")
+        self.json_edit = JsonEditorWidget(show_toolbar=False)
         self.tabs.addTab(self.json_edit, "JSON")
 
         self._options = OutputRequestOptions(names=[])
@@ -97,7 +96,7 @@ class OutputRequestsEditor:
     def _on_tab_changed(self, index: int) -> None:
         if index == self.tabs.indexOf(self.json_edit):
             try:
-                self.requests()
+                self.json_edit.set_data(self.requests())
             except Exception:
                 pass
 
@@ -122,9 +121,9 @@ class OutputRequestsEditor:
         for it in normalized:
             self._append_row(it)
         try:
-            self.json_edit.setPlainText(json.dumps(normalized, indent=2, ensure_ascii=False))
+            self.json_edit.set_data(normalized)
         except Exception:
-            self.json_edit.setPlainText("[]")
+            self.json_edit.set_data([])
 
     def requests(self) -> list[dict[str, Any]]:
         out: list[dict[str, Any]] = []
@@ -162,7 +161,7 @@ class OutputRequestsEditor:
             out.append(obj)
 
         try:
-            self.json_edit.setPlainText(json.dumps(out, indent=2, ensure_ascii=False))
+            self.json_edit.set_data(out)
         except Exception:
             pass
         return out
@@ -250,9 +249,8 @@ class OutputRequestsEditor:
         self.table.removeRow(row)
 
     def _on_sync_json_to_table(self) -> None:
-        text = self.json_edit.toPlainText() or "[]"
         try:
-            data = json.loads(text)
+            data = self.json_edit.data()
             if not isinstance(data, list):
                 raise ValueError("Expected a JSON list")
         except Exception as exc:

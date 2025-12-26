@@ -1,24 +1,23 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QObject, QTimer, Signal, Qt  # type: ignore
+from PySide6.QtCore import QObject, Qt, QTimer, Signal  # type: ignore
 from PySide6.QtGui import QCursor, QKeySequence, QShortcut  # type: ignore
 from PySide6.QtWidgets import (  # type: ignore
     QCheckBox,
     QComboBox,
-    QGroupBox,
     QGridLayout,
+    QGroupBox,
     QHBoxLayout,
     QInputDialog,
     QLabel,
-    QListWidget,
     QMenu,
     QMessageBox,
     QPushButton,
+    QSplitter,
     QTabWidget,
     QToolBar,
     QVBoxLayout,
     QWidget,
-    QSplitter,
 )
 
 
@@ -1282,9 +1281,9 @@ class InputWorkspace:
             self._bbox_diag = None
             return
         try:
-            from geohpem.domain.boundary_ops import compute_boundary_edges
-
             import numpy as np
+
+            from geohpem.domain.boundary_ops import compute_boundary_edges
 
             edges = compute_boundary_edges(mesh)
             edges = edges.reshape(-1, 2)
@@ -1635,7 +1634,9 @@ class InputWorkspace:
                 if sp is not None:
                     pid = int(sp)
         if pid not in adj:
-            self._QMessageBox.information(self.widget, "Boundary", "Last pick is not on the boundary (try clicking closer).")
+            self._QMessageBox.information(
+                self.widget, "Boundary", "Last pick is not on the boundary (try clicking closer)."
+            )
             return
         from collections import deque
 

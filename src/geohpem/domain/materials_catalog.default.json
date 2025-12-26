@@ -1,0 +1,156 @@
+{
+  "version": "1.0",
+  "behaviors": {
+    "elastic": "Elastic",
+    "plastic": "Elasto-plastic",
+    "poroelastic": "Poroelastic",
+    "seepage": "Seepage",
+    "custom": "Custom"
+  },
+  "models": [
+    {
+      "name": "linear_elastic",
+      "label": "Linear Elastic",
+      "behavior": "elastic",
+      "description": "Small-strain linear elasticity.",
+      "defaults": {
+        "E": 30000000.0,
+        "nu": 0.3,
+        "rho": 1800.0,
+        "damping": {
+          "alpha": 0.0,
+          "beta": 0.0
+        }
+      },
+      "meta": {
+        "E": { "label": "Young's modulus E", "tooltip": "Elastic stiffness (Pa)." },
+        "nu": { "label": "Poisson's ratio nu", "tooltip": "0-0.5 for isotropic solids." },
+        "rho": { "label": "Density rho", "tooltip": "Mass density (kg/m^3)." },
+        "damping": { "label": "Damping", "tooltip": "Rayleigh damping parameters." },
+        "damping.alpha": { "label": "Rayleigh alpha", "tooltip": "Mass-proportional damping." },
+        "damping.beta": { "label": "Rayleigh beta", "tooltip": "Stiffness-proportional damping." }
+      }
+    },
+    {
+      "name": "mohr_coulomb",
+      "label": "Mohr-Coulomb",
+      "behavior": "plastic",
+      "description": "Classic elasto-plastic soil model.",
+      "defaults": {
+        "elastic": { "E": 30000000.0, "nu": 0.3, "rho": 1800.0 },
+        "strength": { "phi": 30.0, "c": 5000.0, "psi": 0.0 },
+        "tension_cutoff": { "enabled": false, "ft": 0.0 }
+      },
+      "meta": {
+        "elastic": { "label": "Elastic", "tooltip": "Elastic parameters." },
+        "elastic.E": { "label": "Young's modulus E", "tooltip": "Elastic stiffness (Pa)." },
+        "elastic.nu": { "label": "Poisson's ratio nu", "tooltip": "0-0.5 for isotropic solids." },
+        "elastic.rho": { "label": "Density rho", "tooltip": "Mass density (kg/m^3)." },
+        "strength": { "label": "Strength", "tooltip": "Mohr-Coulomb strength parameters." },
+        "strength.phi": { "label": "Friction angle phi", "tooltip": "Effective friction angle (deg)." },
+        "strength.c": { "label": "Cohesion c", "tooltip": "Cohesion (Pa)." },
+        "strength.psi": { "label": "Dilation angle psi", "tooltip": "Dilation angle (deg)." },
+        "tension_cutoff": { "label": "Tension cutoff", "tooltip": "Optional tensile strength cap." },
+        "tension_cutoff.enabled": { "label": "Enable cutoff", "tooltip": "Enable tensile cutoff." },
+        "tension_cutoff.ft": { "label": "Tensile strength ft", "tooltip": "Tensile strength (Pa)." }
+      }
+    },
+    {
+      "name": "drucker_prager",
+      "label": "Drucker-Prager",
+      "behavior": "plastic",
+      "description": "Smooth cone yield surface (pressure-dependent).",
+      "defaults": {
+        "elastic": { "E": 30000000.0, "nu": 0.3, "rho": 1800.0 },
+        "plastic": { "alpha": 0.1, "k": 100000.0, "psi": 0.0 }
+      },
+      "meta": {
+        "elastic": { "label": "Elastic", "tooltip": "Elastic parameters." },
+        "elastic.E": { "label": "Young's modulus E", "tooltip": "Elastic stiffness (Pa)." },
+        "elastic.nu": { "label": "Poisson's ratio nu", "tooltip": "0-0.5 for isotropic solids." },
+        "elastic.rho": { "label": "Density rho", "tooltip": "Mass density (kg/m^3)." },
+        "plastic": { "label": "Plastic", "tooltip": "Drucker-Prager plasticity parameters." },
+        "plastic.alpha": { "label": "Alpha", "tooltip": "Friction parameter (dimensionless)." },
+        "plastic.k": { "label": "K", "tooltip": "Cohesion parameter (Pa)." },
+        "plastic.psi": { "label": "Dilation angle psi", "tooltip": "Dilation angle (deg)." }
+      }
+    },
+    {
+      "name": "cam_clay",
+      "label": "Modified Cam-Clay",
+      "behavior": "plastic",
+      "description": "Critical state model for clays.",
+      "defaults": {
+        "elastic": { "kappa": 0.02, "lambda": 0.1, "nu": 0.3 },
+        "critical": { "M": 1.2 },
+        "state": { "e0": 0.8, "p0": 100000.0, "pc0": 100000.0, "rho": 1800.0 }
+      },
+      "meta": {
+        "elastic": { "label": "Elastic", "tooltip": "Compressibility parameters." },
+        "elastic.kappa": { "label": "Kappa", "tooltip": "Elastic compressibility slope." },
+        "elastic.lambda": { "label": "Lambda", "tooltip": "Virgin compressibility slope." },
+        "elastic.nu": { "label": "Poisson's ratio nu", "tooltip": "0-0.5 for isotropic solids." },
+        "critical": { "label": "Critical state", "tooltip": "Critical state parameters." },
+        "critical.M": { "label": "M", "tooltip": "Slope of critical state line." },
+        "state": { "label": "State", "tooltip": "Initial state parameters." },
+        "state.e0": { "label": "Initial void ratio e0", "tooltip": "Initial void ratio." },
+        "state.p0": { "label": "Initial mean stress p0", "tooltip": "Initial mean effective stress (Pa)." },
+        "state.pc0": { "label": "Preconsolidation pressure pc0", "tooltip": "Initial preconsolidation pressure (Pa)." },
+        "state.rho": { "label": "Density rho", "tooltip": "Mass density (kg/m^3)." }
+      }
+    },
+    {
+      "name": "biot_poroelastic",
+      "label": "Biot Poroelastic",
+      "behavior": "poroelastic",
+      "description": "Coupled solid-fluid response (u-p).",
+      "defaults": {
+        "solid": { "E": 30000000.0, "nu": 0.3, "rho": 1800.0 },
+        "fluid": { "rho": 1000.0, "mu": 0.001 },
+        "permeability": { "kx": 1.0e-6, "ky": 1.0e-6 },
+        "porosity": 0.35,
+        "biot": { "alpha": 0.8, "M": 100000000.0 },
+        "storage": { "Ss": 0.0001 }
+      },
+      "meta": {
+        "solid": { "label": "Solid phase", "tooltip": "Solid skeleton properties." },
+        "solid.E": { "label": "Young's modulus E", "tooltip": "Elastic stiffness (Pa)." },
+        "solid.nu": { "label": "Poisson's ratio nu", "tooltip": "0-0.5 for isotropic solids." },
+        "solid.rho": { "label": "Solid density rho", "tooltip": "Solid density (kg/m^3)." },
+        "fluid": { "label": "Fluid phase", "tooltip": "Pore fluid properties." },
+        "fluid.rho": { "label": "Fluid density rho", "tooltip": "Fluid density (kg/m^3)." },
+        "fluid.mu": { "label": "Dynamic viscosity mu", "tooltip": "Fluid viscosity (Pa*s)." },
+        "permeability": { "label": "Permeability", "tooltip": "Hydraulic conductivity tensor." },
+        "permeability.kx": { "label": "kx", "tooltip": "Permeability in x (m^2 or m/s)." },
+        "permeability.ky": { "label": "ky", "tooltip": "Permeability in y (m^2 or m/s)." },
+        "porosity": { "label": "Porosity n", "tooltip": "Void fraction (0-1)." },
+        "biot": { "label": "Biot coefficients", "tooltip": "Coupling coefficients." },
+        "biot.alpha": { "label": "Biot alpha", "tooltip": "Biot coefficient (dimensionless)." },
+        "biot.M": { "label": "Biot modulus M", "tooltip": "Biot modulus (Pa)." },
+        "storage": { "label": "Storage", "tooltip": "Specific storage parameters." },
+        "storage.Ss": { "label": "Specific storage Ss", "tooltip": "Specific storage (1/m)." }
+      }
+    },
+    {
+      "name": "darcy",
+      "label": "Darcy Flow",
+      "behavior": "seepage",
+      "description": "Steady/Transient seepage model.",
+      "defaults": {
+        "permeability": { "kx": 1.0e-6, "ky": 1.0e-6 },
+        "fluid": { "rho": 1000.0, "mu": 0.001 },
+        "storage": { "Ss": 1.0e-5 }
+      },
+      "meta": {
+        "permeability": { "label": "Permeability", "tooltip": "Hydraulic conductivity tensor." },
+        "permeability.kx": { "label": "kx", "tooltip": "Permeability in x (m^2 or m/s)." },
+        "permeability.ky": { "label": "ky", "tooltip": "Permeability in y (m^2 or m/s)." },
+        "fluid": { "label": "Fluid phase", "tooltip": "Pore fluid properties." },
+        "fluid.rho": { "label": "Fluid density rho", "tooltip": "Fluid density (kg/m^3)." },
+        "fluid.mu": { "label": "Dynamic viscosity mu", "tooltip": "Fluid viscosity (Pa*s)." },
+        "storage": { "label": "Storage", "tooltip": "Specific storage parameters." },
+        "storage.Ss": { "label": "Specific storage Ss", "tooltip": "Specific storage (1/m)." }
+      }
+    }
+  ]
+}

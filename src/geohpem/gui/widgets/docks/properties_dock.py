@@ -19,8 +19,11 @@ class PropertiesDock:
             QDockWidget,
             QDoubleSpinBox,
             QFormLayout,
+            QGridLayout,
+            QGroupBox,
             QHBoxLayout,
             QHeaderView,
+            QInputDialog,
             QLabel,
             QLineEdit,
             QPlainTextEdit,
@@ -33,6 +36,7 @@ class PropertiesDock:
         )
 
         self._Qt = Qt
+        self._QInputDialog = QInputDialog
         self._QAbstractItemView = QAbstractItemView
         self.dock = QDockWidget("Properties")
         self.dock.setObjectName("dock_properties")
@@ -139,6 +143,25 @@ class PropertiesDock:
         self._dt.setDecimals(9)
         stage_form.addRow("dt", self._dt)
 
+        self._quick_group = QGroupBox("Quick Presets")
+        ql = QGridLayout(self._quick_group)
+        ql.setContentsMargins(6, 6, 6, 6)
+        ql.setHorizontalSpacing(8)
+        ql.setVerticalSpacing(6)
+        self._btn_q_fix_bottom = QPushButton("Fix bottom")
+        self._btn_q_fix_lr = QPushButton("Fix left/right")
+        self._btn_q_roller = QPushButton("Roller...")
+        self._btn_q_gravity = QPushButton("Gravity")
+        self._btn_q_traction = QPushButton("Traction on top")
+        self._btn_q_outputs = QPushButton("Default outputs")
+        ql.addWidget(self._btn_q_fix_bottom, 0, 0)
+        ql.addWidget(self._btn_q_fix_lr, 0, 1)
+        ql.addWidget(self._btn_q_roller, 0, 2)
+        ql.addWidget(self._btn_q_gravity, 1, 0)
+        ql.addWidget(self._btn_q_traction, 1, 1)
+        ql.addWidget(self._btn_q_outputs, 1, 2)
+        stage_layout.addWidget(self._quick_group)
+
         from geohpem.gui.widgets.output_requests_editor import OutputRequestsEditor
 
         self._cap_hint_outputs = QLabel("")
@@ -189,12 +212,14 @@ class PropertiesDock:
         self._mat_id.setReadOnly(True)
         mat_form.addRow("Material ID", self._mat_id)
 
-        self._mat_behavior = QComboBox()
-        mat_form.addRow("Behavior", self._mat_behavior)
-
         self._mat_model_name = QComboBox()
         self._mat_model_name.setEditable(True)
         mat_form.addRow("Model", self._mat_model_name)
+
+        self._mat_behavior = QLineEdit()
+        self._mat_behavior.setReadOnly(True)
+        mat_form.addRow("Behavior", self._mat_behavior)
+
 
         mat_buttons = QWidget()
         mbl = QHBoxLayout(mat_buttons)
@@ -202,13 +227,11 @@ class PropertiesDock:
         self._btn_mat_add = QPushButton("Add param")
         self._btn_mat_add_child = QPushButton("Add child")
         self._btn_mat_delete = QPushButton("Delete")
-        self._btn_mat_apply_template = QPushButton("Load template")
         self._btn_mat_json_to_table = QPushButton("JSON -> Tree")
         mbl.addWidget(self._btn_mat_add)
         mbl.addWidget(self._btn_mat_add_child)
         mbl.addWidget(self._btn_mat_delete)
         mbl.addStretch(1)
-        mbl.addWidget(self._btn_mat_apply_template)
         mbl.addWidget(self._btn_mat_json_to_table)
         mat_layout.addWidget(mat_buttons)
 
@@ -235,10 +258,7 @@ class PropertiesDock:
         self._stack.addWidget(self._page_material)
 
         # Page: assignments
-        from geohpem.gui.widgets.assignments_editor import (
-            AssignmentOptions,
-            AssignmentsEditor,
-        )
+        from geohpem.gui.widgets.assignments_editor import AssignmentsEditor
 
         self._page_assignments = QWidget()
         asg_layout = QVBoxLayout(self._page_assignments)
@@ -284,6 +304,7 @@ class PropertiesDock:
         self._current_stage_uid: str | None = None
         self._solver_caps: dict[str, Any] | None = None
         self._current_material_id: str | None = None
+        self._mat_param_meta: dict[str, dict[str, str]] = {}
 
         self._btn_apply_model.clicked.connect(self._on_apply_model)
         self._btn_apply_stage.clicked.connect(self._on_apply_stage)
@@ -292,12 +313,16 @@ class PropertiesDock:
         self._btn_mat_add_child.clicked.connect(self._on_material_add_child)
         self._btn_mat_delete.clicked.connect(self._on_material_delete_row)
         self._btn_mat_json_to_table.clicked.connect(self._on_material_json_to_table)
-        self._btn_mat_apply_template.clicked.connect(self._on_material_apply_template)
         self._mat_tabs.currentChanged.connect(self._on_material_tab_changed)
-        self._mat_behavior.currentIndexChanged.connect(self._on_material_behavior_changed)
         self._mat_model_name.currentTextChanged.connect(self._on_material_model_changed)
         self._btn_apply_assign.clicked.connect(self._on_apply_assignments)
         self._btn_apply_global_out.clicked.connect(self._on_apply_global_output_requests)
+        self._btn_q_fix_bottom.clicked.connect(self._quick_fix_bottom)
+        self._btn_q_fix_lr.clicked.connect(self._quick_fix_left_right)
+        self._btn_q_roller.clicked.connect(self._quick_roller)
+        self._btn_q_gravity.clicked.connect(self._quick_gravity)
+        self._btn_q_traction.clicked.connect(self._quick_traction_top)
+        self._btn_q_outputs.clicked.connect(self._quick_default_outputs)
 
         self.show_empty()
 
@@ -614,40 +639,20 @@ class PropertiesDock:
         self._stack.setCurrentWidget(self._page_stage)
 
     def show_material(self, material_id: str, material: dict[str, Any]) -> None:
-        from geohpem.domain.material_catalog import (
-            behavior_for_model,
-            behavior_options,
-            models_for_behavior,
-        )
+        from geohpem.domain.material_catalog import behavior_for_model, behavior_label, model_meta
 
         self._current_material_id = material_id
         self._mat_id.setText(material_id)
         model_name = str(material.get("model_name", ""))
-        behavior = str(material.get("behavior", "")) if isinstance(material.get("behavior"), str) else ""
-        if not behavior:
-            behavior = behavior_for_model(model_name) or "custom"
+        behavior = behavior_for_model(model_name) or str(material.get("behavior", "custom"))
 
-        # Populate behavior options
-        self._mat_behavior.blockSignals(True)
-        self._mat_behavior.clear()
-        for key, label in behavior_options():
-            self._mat_behavior.addItem(label, key)
-        if self._mat_behavior.findData(behavior) < 0:
-            self._mat_behavior.addItem(behavior, behavior)
-        idx = self._mat_behavior.findData(behavior)
-        self._mat_behavior.setCurrentIndex(idx if idx >= 0 else 0)
-        self._mat_behavior.blockSignals(False)
+        self._mat_behavior.setText(behavior_label(behavior))
+        self._refresh_material_model_options(model_name)
 
-        # Populate model list based on behavior
-        self._refresh_material_model_options(behavior, model_name)
-        try:
-            self._mat_header_subtitle.setText(
-                f"Material ID: {material_id} | {behavior or 'custom'} | {model_name or 'custom'}"
-            )
-        except Exception:
-            pass
+        self._update_material_header(model_name, behavior)
+        self._mat_param_meta = model_meta(model_name)
         params = material.get("parameters", {})
-        self._set_material_params(params if isinstance(params, dict) else {})
+        self._set_material_params(params if isinstance(params, dict) else {}, meta=self._mat_param_meta)
         self._stack.setCurrentWidget(self._page_material)
 
     def show_assignments(self, request: dict[str, Any]) -> None:
@@ -686,6 +691,138 @@ class PropertiesDock:
         self._apply_stage_cb(self._current_stage_uid, patch)
         self._validate_stage_outputs()
 
+    def _require_stage(self) -> bool:
+        if not self._current_stage_uid:
+            try:
+                from PySide6.QtWidgets import QMessageBox  # type: ignore
+
+                QMessageBox.information(self.dock, "Stage", "Select a stage first.")
+            except Exception:
+                pass
+            return False
+        return True
+
+    def _quick_set_name(self, candidates: list[str]) -> str | None:
+        for name in candidates:
+            if name in self._available_sets:
+                return name
+        return None
+
+    def _add_stage_bc(self, item: dict[str, Any]) -> bool:
+        items = self._bcs_editor.items()
+        typ = str(item.get("type", ""))
+        set_name = str(item.get("set", ""))
+        for it in items:
+            if str(it.get("type", "")) == typ and str(it.get("set", "")) == set_name:
+                return False
+        items.append(item)
+        self._bcs_editor.set_items(items)
+        return True
+
+    def _add_stage_load(self, item: dict[str, Any]) -> bool:
+        items = self._loads_editor.items()
+        typ = str(item.get("type", ""))
+        set_name = str(item.get("set", ""))
+        for it in items:
+            if str(it.get("type", "")) == typ and str(it.get("set", "")) == set_name:
+                return False
+        items.append(item)
+        self._loads_editor.set_items(items)
+        return True
+
+    def _quick_fix_bottom(self) -> None:
+        if not self._require_stage():
+            return
+        name = self._quick_set_name(["bottom", "boundary_bottom"])
+        if not name:
+            from PySide6.QtWidgets import QMessageBox  # type: ignore
+
+            QMessageBox.information(self.dock, "Quick Preset", "No bottom set found (bottom/boundary_bottom).")
+            return
+        self._add_stage_bc({"type": "displacement", "field": "u", "set": name, "value": {"ux": 0.0, "uy": 0.0}})
+        self._on_apply_stage()
+
+    def _quick_fix_left_right(self) -> None:
+        if not self._require_stage():
+            return
+        added = False
+        for key in ("left", "boundary_left"):
+            if key in self._available_sets:
+                added = (
+                    self._add_stage_bc({"type": "displacement", "field": "u", "set": key, "value": {"ux": 0.0}})
+                    or added
+                )
+        for key in ("right", "boundary_right"):
+            if key in self._available_sets:
+                added = (
+                    self._add_stage_bc({"type": "displacement", "field": "u", "set": key, "value": {"ux": 0.0}})
+                    or added
+                )
+        if not added:
+            from PySide6.QtWidgets import QMessageBox  # type: ignore
+
+            QMessageBox.information(self.dock, "Quick Preset", "No left/right sets found.")
+            return
+        self._on_apply_stage()
+
+    def _quick_roller(self) -> None:
+        if not self._require_stage():
+            return
+        if not self._available_sets:
+            from PySide6.QtWidgets import QMessageBox  # type: ignore
+
+            QMessageBox.information(self.dock, "Roller", "No sets available.")
+            return
+        set_name, ok = self._QInputDialog.getItem(self.dock, "Roller", "Set:", self._available_sets, 0, False)
+        if not ok:
+            return
+        axis, ok2 = self._QInputDialog.getItem(self.dock, "Roller", "Direction:", ["ux", "uy"], 0, False)
+        if not ok2:
+            return
+        val = {"ux": 0.0} if axis == "ux" else {"uy": 0.0}
+        self._add_stage_bc({"type": "displacement", "field": "u", "set": str(set_name), "value": val})
+        self._on_apply_stage()
+
+    def _quick_gravity(self) -> None:
+        if not self._require_stage():
+            return
+        self._add_stage_load({"type": "gravity", "field": "u", "value": [0.0, -9.81]})
+        self._on_apply_stage()
+
+    def _quick_traction_top(self) -> None:
+        if not self._require_stage():
+            return
+        name = self._quick_set_name(["top", "boundary_top"])
+        if not name:
+            from PySide6.QtWidgets import QMessageBox  # type: ignore
+
+            QMessageBox.information(self.dock, "Quick Preset", "No top set found (top/boundary_top).")
+            return
+        self._add_stage_load({"type": "traction", "field": "u", "set": name, "value": [0.0, -1.0e5]})
+        self._on_apply_stage()
+
+    def _quick_default_outputs(self) -> None:
+        if not self._require_stage():
+            return
+        items = self._stage_out_editor.requests()
+        wanted = [("u", "node"), ("vm", "element"), ("p", "node")]
+        allowed = self._allowed_output_names()
+
+        def has_req(name: str, loc: str) -> bool:
+            for it in items:
+                if str(it.get("name", "")) == name and str(it.get("location", "")) == loc:
+                    return True
+            return False
+
+        for name, loc in wanted:
+            if allowed and name not in allowed:
+                continue
+            if has_req(name, loc):
+                continue
+            items.append({"name": name, "location": loc, "every_n": 1})
+        self._stage_out_editor.set_requests(items)
+        self._on_apply_stage()
+
     def _on_apply_material(self) -> None:
         if self._current_material_id is None or not self._apply_material_cb:
             return
@@ -699,9 +836,11 @@ class PropertiesDock:
                 params = self._material_params_from_tree()
         except Exception:
             params = {}
-        behavior = str(self._mat_behavior.currentData() or "").strip() or None
+        from geohpem.domain.material_catalog import behavior_for_model
+
+        behavior = behavior_for_model(model_name) or "custom"
         self._apply_material_cb(self._current_material_id, model_name, params, behavior)
-        self._set_material_params(params)
+        self._set_material_params(params, meta=self._mat_param_meta)
 
     def _assign_options(self):
         from geohpem.gui.widgets.assignments_editor import AssignmentOptions
@@ -765,30 +904,46 @@ class PropertiesDock:
             return
         self._apply_global_output_requests_cb(self._global_out_editor.requests())
 
-    def _set_material_params(self, params: dict[str, Any]) -> None:
-        self._material_set_tree(params)
+    def _set_material_params(self, params: dict[str, Any], *, meta: dict[str, dict[str, str]] | None = None) -> None:
+        if meta is None:
+            meta = self._mat_param_meta
+        self._material_set_tree(params, meta=meta)
         try:
             self._mat_params.setPlainText(json.dumps(params, indent=2, ensure_ascii=False))
         except Exception:
             self._mat_params.setPlainText("{}")
 
-    def _material_set_tree(self, params: dict[str, Any]) -> None:
+    def _material_set_tree(self, params: dict[str, Any], *, meta: dict[str, dict[str, str]] | None = None) -> None:
         from PySide6.QtWidgets import QTreeWidgetItem  # type: ignore
 
         self._mat_tree.clear()
+        meta = meta or {}
 
-        def add_node(parent, key, value):  # noqa: ANN001
+        def meta_for(path_key: str) -> dict[str, str]:
+            entry = meta.get(path_key)
+            return entry if isinstance(entry, dict) else {}
+
+        def add_node(parent, key, value, path: list[str]):  # noqa: ANN001
+            path_key = ".".join(path)
+            info = meta_for(path_key)
+            label = info.get("label", "")
+            tooltip = info.get("tooltip", "")
             item = QTreeWidgetItem([str(key), ""])
+            if label or tooltip:
+                tip = f"{label} — {tooltip}".strip(" —") if label or tooltip else ""
+                if tip:
+                    item.setToolTip(0, tip)
+                    item.setToolTip(1, tip)
             if isinstance(value, dict):
                 item.setData(0, self._Qt.UserRole, {"kind": "dict"})
                 item.setFlags(item.flags() | self._Qt.ItemIsEditable)
                 for k in sorted(value.keys()):
-                    add_node(item, k, value.get(k))
+                    add_node(item, k, value.get(k), [*path, str(k)])
             elif isinstance(value, list):
                 item.setData(0, self._Qt.UserRole, {"kind": "list"})
                 item.setFlags(item.flags() | self._Qt.ItemIsEditable)
                 for i, v in enumerate(value):
-                    add_node(item, f"[{i}]", v)
+                    add_node(item, f"[{i}]", v, [*path, f"[{i}]"])
             else:
                 item.setData(0, self._Qt.UserRole, {"kind": "value"})
                 item.setFlags(item.flags() | self._Qt.ItemIsEditable)
@@ -800,7 +955,7 @@ class PropertiesDock:
             return item
 
         for key in sorted(params.keys()):
-            add_node(None, key, params.get(key))
+            add_node(None, key, params.get(key), [str(key)])
         try:
             self._mat_tree.expandAll()
         except Exception:
@@ -900,7 +1055,7 @@ class PropertiesDock:
 
             QMessageBox.information(self.dock, "JSON -> Tree", f"Invalid JSON:\n{exc}")
             return
-        self._material_set_tree(data)
+        self._material_set_tree(data, meta=self._mat_param_meta)
         try:
             self._mat_tabs.setCurrentIndex(self._mat_tabs.indexOf(self._mat_tree))
         except Exception:
@@ -937,66 +1092,75 @@ class PropertiesDock:
         item.setExpanded(True)
         self._mat_tree.setCurrentItem(child)
 
-    def _on_material_apply_template(self) -> None:
-        from geohpem.domain.material_catalog import model_defaults
-
-        model_name = self._current_material_model_name()
-        defaults = model_defaults(model_name)
-        if not defaults:
-            return
-        self._set_material_params(defaults)
-
-    def _on_material_behavior_changed(self) -> None:
-        behavior = str(self._mat_behavior.currentData() or "").strip()
-        current = self._current_material_model_name()
-        if behavior == "custom":
-            model_names = self._refresh_material_model_options(behavior, current)
-        else:
-            model_names = self._refresh_material_model_options(behavior, "")
-        if model_names:
-            self._mat_model_name.setCurrentIndex(0)
-        # If params are empty, preload defaults for the selected model.
-        if not self._material_has_params():
-            self._on_material_model_changed()
-
     def _on_material_model_changed(self) -> None:
+        from geohpem.domain.material_catalog import behavior_for_model, behavior_label, model_defaults, model_meta
+
         model_name = self._current_material_model_name()
-        behavior = str(self._mat_behavior.currentData() or "").strip() or "custom"
-        try:
-            self._mat_header_subtitle.setText(
-                f"Material ID: {self._current_material_id or ''} | {behavior} | {model_name or 'custom'}"
-            )
-        except Exception:
-            pass
-        if self._material_has_params():
-            return
-        from geohpem.domain.material_catalog import model_defaults
+        behavior = behavior_for_model(model_name) or "custom"
+        self._mat_behavior.setText(behavior_label(behavior))
+        self._update_material_header(model_name, behavior)
+        self._mat_param_meta = model_meta(model_name)
 
         defaults = model_defaults(model_name)
         if defaults:
-            self._set_material_params(defaults)
+            self._set_material_params(defaults, meta=self._mat_param_meta)
+            return
+        params = self._material_current_params()
+        if params is None:
+            return
+        self._set_material_params(params, meta=self._mat_param_meta)
 
     def _material_has_params(self) -> bool:
+        params = self._material_current_params()
+        return bool(params)
+
+    def _material_current_params(self) -> dict[str, Any] | None:
+        if self._mat_tabs.currentWidget() == self._mat_params:
+            try:
+                data = json.loads(self._mat_params.toPlainText() or "{}")
+                return data if isinstance(data, dict) else None
+            except Exception:
+                return None
         try:
-            return self._mat_tree.topLevelItemCount() > 0
+            return self._material_params_from_tree()
         except Exception:
-            return False
+            return None
 
     def _current_material_model_name(self) -> str:
         try:
+            text = str(self._mat_model_name.currentText()).strip()
+        except Exception:
+            text = ""
+        try:
             data = self._mat_model_name.currentData()
             if isinstance(data, str) and data.strip():
-                return data.strip()
+                name = data.strip()
+                try:
+                    from geohpem.domain.material_catalog import model_by_name
+
+                    if model_by_name(name) is not None:
+                        return name
+                except Exception:
+                    return name
+                if text and text == name:
+                    return name
         except Exception:
             pass
-        return str(self._mat_model_name.currentText()).strip()
+        try:
+            from geohpem.domain.material_catalog import model_by_name
 
-    def _refresh_material_model_options(self, behavior: str, current: str) -> list[str]:
-        from geohpem.domain.material_catalog import models_for_behavior
+            if text and model_by_name(text) is not None:
+                return text
+        except Exception:
+            pass
+        return text
+
+    def _refresh_material_model_options(self, current: str) -> None:
+        from geohpem.domain.material_catalog import all_models
 
         self._mat_model_name.blockSignals(True)
         self._mat_model_name.clear()
-        models = models_for_behavior(behavior)
+        models = all_models()
         for m in models:
             self._mat_model_name.addItem(m.label, m.name)
         if current and self._mat_model_name.findData(current) < 0:
@@ -1007,4 +1171,18 @@ class PropertiesDock:
         elif self._mat_model_name.count() > 0:
             self._mat_model_name.setCurrentIndex(0)
         self._mat_model_name.blockSignals(False)
-        return [m.name for m in models]
+
+    def _update_material_header(self, model_name: str, behavior: str) -> None:
+        from geohpem.domain.material_catalog import behavior_label, model_by_name
+
+        label = model_name or "custom"
+        model = model_by_name(model_name)
+        if model is not None:
+            label = model.label
+        beh_label = behavior_label(behavior)
+        try:
+            self._mat_header_subtitle.setText(
+                f"Material ID: {self._current_material_id or ''} | {label} | {beh_label}"
+            )
+        except Exception:
+            pass

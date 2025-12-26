@@ -167,6 +167,9 @@ class MainWindow:
         self._action_compare_outputs.setShortcut("Ctrl+Alt+C")
         self._action_compare_outputs.triggered.connect(self._on_compare_outputs)
 
+        self._action_material_catalog = QAction("Material Catalog...", self._win)
+        self._action_material_catalog.triggered.connect(self._on_material_catalog)
+
         self._action_validate_inputs = QAction("Validate Inputs...", self._win)
         self._action_validate_inputs.setShortcut("F7")
         self._action_validate_inputs.triggered.connect(self._on_validate_inputs)
@@ -278,6 +281,8 @@ class MainWindow:
 
         menu_tools = self._win.menuBar().addMenu("Tools")
         menu_tools.addAction(self._action_validate_inputs)
+        menu_tools.addSeparator()
+        menu_tools.addAction(self._action_material_catalog)
         menu_tools.addSeparator()
         menu_tools.addAction(self._action_batch_run)
         menu_tools.addAction(self._action_batch_report)
@@ -790,6 +795,19 @@ class MainWindow:
         dlg = CompareOutputsDialog(self._win)
         dlg.exec()
 
+    def _on_material_catalog(self) -> None:
+        from geohpem.domain.material_catalog import reload_catalog
+        from geohpem.gui.dialogs.material_catalog_dialog import MaterialCatalogDialog
+
+        dlg = MaterialCatalogDialog(self._win)
+        dlg.exec()
+        if dlg.saved():
+            reload_catalog()
+            sel = self.selection.get()
+            if sel is not None:
+                self._on_selection_changed(sel)
+            self.log_dock.append_info("Material catalog updated.")
+
     def _on_display_units(self) -> None:
         state = self.model.state()
         if not state.project:
@@ -1091,10 +1109,17 @@ class MainWindow:
             QDialog,
             QDialogButtonBox,
             QFormLayout,
+            QLabel,
             QLineEdit,
             QVBoxLayout,
         )
-        from geohpem.domain.material_catalog import behavior_options, model_defaults, models_for_behavior
+
+        from geohpem.domain.material_catalog import (
+            all_models,
+            behavior_for_model,
+            behavior_label,
+            model_defaults,
+        )
 
         default_id = preferred_id or self._suggest_material_id()
 
@@ -1107,31 +1132,32 @@ class MainWindow:
         inp_id = QLineEdit(str(default_id))
         form.addRow("Material ID", inp_id)
 
-        cbo_behavior = QComboBox()
-        for key, label in behavior_options():
-            cbo_behavior.addItem(label, key)
-        form.addRow("Behavior", cbo_behavior)
-
         cbo_model = QComboBox()
         cbo_model.setEditable(True)
         form.addRow("Model", cbo_model)
+
+        lbl_behavior = QLabel("")
+        form.addRow("Behavior", lbl_behavior)
 
         chk_template = QCheckBox("Load template parameters")
         chk_template.setChecked(True)
         layout.addWidget(chk_template)
 
-        def refresh_models() -> None:
-            behavior = str(cbo_behavior.currentData() or "").strip()
-            cbo_model.blockSignals(True)
-            cbo_model.clear()
-            for m in models_for_behavior(behavior):
-                cbo_model.addItem(m.label, m.name)
-            if cbo_model.count() > 0:
-                cbo_model.setCurrentIndex(0)
-            cbo_model.blockSignals(False)
+        def refresh_behavior() -> None:
+            model_name = str(cbo_model.currentData() or "").strip() or str(cbo_model.currentText()).strip()
+            behavior = behavior_for_model(model_name) or "custom"
+            lbl_behavior.setText(behavior_label(behavior))
 
-        cbo_behavior.currentIndexChanged.connect(lambda *_: refresh_models())
-        refresh_models()
+        cbo_model.blockSignals(True)
+        cbo_model.clear()
+        for m in all_models():
+            cbo_model.addItem(m.label, m.name)
+        if cbo_model.count() > 0:
+            cbo_model.setCurrentIndex(0)
+        cbo_model.blockSignals(False)
+        cbo_model.currentIndexChanged.connect(lambda *_: refresh_behavior())
+        cbo_model.currentTextChanged.connect(lambda *_: refresh_behavior())
+        refresh_behavior()
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         layout.addWidget(buttons)
@@ -1157,10 +1183,10 @@ class MainWindow:
             if btn != self._QMessageBox.Yes:
                 return
 
-        behavior = str(cbo_behavior.currentData() or "").strip() or None
         model_name = str(cbo_model.currentData() or "").strip() or str(cbo_model.currentText()).strip()
         defaults = model_defaults(model_name) if chk_template.isChecked() else None
         params = defaults or {}
+        behavior = behavior_for_model(model_name) or "custom"
         self.model.set_material(mid, model_name or "custom", params, behavior=behavior)
         self.log_dock.append_info(f"Added material: {mid}")
 
@@ -1631,7 +1657,13 @@ class MainWindow:
         self.model.update_stage_by_uid(stage_uid, patch)
         self.log_dock.append_info(f"Updated stage uid={stage_uid}")
 
-    def _apply_material(self, material_id: str, model_name: str, parameters: dict[str, Any], behavior: str | None) -> None:
+    def _apply_material(
+        self,
+        material_id: str,
+        model_name: str,
+        parameters: dict[str, Any],
+        behavior: str | None,
+    ) -> None:
         self.model.set_material(material_id, model_name, parameters, behavior=behavior)
         self.log_dock.append_info(f"Updated material: {material_id}")
 

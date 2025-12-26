@@ -327,12 +327,25 @@ class ProjectModel:
 
         self._with_request_undo("Delete Stage", mut)
 
-    def set_material(self, material_id: str, model_name: str, parameters: dict[str, Any], behavior: str | None = None) -> None:
+    def set_material(
+        self,
+        material_id: str,
+        model_name: str,
+        parameters: dict[str, Any],
+        *,
+        behavior: str | None = None,
+    ) -> None:
         from geohpem.domain.request_ops import upsert_material
 
         def mut() -> None:
             project = self.ensure_project()
-            project.request = upsert_material(project.request, material_id, model_name, parameters, behavior=behavior)
+            project.request = upsert_material(
+                project.request,
+                material_id,
+                model_name,
+                parameters,
+                behavior=behavior,
+            )
 
         self._with_request_undo("Edit Material", mut)
 
