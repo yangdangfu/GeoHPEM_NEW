@@ -109,3 +109,7 @@
   - DoD: validate required fields/types; clear error prompts; keep revision history for user edits.
 - [x] M17.5 Solver mapping hooks
   - DoD: provide mapping hook from catalog model/params to solver input without breaking existing cases.
+
+## Progress Updates (UI/UX)
+- [x] Context menus show shortcut hints in Input and Output workspaces.
+- [x] Selection feedback: Input shows selection counts; Output shows pins/profiles counts.

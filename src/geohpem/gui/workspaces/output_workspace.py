@@ -68,10 +68,13 @@ class OutputWorkspace:
         self._lbl_solver.setStyleSheet("color: #4b5563;")
         self._lbl_field = QLabel("Field: -")
         self._lbl_step = QLabel("Step: -")
+        self._lbl_marks = QLabel("Pins: 0 | Profiles: 0")
+        self._lbl_marks.setStyleSheet("color: #4b5563;")
         sl.addWidget(self._lbl_output)
         sl.addWidget(self._lbl_solver)
         sl.addWidget(self._lbl_field)
         sl.addWidget(self._lbl_step)
+        sl.addWidget(self._lbl_marks)
         sl.addStretch(1)
         layout.addWidget(status, 0)
 
@@ -81,6 +84,23 @@ class OutputWorkspace:
             self._sc_esc.activated.connect(self._cancel_active_mode)
         except Exception:
             self._sc_esc = None
+        try:
+            self._sc_reset = QShortcut(QKeySequence("R"), self.widget)
+            self._sc_reset.activated.connect(self._reset_view)
+            self._sc_profile = QShortcut(QKeySequence("P"), self.widget)
+            self._sc_profile.activated.connect(self._on_profile_line)
+            self._sc_history = QShortcut(QKeySequence("T"), self.widget)
+            self._sc_history.activated.connect(self._on_time_history)
+            self._sc_export_img = QShortcut(QKeySequence("Ctrl+E"), self.widget)
+            self._sc_export_img.activated.connect(self._on_export_image)
+            self._sc_export_steps = QShortcut(QKeySequence("Ctrl+Shift+E"), self.widget)
+            self._sc_export_steps.activated.connect(self._on_export_steps_png)
+        except Exception:
+            self._sc_reset = None
+            self._sc_profile = None
+            self._sc_history = None
+            self._sc_export_img = None
+            self._sc_export_steps = None
 
         splitter = QSplitter()
         layout.addWidget(splitter, 1)
@@ -462,6 +482,10 @@ class OutputWorkspace:
         except Exception:
             pass
         self._lbl_step.setText(f"Step: {step_label}")
+        try:
+            self._lbl_marks.setText(f"Pins: {len(self._pins)} | Profiles: {len(self._profiles)}")
+        except Exception:
+            pass
 
     def _parse_float(self, text: str) -> float | None:
         s = str(text or "").strip()
@@ -1126,27 +1150,27 @@ class OutputWorkspace:
             header.setEnabled(False)
             menu.addSeparator()
 
-            act_reset = menu.addAction("Reset view")
+            act_reset = menu.addAction("Reset view (R)")
             act_reset.setEnabled(self._viewer is not None)
             act_reset.triggered.connect(self._reset_view)
 
             menu.addSeparator()
 
-            act_export = menu.addAction("Export image...")
+            act_export = menu.addAction("Export image... (Ctrl+E)")
             act_export.setEnabled(self._viewer is not None)
             act_export.triggered.connect(self._on_export_image)
 
-            act_export_steps = menu.addAction("Export steps -> PNG...")
+            act_export_steps = menu.addAction("Export steps -> PNG... (Ctrl+Shift+E)")
             act_export_steps.setEnabled(self._viewer is not None)
             act_export_steps.triggered.connect(self._on_export_steps_png)
 
             menu.addSeparator()
 
-            act_profile = menu.addAction("Profile line...")
+            act_profile = menu.addAction("Profile line... (P)")
             act_profile.setEnabled(self._viewer is not None)
             act_profile.triggered.connect(self._on_profile_line)
 
-            act_history = menu.addAction("Time history...")
+            act_history = menu.addAction("Time history... (T)")
             act_history.setEnabled(self._viewer is not None)
             act_history.triggered.connect(self._on_time_history)
 
@@ -1945,6 +1969,7 @@ class OutputWorkspace:
                 if p.get("uid") == select_uid:
                     self.profile_list.setCurrentRow(i)
                     break
+        self._refresh_status()
 
     def _on_profile_selection_changed(self, row: int) -> None:
         ok = 0 <= int(row) < len(self._profiles)
@@ -2336,6 +2361,7 @@ class OutputWorkspace:
                 if p.get("uid") == select_uid:
                     self.pin_list.setCurrentRow(i)
                     break
+        self._refresh_status()
 
     def _on_pin_selection_changed(self, row: int) -> None:
         ok = 0 <= int(row) < len(self._pins)

@@ -63,11 +63,14 @@ class InputWorkspace:
         self._lbl_project = QLabel("Project: (none)")
         self._lbl_solver = QLabel("Solver: fake")
         self._lbl_dirty = QLabel("State: clean")
+        self._lbl_selection = QLabel("Selection: -")
         self._lbl_project.setStyleSheet("font-weight: 600;")
         self._lbl_solver.setStyleSheet("color: #4b5563;")
+        self._lbl_selection.setStyleSheet("color: #4b5563;")
         sl.addWidget(self._lbl_project)
         sl.addWidget(self._lbl_solver)
         sl.addWidget(self._lbl_dirty)
+        sl.addWidget(self._lbl_selection)
         sl.addStretch(1)
         tl.addWidget(status, 1)
 
@@ -942,6 +945,10 @@ class InputWorkspace:
             )
         else:
             self._lbl_sel_elems.setText(f"Elements: {n_elems}")
+        try:
+            self._lbl_selection.setText(f"Selection: {n_nodes}N / {n_edges}E / {n_elems}El")
+        except Exception:
+            pass
 
         self._btn_add_node.setEnabled(self._last_probe_pid is not None)
         self._btn_add_edge.setEnabled(len(self._last_probe_pid_history) >= 2)
@@ -1037,7 +1044,7 @@ class InputWorkspace:
         self._box_mode = mode
         self._box_replace = bool(self._chk_box_replace.isChecked())
         self._box_brush = bool(self._chk_box_brush.isChecked())
-        self._sel_info.setText(f"Box select {mode}: drag a rectangle in the viewport…")
+        self._sel_info.setText(f"Box select {mode}: drag a rectangle in the viewport.")
         self._update_selection_ui()
 
         def cb(selection):  # noqa: ANN001
@@ -1534,7 +1541,7 @@ class InputWorkspace:
 
             menu.addSeparator()
 
-            act_poly = menu.addAction("Polyline…")
+            act_poly = menu.addAction("Polyline...")
             act_poly.setEnabled(self._box_mode is None)
             act_poly.triggered.connect(self._toggle_polyline_mode)
 
@@ -1549,15 +1556,15 @@ class InputWorkspace:
 
             menu.addSeparator()
 
-            act_create_node = menu.addAction("Create node set…")
+            act_create_node = menu.addAction("Create node set...")
             act_create_node.setEnabled(bool(self._sel_nodes))
             act_create_node.triggered.connect(self._create_node_set_from_selection)
 
-            act_create_edge = menu.addAction("Create edge set…")
+            act_create_edge = menu.addAction("Create edge set...")
             act_create_edge.setEnabled(bool(self._sel_edges))
             act_create_edge.triggered.connect(self._create_edge_set_from_selection)
 
-            act_create_elem = menu.addAction("Create elem set…")
+            act_create_elem = menu.addAction("Create elem set...")
             act_create_elem.setEnabled(bool(sum(len(v) for v in self._sel_elems.values())))
             act_create_elem.triggered.connect(self._create_elem_set_from_selection)
 
