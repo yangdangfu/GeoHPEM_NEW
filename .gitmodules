@@ -1,0 +1,3 @@
+[submodule "src/geohpem/solver"]
+	path = src/geohpem/solver
+	url = git@github.com:yangdangfu/GeoHPEM-Solver.git
