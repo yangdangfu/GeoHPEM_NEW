@@ -3,7 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from geohpem.geometry.polygon2d import Polygon2D, get_polygon_from_request, set_polygon_in_request
+from geohpem.geometry.polygon2d import (
+    Polygon2D,
+    get_polygon_from_request,
+    set_polygon_in_request,
+)
 from geohpem.gui.model.project_model import ProjectModel
 from geohpem.mesh.generate_pygmsh import PygmshConfig, generate_from_polygon
 
@@ -27,7 +31,7 @@ class GeometryDock:
         from PySide6.QtCore import Qt  # type: ignore
         from PySide6.QtGui import QPainter  # type: ignore
         from PySide6.QtWidgets import (
-            QDockWidget,
+            QDockWidget,  # type: ignore
             QGraphicsScene,
             QGraphicsView,
             QHBoxLayout,
@@ -36,7 +40,7 @@ class GeometryDock:
             QPushButton,
             QVBoxLayout,
             QWidget,
-        )  # type: ignore
+        )
 
         self._Qt = Qt
         self._QMessageBox = QMessageBox
@@ -84,7 +88,9 @@ class GeometryDock:
             def __init__(self, scene) -> None:  # noqa: ANN001
                 super().__init__(scene)
                 self.setMouseTracking(True)
-                self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
+                self.setTransformationAnchor(
+                    QGraphicsView.ViewportAnchor.AnchorUnderMouse
+                )
                 self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
 
             def wheelEvent(self, event) -> None:  # noqa: ANN001
@@ -130,7 +136,10 @@ class GeometryDock:
                         outer._update_preview()
                         return
                     if btn == outer._Qt.RightButton:
-                        if outer._draw_tool == "polygon" and len(outer._draw_points) >= 3:
+                        if (
+                            outer._draw_tool == "polygon"
+                            and len(outer._draw_points) >= 3
+                        ):
                             outer._finish_draw()
                         else:
                             outer._cancel_draw()
@@ -162,8 +171,12 @@ class GeometryDock:
                     p = event.position().toPoint()
                     delta = p - getattr(self, "_pan_start", p)
                     self._pan_start = p
-                    self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - delta.x())
-                    self.verticalScrollBar().setValue(self.verticalScrollBar().value() - delta.y())
+                    self.horizontalScrollBar().setValue(
+                        self.horizontalScrollBar().value() - delta.x()
+                    )
+                    self.verticalScrollBar().setValue(
+                        self.verticalScrollBar().value() - delta.y()
+                    )
                     event.accept()
                     return
                 if outer._draw_mode:
@@ -192,7 +205,7 @@ class GeometryDock:
                 while base < 1:
                     base *= 10
                     exp -= 1
-                step = min(nice_steps, key=lambda s: abs(s - base)) * (10 ** exp)
+                step = min(nice_steps, key=lambda s: abs(s - base)) * (10**exp)
                 minor = step / 5
 
                 from PySide6.QtGui import QPen  # type: ignore
@@ -271,7 +284,9 @@ class GeometryDock:
         widget = self.widget
         try:
             widget.setParent(None)
-            widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+            widget.setSizePolicy(
+                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+            )
             widget.show()
         except Exception:
             pass
@@ -305,7 +320,9 @@ class GeometryDock:
         if poly is None:
             self.info.setText("Polygon2D: not set")
         else:
-            self.info.setText(f"Polygon2D: {len(poly.vertices)} vertices, region={poly.region_name}")
+            self.info.setText(
+                f"Polygon2D: {len(poly.vertices)} vertices, region={poly.region_name}"
+            )
         if push_to_model and self._model and self._model.state().project:
             req = self._model.state().project.request
             req2 = set_polygon_in_request(req, poly)
@@ -317,7 +334,11 @@ class GeometryDock:
     def _redraw(self) -> None:
         from PySide6.QtCore import QPointF  # type: ignore
         from PySide6.QtGui import QPen  # type: ignore
-        from PySide6.QtWidgets import QGraphicsEllipseItem, QGraphicsItem, QGraphicsLineItem  # type: ignore
+        from PySide6.QtWidgets import (
+            QGraphicsEllipseItem,  # type: ignore
+            QGraphicsItem,
+            QGraphicsLineItem,
+        )
 
         self.scene.clear()
         self._vertex_items = []
@@ -352,7 +373,11 @@ class GeometryDock:
             new_verts = list(self._poly.vertices)
             if 0 <= idx < len(new_verts):
                 new_verts[idx] = (newx, newy)
-                self._poly = Polygon2D(vertices=new_verts, edge_groups=self._poly.edge_groups, region_name=self._poly.region_name)
+                self._poly = Polygon2D(
+                    vertices=new_verts,
+                    edge_groups=self._poly.edge_groups,
+                    region_name=self._poly.region_name,
+                )
                 # Update adjacent edges live without clearing the scene.
                 if self._edge_items:
                     n = len(new_verts)
@@ -385,8 +410,12 @@ class GeometryDock:
                 self._cb = cb
                 self.setPos(x, y)
                 self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
-                self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges, True)
-                self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True)
+                self.setFlag(
+                    QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges, True
+                )
+                self.setFlag(
+                    QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True
+                )
                 self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
                 self.setData(outer._Qt.UserRole, ("vertex", idx))
 
@@ -414,7 +443,9 @@ class GeometryDock:
             self.scene.addItem(it)
             self._vertex_items.append(it)
 
-        self.scene.setSceneRect(self.scene.itemsBoundingRect().adjusted(-20, -20, 20, 20))
+        self.scene.setSceneRect(
+            self.scene.itemsBoundingRect().adjusted(-20, -20, 20, 20)
+        )
         self._apply_selection_style()
 
     def _fit_view(self) -> None:
@@ -439,7 +470,11 @@ class GeometryDock:
             self._apply_selection_style()
             return
         payload = items[0].data(self._Qt.UserRole)
-        if isinstance(payload, tuple) and len(payload) == 2 and payload[0] in ("vertex", "edge"):
+        if (
+            isinstance(payload, tuple)
+            and len(payload) == 2
+            and payload[0] in ("vertex", "edge")
+        ):
             self._select((str(payload[0]), int(payload[1])))
         else:
             self._selected = None
@@ -461,7 +496,9 @@ class GeometryDock:
                 dx = self._units.convert_base_to_display("length", float(x))
                 dy = self._units.convert_base_to_display("length", float(y))
                 suf = f" {u}" if u else ""
-                self.info.setText(f"Vertex {idx}: uid={vid} x={dx:.4g}{suf} y={dy:.4g}{suf}")
+                self.info.setText(
+                    f"Vertex {idx}: uid={vid} x={dx:.4g}{suf} y={dy:.4g}{suf}"
+                )
             else:
                 self.info.setText(f"Vertex {idx}: uid={vid} x={x:.4g} y={y:.4g}")
         elif kind == "edge":
@@ -480,7 +517,9 @@ class GeometryDock:
                     f"({dx1:.4g}{suf},{dy1:.4g}{suf})->({dx2:.4g}{suf},{dy2:.4g}{suf})"
                 )
             else:
-                self.info.setText(f"Edge {idx}: uid={eid} label={label} ({x1:.4g},{y1:.4g})->({x2:.4g},{y2:.4g})")
+                self.info.setText(
+                    f"Edge {idx}: uid={eid} label={label} ({x1:.4g},{y1:.4g})->({x2:.4g},{y2:.4g})"
+                )
 
     def _apply_selection_style(self) -> None:
         from PySide6.QtGui import QPen  # type: ignore
@@ -506,7 +545,9 @@ class GeometryDock:
         self._draw_cursor = None
         self._clear_preview()
         self.btn_finish.setEnabled(True)
-        self.info.setText("Draw polygon: left-click to add points, right-click to cancel, Finish to close.")
+        self.info.setText(
+            "Draw polygon: left-click to add points, right-click to cancel, Finish to close."
+        )
 
     def _start_draw_rectangle(self) -> None:
         self._draw_mode = True
@@ -515,7 +556,9 @@ class GeometryDock:
         self._draw_cursor = None
         self._clear_preview()
         self.btn_finish.setEnabled(True)
-        self.info.setText("Draw rectangle: left-click 1st corner, move to preview, left-click 2nd corner. Right-click to cancel.")
+        self.info.setText(
+            "Draw rectangle: left-click 1st corner, move to preview, left-click 2nd corner. Right-click to cancel."
+        )
 
     def _start_draw(self) -> None:
         # Backward-compatible alias
@@ -579,8 +622,8 @@ class GeometryDock:
         self._preview_items = []
 
     def _update_preview(self) -> None:
-        from PySide6.QtGui import QPen  # type: ignore
         from PySide6.QtCore import Qt  # type: ignore
+        from PySide6.QtGui import QPen  # type: ignore
         from PySide6.QtWidgets import QGraphicsLineItem  # type: ignore
 
         self._clear_preview()
@@ -596,7 +639,13 @@ class GeometryDock:
                 x2, y2 = cur
                 xmin, xmax = (x1, x2) if x1 <= x2 else (x2, x1)
                 ymin, ymax = (y1, y2) if y1 <= y2 else (y2, y1)
-                pts = [(xmin, ymin), (xmax, ymin), (xmax, ymax), (xmin, ymax), (xmin, ymin)]
+                pts = [
+                    (xmin, ymin),
+                    (xmax, ymin),
+                    (xmax, ymax),
+                    (xmin, ymax),
+                    (xmin, ymin),
+                ]
                 for (ax, ay), (bx, by) in zip(pts[:-1], pts[1:], strict=False):
                     li = QGraphicsLineItem(ax, -ay, bx, -by)
                     li.setPen(pen)
@@ -632,10 +681,18 @@ class GeometryDock:
 
     def _edit_edge_labels(self) -> None:
         if not self._poly:
-            self._QMessageBox.information(self.dock, "Edge Labels", "Create a polygon first.")
+            self._QMessageBox.information(
+                self.dock, "Edge Labels", "Create a polygon first."
+            )
             return
 
-        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QFormLayout, QLineEdit, QVBoxLayout  # type: ignore
+        from PySide6.QtWidgets import (
+            QDialog,  # type: ignore
+            QDialogButtonBox,
+            QFormLayout,
+            QLineEdit,
+            QVBoxLayout,
+        )
 
         dialog = QDialog(self.dock)
         dialog.setWindowTitle("Edge Labels")
@@ -661,18 +718,32 @@ class GeometryDock:
             return
 
         new_groups = [e.text().strip() or f"edge_{i+1}" for i, e in enumerate(edits)]
-        new_poly = Polygon2D(vertices=list(self._poly.vertices), edge_groups=new_groups, region_name=self._poly.region_name)
+        new_poly = Polygon2D(
+            vertices=list(self._poly.vertices),
+            edge_groups=new_groups,
+            region_name=self._poly.region_name,
+        )
         self._set_polygon(new_poly, push_to_model=True)
 
     def _generate_mesh(self) -> None:
         if not self._poly:
-            self._QMessageBox.information(self.dock, "Generate Mesh", "Create a polygon first.")
+            self._QMessageBox.information(
+                self.dock, "Generate Mesh", "Create a polygon first."
+            )
             return
         if not self._model or not self._model.state().project:
-            self._QMessageBox.information(self.dock, "Generate Mesh", "Open a project first.")
+            self._QMessageBox.information(
+                self.dock, "Generate Mesh", "Open a project first."
+            )
             return
 
-        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout, QVBoxLayout  # type: ignore
+        from PySide6.QtWidgets import (
+            QDialog,  # type: ignore
+            QDialogButtonBox,
+            QDoubleSpinBox,
+            QFormLayout,
+            QVBoxLayout,
+        )
 
         dialog = QDialog(self.dock)
         dialog.setWindowTitle("Mesh Parameters")
@@ -700,7 +771,9 @@ class GeometryDock:
         unit_label = ""
         if self._units is not None:
             try:
-                default_display = float(self._units.convert_base_to_display("length", float(default_base)))
+                default_display = float(
+                    self._units.convert_base_to_display("length", float(default_base))
+                )
                 unit_label = self._units.display_unit("length", "") or ""
             except Exception:
                 default_display = default_base
@@ -722,7 +795,9 @@ class GeometryDock:
         mesh_size_base = mesh_size_display
         if self._units is not None:
             try:
-                mesh_size_base = float(self._units.convert_display_to_base("length", mesh_size_display))
+                mesh_size_base = float(
+                    self._units.convert_display_to_base("length", mesh_size_display)
+                )
             except Exception:
                 mesh_size_base = mesh_size_display
         cfg = PygmshConfig(mesh_size=float(mesh_size_base))

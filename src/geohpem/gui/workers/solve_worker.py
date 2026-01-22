@@ -40,18 +40,21 @@ class SolveWorker:
 
             @Slot()
             def run(self) -> None:
-                from geohpem.app.run_case import run_case
-                from geohpem.app.diagnostics import build_diagnostics_zip
-                from geohpem.app.errors import CancelledError
-                from geohpem.app.error_mapping import map_exception
                 import traceback
+
+                from geohpem.app.diagnostics import build_diagnostics_zip
+                from geohpem.app.error_mapping import map_exception
+                from geohpem.app.errors import CancelledError
+                from geohpem.app.run_case import run_case
 
                 self.started.emit()
                 self.progress.emit(1, "Starting...")
                 self.log.emit(f"Running solver: {self._solver_selector}")
                 self._logs.append(f"Running solver: {self._solver_selector}")
 
-                def on_progress(p: float, message: str, stage_id: str, step: int) -> None:
+                def on_progress(
+                    p: float, message: str, stage_id: str, step: int
+                ) -> None:
                     percent = int(max(0.0, min(1.0, p)) * 100)
                     self.progress.emit(percent, f"{stage_id} step {step}: {message}")
 

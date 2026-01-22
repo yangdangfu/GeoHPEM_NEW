@@ -27,9 +27,16 @@ class PlotDialog:
         default_csv_name: str = "data.csv",
         default_png_name: str = "plot.png",
     ) -> None:
-        from PySide6.QtWidgets import (  # type: ignore
+        from matplotlib.backends.backend_qtagg import (
+            FigureCanvasQTAgg as FigureCanvas,
+        )  # type: ignore
+        from matplotlib.backends.backend_qtagg import (
+            NavigationToolbar2QT as NavigationToolbar,
+        )  # type: ignore
+        from matplotlib.figure import Figure  # type: ignore
+        from PySide6.QtWidgets import (
             QDialog,
-            QFileDialog,
+            QFileDialog,  # type: ignore
             QHBoxLayout,
             QLabel,
             QMessageBox,
@@ -37,10 +44,6 @@ class PlotDialog:
             QVBoxLayout,
             QWidget,
         )
-
-        from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas  # type: ignore
-        from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar  # type: ignore
-        from matplotlib.figure import Figure  # type: ignore
 
         self._QFileDialog = QFileDialog
         self._QMessageBox = QMessageBox
@@ -90,13 +93,17 @@ class PlotDialog:
         layout.addWidget(btns)
 
         self._btn_close.clicked.connect(self._dialog.accept)
-        self._btn_csv.clicked.connect(lambda: self._export_csv(series, xlabel=xlabel, ylabel=ylabel))
+        self._btn_csv.clicked.connect(
+            lambda: self._export_csv(series, xlabel=xlabel, ylabel=ylabel)
+        )
         self._btn_png.clicked.connect(self._save_plot_png)
 
     def exec(self) -> int:
         return int(self._dialog.exec())
 
-    def _export_csv(self, series: list[PlotSeries], *, xlabel: str, ylabel: str) -> None:
+    def _export_csv(
+        self, series: list[PlotSeries], *, xlabel: str, ylabel: str
+    ) -> None:
         file, _ = self._QFileDialog.getSaveFileName(
             self._dialog,
             "Export CSV",
@@ -108,8 +115,16 @@ class PlotDialog:
         path = Path(file)
         try:
             # Minimal wide format: x + y1..yn (assumes same x length; otherwise falls back to two-column per series).
-            x0 = np.asarray(series[0].x, dtype=float).ravel() if series else np.array([], dtype=float)
-            same_x = bool(series) and all(np.asarray(s.x).ravel().shape == x0.shape and np.allclose(np.asarray(s.x).ravel(), x0) for s in series)
+            x0 = (
+                np.asarray(series[0].x, dtype=float).ravel()
+                if series
+                else np.array([], dtype=float)
+            )
+            same_x = bool(series) and all(
+                np.asarray(s.x).ravel().shape == x0.shape
+                and np.allclose(np.asarray(s.x).ravel(), x0)
+                for s in series
+            )
             if same_x:
                 cols = [x0]
                 headers = [xlabel]
@@ -129,7 +144,10 @@ class PlotDialog:
                     lab = s.label or f"series_{i+1}"
                     parts.append(f"# {lab}")
                     parts.append(f"{xlabel},{ylabel}")
-                    parts.extend(",".join((f"{x[j]:.12g}", f"{y[j]:.12g}")) for j in range(min(x.size, y.size)))
+                    parts.extend(
+                        ",".join((f"{x[j]:.12g}", f"{y[j]:.12g}"))
+                        for j in range(min(x.size, y.size))
+                    )
                     parts.append("")
                 path.write_text("\n".join(parts), encoding="utf-8")
         except Exception as exc:
@@ -148,4 +166,3 @@ class PlotDialog:
             self._fig.savefig(str(file), dpi=200)
         except Exception as exc:
             self._QMessageBox.critical(self._dialog, "Save Plot Image Failed", str(exc))
-

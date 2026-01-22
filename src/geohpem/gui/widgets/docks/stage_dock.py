@@ -35,8 +35,8 @@ def _stage_diff(prev: dict[str, Any] | None, cur: dict[str, Any]) -> str:
 class StageDock:
     def __init__(self) -> None:
         from PySide6.QtCore import Signal  # type: ignore
-        from PySide6.QtWidgets import (  # type: ignore
-            QDockWidget,
+        from PySide6.QtWidgets import (
+            QDockWidget,  # type: ignore
             QHBoxLayout,
             QListWidget,
             QPlainTextEdit,
@@ -96,7 +96,9 @@ class StageDock:
         # Ensure users can re-select a stage (e.g., when only one stage exists)
         # and still drive Properties updates.
         try:
-            self.list.itemClicked.connect(lambda *_: self._on_row_changed(self.list.currentRow()))
+            self.list.itemClicked.connect(
+                lambda *_: self._on_row_changed(self.list.currentRow())
+            )
         except Exception:
             pass
         self.btn_add.clicked.connect(lambda: self.add_stage.emit())

@@ -9,10 +9,16 @@ class UnitsDialogResult:
 
 
 class UnitsDialog:
-    def __init__(self, parent, *, base_units: dict[str, str], current_display_units: dict[str, str]) -> None:  # noqa: ANN001
-        from PySide6.QtWidgets import (  # type: ignore
+    def __init__(
+        self,
+        parent,
+        *,
+        base_units: dict[str, str],
+        current_display_units: dict[str, str],
+    ) -> None:  # noqa: ANN001
+        from PySide6.QtWidgets import (
             QComboBox,
-            QDialog,
+            QDialog,  # type: ignore
             QDialogButtonBox,
             QFormLayout,
             QLabel,
@@ -25,7 +31,9 @@ class UnitsDialog:
         self._dialog.setWindowTitle("Display Units")
 
         layout = QVBoxLayout(self._dialog)
-        layout.addWidget(QLabel("Choose display units (data values remain in project units)."))
+        layout.addWidget(
+            QLabel("Choose display units (data values remain in project units).")
+        )
 
         form = QFormLayout()
         layout.addLayout(form)
@@ -58,4 +66,3 @@ class UnitsDialog:
         for kind, combo in self._combos.items():
             units[kind] = str(combo.currentData())
         return UnitsDialogResult(display_units=units)
-

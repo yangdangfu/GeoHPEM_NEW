@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from typing import Callable
-import time
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,7 +36,13 @@ class UndoStack:
     def can_redo(self) -> bool:
         return self._cursor < len(self._cmds)
 
-    def push_and_redo(self, cmd: UndoCommand, *, merge_key: str | None = None, merge_window_s: float = 0.75) -> None:
+    def push_and_redo(
+        self,
+        cmd: UndoCommand,
+        *,
+        merge_key: str | None = None,
+        merge_window_s: float = 0.75,
+    ) -> None:
         """
         Push a command and execute it.
 

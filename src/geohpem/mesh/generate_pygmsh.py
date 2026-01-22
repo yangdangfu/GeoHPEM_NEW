@@ -28,7 +28,9 @@ def _sanitize_set_name(name: str) -> str:
     return s2 or "domain"
 
 
-def generate_from_polygon(poly: Polygon2D, config: PygmshConfig | None = None) -> tuple[dict[str, Any], ImportReport]:
+def generate_from_polygon(
+    poly: Polygon2D, config: PygmshConfig | None = None
+) -> tuple[dict[str, Any], ImportReport]:
     """
     Generate a 2D triangular mesh from a polygon using pygmsh/gmsh.
 
@@ -41,7 +43,9 @@ def generate_from_polygon(poly: Polygon2D, config: PygmshConfig | None = None) -
     try:
         import pygmsh  # type: ignore
     except Exception as exc:  # pragma: no cover
-        raise RuntimeError("pygmsh is required: install dependencies (e.g. conda env geohpem)") from exc
+        raise RuntimeError(
+            "pygmsh is required: install dependencies (e.g. conda env geohpem)"
+        ) from exc
 
     points = [(float(x), float(y), 0.0) for x, y in poly.vertices]
     edge_groups = poly.normalized_edge_groups()

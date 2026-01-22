@@ -29,7 +29,9 @@ class SettingsStore:
         return paths[:10]
 
     def add_recent_project(self, path: Path) -> None:
-        items = [str(p) for p in self.get_recent_projects() if p.resolve() != path.resolve()]
+        items = [
+            str(p) for p in self.get_recent_projects() if p.resolve() != path.resolve()
+        ]
         items.insert(0, str(path))
         self._q.setValue("recent_projects", items[:10])
 

@@ -43,7 +43,13 @@ def _report_from_contract_mesh(mesh: dict[str, Any]) -> ImportReport:
             a = np.asarray(v)
             elem_sets[name] = elem_sets.get(name, 0) + int(a.size)
 
-    return ImportReport(points=points, cells=cells, node_sets=node_sets, edge_sets=edge_sets, element_sets=elem_sets)
+    return ImportReport(
+        points=points,
+        cells=cells,
+        node_sets=node_sets,
+        edge_sets=edge_sets,
+        element_sets=elem_sets,
+    )
 
 
 def import_contract_npz_report(path: str | Path) -> tuple[dict[str, Any], ImportReport]:

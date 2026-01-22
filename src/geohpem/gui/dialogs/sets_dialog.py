@@ -58,7 +58,9 @@ def _parse_edge_pairs(text: str) -> np.ndarray:
     normalized = text.replace("|", ";")
     parts: list[str] = []
     for chunk in normalized.splitlines():
-        parts.extend([p.strip() for p in chunk.replace(";", ",").split(",") if p.strip()])
+        parts.extend(
+            [p.strip() for p in chunk.replace(";", ",").split(",") if p.strip()]
+        )
     pairs: list[tuple[int, int]] = []
     for part in parts:
         p = part.strip()
@@ -93,7 +95,7 @@ class SetsDialog:
     ) -> None:
         from PySide6.QtWidgets import (
             QComboBox,
-            QDialog,
+            QDialog,  # type: ignore
             QDialogButtonBox,
             QFormLayout,
             QHBoxLayout,
@@ -105,7 +107,7 @@ class SetsDialog:
             QSplitter,
             QVBoxLayout,
             QWidget,
-        )  # type: ignore
+        )
 
         self._QMessageBox = QMessageBox
         self._mesh = dict(mesh)
@@ -155,7 +157,9 @@ class SetsDialog:
         form.addRow("Name", self.name)
 
         self.indices = QLineEdit()
-        self.indices.setPlaceholderText("Nodes: 0,1,2-10  |  Edges: 0-1;1-2;2-3  |  Elems: 0,2,3-20")
+        self.indices.setPlaceholderText(
+            "Nodes: 0,1,2-10  |  Edges: 0-1;1-2;2-3  |  Elems: 0,2,3-20"
+        )
         form.addRow("Indices", self.indices)
 
         self.btn_add = QPushButton("Add")
@@ -184,16 +188,27 @@ class SetsDialog:
         for k, v in self._mesh.items():
             if k.startswith("node_set__"):
                 name = k.split("__", 1)[1]
-                items.append(SetItem(kind="node", name=name, count=int(np.asarray(v).size)))
+                items.append(
+                    SetItem(kind="node", name=name, count=int(np.asarray(v).size))
+                )
             elif k.startswith("edge_set__"):
                 name = k.split("__", 1)[1]
-                items.append(SetItem(kind="edge", name=name, count=int(np.asarray(v).shape[0])))
+                items.append(
+                    SetItem(kind="edge", name=name, count=int(np.asarray(v).shape[0]))
+                )
             elif k.startswith("elem_set__"):
                 rest = k.split("__", 1)[1]
                 parts = rest.split("__")
                 name = parts[0]
                 cell_type = parts[1] if len(parts) > 1 else None
-                items.append(SetItem(kind="elem", name=name, cell_type=cell_type, count=int(np.asarray(v).size)))
+                items.append(
+                    SetItem(
+                        kind="elem",
+                        name=name,
+                        cell_type=cell_type,
+                        count=int(np.asarray(v).size),
+                    )
+                )
         items.sort(key=lambda x: (x.kind, x.name, x.cell_type or ""))
         return items
 
@@ -228,7 +243,9 @@ class SetsDialog:
             idx = _parse_int_list(self.indices.text())
             self._mesh = add_elem_set(self._mesh, name, "quad4", idx)
         else:
-            self._QMessageBox.information(self.dialog, "Add Set", f"Unknown kind: {kind}")
+            self._QMessageBox.information(
+                self.dialog, "Add Set", f"Unknown kind: {kind}"
+            )
             return
 
         self._on_apply(self._mesh)
@@ -269,6 +286,7 @@ class SetsDialog:
 
     def _on_rename(self) -> None:
         from PySide6.QtWidgets import QInputDialog  # type: ignore
+
         from geohpem.domain.mesh_ops import rename_set
 
         key = self._selected_key()
@@ -296,7 +314,9 @@ class SetsDialog:
             return
 
         if new_key in self._mesh:
-            self._QMessageBox.information(self.dialog, "Rename", f"Target already exists: {new_key}")
+            self._QMessageBox.information(
+                self.dialog, "Rename", f"Target already exists: {new_key}"
+            )
             return
 
         self._mesh = rename_set(self._mesh, key, new_key)

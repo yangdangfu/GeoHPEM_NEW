@@ -35,8 +35,8 @@ class MainWindow:
     def __init__(self) -> None:
         from PySide6.QtCore import QObject, QSize, Qt, Slot  # type: ignore
         from PySide6.QtGui import QAction  # type: ignore
-        from PySide6.QtWidgets import (  # type: ignore
-            QFileDialog,
+        from PySide6.QtWidgets import (
+            QFileDialog,  # type: ignore
             QMainWindow,
             QMenu,
             QMessageBox,
@@ -67,7 +67,12 @@ class MainWindow:
         try:
             from PySide6.QtGui import QIcon  # type: ignore
 
-            icon_path = Path(__file__).resolve().parents[1] / "assets" / "branding" / "geohpem.xpm"
+            icon_path = (
+                Path(__file__).resolve().parents[1]
+                / "assets"
+                / "branding"
+                / "geohpem.xpm"
+            )
             if icon_path.exists():
                 self._win.setWindowIcon(QIcon(str(icon_path)))
         except Exception:
@@ -82,7 +87,9 @@ class MainWindow:
                 outer.open_output_folder(Path(out_dir))
 
             @Slot(str, object)
-            def on_solver_failed(self, error_text: str, diag_path) -> None:  # noqa: ANN001
+            def on_solver_failed(
+                self, error_text: str, diag_path
+            ) -> None:  # noqa: ANN001
                 outer._on_solver_failed(error_text, diag_path)
 
             @Slot(object)
@@ -109,17 +116,29 @@ class MainWindow:
 
         # Keep Project and Stages visible simultaneously: Project on top, Stages below.
         try:
-            self._win.splitDockWidget(self.project_dock.dock, self.stage_dock.dock, Qt.Vertical)
+            self._win.splitDockWidget(
+                self.project_dock.dock, self.stage_dock.dock, Qt.Vertical
+            )
         except Exception:
             self._win.tabifyDockWidget(self.project_dock.dock, self.stage_dock.dock)
         try:
-            self._win.splitDockWidget(self.log_dock.dock, self.tasks_dock.dock, Qt.Horizontal)
+            self._win.splitDockWidget(
+                self.log_dock.dock, self.tasks_dock.dock, Qt.Horizontal
+            )
         except Exception:
             self._win.tabifyDockWidget(self.log_dock.dock, self.tasks_dock.dock)
         try:
-            self._win.resizeDocks([self.project_dock.dock, self.stage_dock.dock], [260, 200], Qt.Vertical)
-            self._win.resizeDocks([self.project_dock.dock, self.properties_dock.dock], [300, 420], Qt.Horizontal)
-            self._win.resizeDocks([self.log_dock.dock, self.tasks_dock.dock], [700, 260], Qt.Horizontal)
+            self._win.resizeDocks(
+                [self.project_dock.dock, self.stage_dock.dock], [260, 200], Qt.Vertical
+            )
+            self._win.resizeDocks(
+                [self.project_dock.dock, self.properties_dock.dock],
+                [300, 420],
+                Qt.Horizontal,
+            )
+            self._win.resizeDocks(
+                [self.log_dock.dock, self.tasks_dock.dock], [700, 260], Qt.Horizontal
+            )
         except Exception:
             pass
         self.log_dock.dock.raise_()
@@ -235,20 +254,36 @@ class MainWindow:
             self._action_new.setIcon(style.standardIcon(QStyle.SP_FileIcon))
             self._action_open.setIcon(style.standardIcon(QStyle.SP_DialogOpenButton))
             self._action_save.setIcon(style.standardIcon(QStyle.SP_DialogSaveButton))
-            self._action_import_mesh.setIcon(style.standardIcon(QStyle.SP_DialogOpenButton))
+            self._action_import_mesh.setIcon(
+                style.standardIcon(QStyle.SP_DialogOpenButton)
+            )
             self._action_open_results.setIcon(style.standardIcon(QStyle.SP_DirOpenIcon))
-            self._action_validate_inputs.setIcon(style.standardIcon(QStyle.SP_MessageBoxInformation))
-            self._action_select_solver.setIcon(style.standardIcon(QStyle.SP_ComputerIcon))
+            self._action_validate_inputs.setIcon(
+                style.standardIcon(QStyle.SP_MessageBoxInformation)
+            )
+            self._action_select_solver.setIcon(
+                style.standardIcon(QStyle.SP_ComputerIcon)
+            )
             self._action_run.setIcon(style.standardIcon(QStyle.SP_MediaPlay))
             self._action_ws_input.setIcon(style.standardIcon(QStyle.SP_DirHomeIcon))
             self._action_ws_output.setIcon(style.standardIcon(QStyle.SP_DirOpenIcon))
             self._action_sets.setIcon(style.standardIcon(QStyle.SP_DirIcon))
-            self._action_mesh_quality.setIcon(style.standardIcon(QStyle.SP_MessageBoxWarning))
-            self._action_units.setIcon(style.standardIcon(QStyle.SP_FileDialogDetailedView))
-            self._action_material_catalog.setIcon(style.standardIcon(QStyle.SP_FileDialogListView))
+            self._action_mesh_quality.setIcon(
+                style.standardIcon(QStyle.SP_MessageBoxWarning)
+            )
+            self._action_units.setIcon(
+                style.standardIcon(QStyle.SP_FileDialogDetailedView)
+            )
+            self._action_material_catalog.setIcon(
+                style.standardIcon(QStyle.SP_FileDialogListView)
+            )
             self._action_batch_run.setIcon(style.standardIcon(QStyle.SP_MediaPlay))
-            self._action_batch_report.setIcon(style.standardIcon(QStyle.SP_FileDialogContentsView))
-            self._action_compare_outputs.setIcon(style.standardIcon(QStyle.SP_BrowserReload))
+            self._action_batch_report.setIcon(
+                style.standardIcon(QStyle.SP_FileDialogContentsView)
+            )
+            self._action_compare_outputs.setIcon(
+                style.standardIcon(QStyle.SP_BrowserReload)
+            )
         except Exception:
             pass
 
@@ -355,8 +390,12 @@ class MainWindow:
 
         # Project tree context menu (materials convenience actions).
         try:
-            self.project_dock.tree.setContextMenuPolicy(self._Qt.ContextMenuPolicy.CustomContextMenu)
-            self.project_dock.tree.customContextMenuRequested.connect(self._on_project_context_menu)
+            self.project_dock.tree.setContextMenuPolicy(
+                self._Qt.ContextMenuPolicy.CustomContextMenu
+            )
+            self.project_dock.tree.customContextMenuRequested.connect(
+                self._on_project_context_menu
+            )
         except Exception:
             pass
 
@@ -369,15 +408,27 @@ class MainWindow:
         self.properties_dock.bind_apply_stage(self._apply_stage)
         self.properties_dock.bind_apply_material(self._apply_material)
         self.properties_dock.bind_apply_assignments(self._apply_assignments)
-        self.properties_dock.bind_apply_global_output_requests(self._apply_global_output_requests)
+        self.properties_dock.bind_apply_global_output_requests(
+            self._apply_global_output_requests
+        )
 
         self.model.changed.connect(self._on_model_changed)
-        self.model.stages_changed.connect(lambda stages: self.stage_dock.set_stages(stages))
+        self.model.stages_changed.connect(
+            lambda stages: self.stage_dock.set_stages(stages)
+        )
         self.model.request_changed.connect(self._refresh_tree)
-        self.model.request_changed.connect(lambda req: self._apply_unit_context_from_request(req))
-        self.model.materials_changed.connect(lambda mats: self._refresh_tree(self.model.ensure_project().request))
-        self.model.materials_changed.connect(lambda mats: self._on_materials_changed(mats))
-        self.model.mesh_changed.connect(lambda m: self._refresh_tree(self.model.ensure_project().request))
+        self.model.request_changed.connect(
+            lambda req: self._apply_unit_context_from_request(req)
+        )
+        self.model.materials_changed.connect(
+            lambda mats: self._refresh_tree(self.model.ensure_project().request)
+        )
+        self.model.materials_changed.connect(
+            lambda mats: self._on_materials_changed(mats)
+        )
+        self.model.mesh_changed.connect(
+            lambda m: self._refresh_tree(self.model.ensure_project().request)
+        )
         self.model.mesh_changed.connect(lambda m: self._on_mesh_sets_changed(m))
         self.model.undo_state_changed.connect(self._on_undo_state_changed)
 
@@ -387,7 +438,9 @@ class MainWindow:
         self.selection.changed.connect(self._on_selection_changed)
 
         self._update_run_action_text()
-        self._apply_solver_capabilities(self._safe_get_solver_caps(self._settings.get_solver_selector()))
+        self._apply_solver_capabilities(
+            self._safe_get_solver_caps(self._settings.get_solver_selector())
+        )
         self._rebuild_recent_solvers_menu()
         self._shutdown_done = False
 
@@ -407,7 +460,9 @@ class MainWindow:
                 input_ws.import_mesh_requested.connect(self._on_import_mesh)
                 input_ws.validate_requested.connect(self._on_validate_inputs)
                 input_ws.run_requested.connect(self._on_run_solver)
-                input_ws.switch_output_requested.connect(lambda: self._set_workspace("output"))
+                input_ws.switch_output_requested.connect(
+                    lambda: self._set_workspace("output")
+                )
                 input_ws.create_set_requested.connect(self._on_create_set_from_preview)
 
                 def _push_input_preview(*_args) -> None:  # noqa: ANN001
@@ -415,7 +470,9 @@ class MainWindow:
                     if not st.project:
                         return
                     try:
-                        input_ws.set_data(request=st.project.request, mesh=st.project.mesh)
+                        input_ws.set_data(
+                            request=st.project.request, mesh=st.project.mesh
+                        )
                     except Exception:
                         pass
 
@@ -429,7 +486,9 @@ class MainWindow:
         # Capture Output workspace UI state into the project (profiles/pins/view settings).
         try:
             output_ws = self.workspace_stack.get("output")
-            if isinstance(output_ws, OutputWorkspace) and hasattr(output_ws, "ui_state_changed"):
+            if isinstance(output_ws, OutputWorkspace) and hasattr(
+                output_ws, "ui_state_changed"
+            ):
                 output_ws.ui_state_changed.connect(self._on_output_ui_state_changed)
         except Exception:
             pass
@@ -586,15 +645,25 @@ class MainWindow:
         new_request = set_set_label(state.project.request, key, label)
 
         try:
-            self.model.update_request_and_mesh(request=new_request, mesh=new_mesh, name=f"Create Set {name}")
-            self.log_dock.append_info(f"Created set: {key} ({len(new_mesh.get(key, []))} ids)")
+            self.model.update_request_and_mesh(
+                request=new_request, mesh=new_mesh, name=f"Create Set {name}"
+            )
+            self.log_dock.append_info(
+                f"Created set: {key} ({len(new_mesh.get(key, []))} ids)"
+            )
         except Exception as exc:
             self._QMessageBox.critical(self._win, "Create Set Failed", str(exc))
             return
 
-    def _load_project_data(self, project: ProjectData, display_path: Path | None) -> None:
+    def _load_project_data(
+        self, project: ProjectData, display_path: Path | None
+    ) -> None:
         workdir = materialize_to_workdir(project)
-        project_file = display_path if (display_path and display_path.suffix.lower() == DEFAULT_EXT) else None
+        project_file = (
+            display_path
+            if (display_path and display_path.suffix.lower() == DEFAULT_EXT)
+            else None
+        )
         # Ensure stable IDs exist (stages/materials/geometry/sets meta)
         from geohpem.project.normalize import ensure_request_ids
 
@@ -640,7 +709,9 @@ class MainWindow:
         state = self.model.state()
         if not state.project or not state.work_case_dir:
             return
-        self.project_dock.set_case(state.work_case_dir, request=state.project.request, mesh=state.project.mesh)
+        self.project_dock.set_case(
+            state.work_case_dir, request=state.project.request, mesh=state.project.mesh
+        )
 
     def open_project_file(self, project_file: Path) -> None:
         try:
@@ -751,7 +822,9 @@ class MainWindow:
         if not isinstance(mats, dict):
             self.properties_dock.set_available_materials([])
             return
-        self.properties_dock.set_available_materials(sorted([str(k) for k in mats.keys()]))
+        self.properties_dock.set_available_materials(
+            sorted([str(k) for k in mats.keys()])
+        )
 
     def _safe_get_solver_caps(self, selector: str) -> dict[str, Any] | None:
         try:
@@ -806,7 +879,11 @@ class MainWindow:
         try:
             caps = self._get_solver_caps(res.solver_selector)
         except Exception as exc:
-            self._QMessageBox.critical(self._win, "Solver", f"Failed to load solver '{res.solver_selector}':\n{exc}")
+            self._QMessageBox.critical(
+                self._win,
+                "Solver",
+                f"Failed to load solver '{res.solver_selector}':\n{exc}",
+            )
             return
         self._settings.set_solver_selector(res.solver_selector)
         self._update_run_action_text()
@@ -815,11 +892,17 @@ class MainWindow:
         self.log_dock.append_info(f"Selected solver: {res.solver_selector}")
 
     def _on_batch_run(self) -> None:
-        dlg = BatchRunDialog(self._win, solver_selector=self._settings.get_solver_selector())
+        dlg = BatchRunDialog(
+            self._win, solver_selector=self._settings.get_solver_selector()
+        )
         dlg.exec()
 
     def _on_open_batch_report(self) -> None:
-        dlg = BatchReportDialog(self._win, open_case_cb=self.open_case_folder, open_output_cb=self.open_output_folder)
+        dlg = BatchReportDialog(
+            self._win,
+            open_case_cb=self.open_case_folder,
+            open_output_cb=self.open_output_folder,
+        )
         dlg.exec()
 
     def _on_compare_outputs(self) -> None:
@@ -842,7 +925,9 @@ class MainWindow:
     def _on_display_units(self) -> None:
         state = self.model.state()
         if not state.project:
-            self._QMessageBox.information(self._win, "Display Units", "Open a project/case first.")
+            self._QMessageBox.information(
+                self._win, "Display Units", "Open a project/case first."
+            )
             return
         from geohpem.units import normalize_unit_system, request_unit_system
 
@@ -906,9 +991,9 @@ class MainWindow:
         if not self._confirm_discard_if_dirty():
             return
 
-        from PySide6.QtWidgets import (  # type: ignore
+        from PySide6.QtWidgets import (
             QComboBox,
-            QDialog,
+            QDialog,  # type: ignore
             QDialogButtonBox,
             QFormLayout,
             QVBoxLayout,
@@ -945,7 +1030,11 @@ class MainWindow:
         mode = str(combo_mode.currentData())
         template = str(combo_template.currentData())
 
-        project = new_sample_project(mode=mode) if template == "sample" else new_empty_project(mode=mode)
+        project = (
+            new_sample_project(mode=mode)
+            if template == "sample"
+            else new_empty_project(mode=mode)
+        )
         self._load_project_data(project, display_path=None)
         self.model.set_dirty(True)
 
@@ -960,7 +1049,9 @@ class MainWindow:
     def _on_export_case_folder(self) -> None:
         state = self.model.state()
         if not state.project:
-            self._QMessageBox.information(self._win, "Export Case Folder", "Open a project/case first.")
+            self._QMessageBox.information(
+                self._win, "Export Case Folder", "Open a project/case first."
+            )
             return
 
         folder = self._QFileDialog.getExistingDirectory(self._win, "Export Case Folder")
@@ -996,14 +1087,18 @@ class MainWindow:
             return
 
         self._QMessageBox.information(
-            self._win, "Export Case Folder", f"Wrote:\n{out_dir / 'request.json'}\n{out_dir / 'mesh.npz'}"
+            self._win,
+            "Export Case Folder",
+            f"Wrote:\n{out_dir / 'request.json'}\n{out_dir / 'mesh.npz'}",
         )
         self.log_dock.append_info(f"Exported case folder: {out_dir}")
 
     def _on_validate_inputs(self) -> None:
         state = self.model.state()
         if not state.project:
-            self._QMessageBox.information(self._win, "Validate Inputs", "Open a project/case first.")
+            self._QMessageBox.information(
+                self._win, "Validate Inputs", "Open a project/case first."
+            )
             return
 
         solver_selector = self._settings.get_solver_selector()
@@ -1011,8 +1106,12 @@ class MainWindow:
 
         from geohpem.app.validate_inputs import validate_inputs
 
-        issues = validate_inputs(state.project.request, state.project.mesh, capabilities=caps)
-        dlg = IssuesDialog(self._win, title="Validate Inputs", issues=issues, ok_text="Close")
+        issues = validate_inputs(
+            state.project.request, state.project.mesh, capabilities=caps
+        )
+        dlg = IssuesDialog(
+            self._win, title="Validate Inputs", issues=issues, ok_text="Close"
+        )
         dlg.exec()
 
     def _on_precheck_jump(self, issue) -> None:  # noqa: ANN001
@@ -1070,7 +1169,9 @@ class MainWindow:
 
     def _on_save_as(self) -> None:
         if not self.model.state().project:
-            self._QMessageBox.information(self._win, "Save As", "Open a project/case first.")
+            self._QMessageBox.information(
+                self._win, "Save As", "Open a project/case first."
+            )
             return
         file, _ = self._QFileDialog.getSaveFileName(
             self._win,
@@ -1086,19 +1187,27 @@ class MainWindow:
         try:
             state = self.model.state()
             if not state.project or not state.work_case_dir:
-                self._QMessageBox.information(self._win, "Run", "Open a project/case first.")
+                self._QMessageBox.information(
+                    self._win, "Run", "Open a project/case first."
+                )
                 return
 
             solver_selector = self._settings.get_solver_selector()
             try:
                 caps = self._get_solver_caps(solver_selector)
             except Exception as exc:
-                self._QMessageBox.critical(self._win, "Run", f"Failed to load solver '{solver_selector}':\n{exc}")
+                self._QMessageBox.critical(
+                    self._win,
+                    "Run",
+                    f"Failed to load solver '{solver_selector}':\n{exc}",
+                )
                 return
 
             from geohpem.app.validate_inputs import validate_inputs
 
-            issues = validate_inputs(state.project.request, state.project.mesh, capabilities=caps)
+            issues = validate_inputs(
+                state.project.request, state.project.mesh, capabilities=caps
+            )
             dlg = PrecheckDialog(self._win, issues, on_jump=self._on_precheck_jump)
             if not dlg.exec():
                 return
@@ -1116,11 +1225,17 @@ class MainWindow:
 
             from geohpem.gui.workers.solve_worker import SolveWorker
 
-            worker = SolveWorker(case_dir=state.work_case_dir, solver_selector=solver_selector)
+            worker = SolveWorker(
+                case_dir=state.work_case_dir, solver_selector=solver_selector
+            )
             # Keep strong reference during run to prevent GC-related crashes.
             self._active_workers.append(worker)
             worker.finished.connect(
-                lambda: self._active_workers.remove(worker) if worker in self._active_workers else None
+                lambda: (
+                    self._active_workers.remove(worker)
+                    if worker in self._active_workers
+                    else None
+                )
             )
             self.tasks_dock.attach_worker(worker)
             self.log_dock.attach_worker(worker)
@@ -1157,7 +1272,9 @@ class MainWindow:
         state = self.model.state()
         mats = {}
         try:
-            if state.project and isinstance(state.project.request.get("materials"), dict):
+            if state.project and isinstance(
+                state.project.request.get("materials"), dict
+            ):
                 mats = state.project.request.get("materials") or {}
         except Exception:
             mats = {}
@@ -1171,12 +1288,14 @@ class MainWindow:
     def _on_add_material(self, *, preferred_id: str | None = None) -> None:
         state = self.model.state()
         if not state.project:
-            self._QMessageBox.information(self._win, "Material", "Open a project/case first.")
+            self._QMessageBox.information(
+                self._win, "Material", "Open a project/case first."
+            )
             return
 
-        from PySide6.QtWidgets import (  # type: ignore
+        from PySide6.QtWidgets import (
             QCheckBox,
-            QComboBox,
+            QComboBox,  # type: ignore
             QDialog,
             QDialogButtonBox,
             QFormLayout,
@@ -1215,7 +1334,10 @@ class MainWindow:
         layout.addWidget(chk_template)
 
         def refresh_behavior() -> None:
-            model_name = str(cbo_model.currentData() or "").strip() or str(cbo_model.currentText()).strip()
+            model_name = (
+                str(cbo_model.currentData() or "").strip()
+                or str(cbo_model.currentText()).strip()
+            )
             behavior = behavior_for_model(model_name) or "custom"
             lbl_behavior.setText(behavior_label(behavior))
 
@@ -1254,7 +1376,10 @@ class MainWindow:
             if btn != self._QMessageBox.Yes:
                 return
 
-        model_name = str(cbo_model.currentData() or "").strip() or str(cbo_model.currentText()).strip()
+        model_name = (
+            str(cbo_model.currentData() or "").strip()
+            or str(cbo_model.currentText()).strip()
+        )
         defaults = model_defaults(model_name) if chk_template.isChecked() else None
         params = defaults or {}
         behavior = behavior_for_model(model_name) or "custom"
@@ -1264,12 +1389,16 @@ class MainWindow:
     def _on_delete_material(self, *, material_id: str | None = None) -> None:
         state = self.model.state()
         if not state.project:
-            self._QMessageBox.information(self._win, "Material", "Open a project/case first.")
+            self._QMessageBox.information(
+                self._win, "Material", "Open a project/case first."
+            )
             return
 
         mats = state.project.request.get("materials", {})
         if not isinstance(mats, dict) or not mats:
-            self._QMessageBox.information(self._win, "Material", "No materials to delete.")
+            self._QMessageBox.information(
+                self._win, "Material", "No materials to delete."
+            )
             return
 
         mid = str(material_id).strip() if material_id else ""
@@ -1277,7 +1406,9 @@ class MainWindow:
             from PySide6.QtWidgets import QInputDialog  # type: ignore
 
             items = sorted([str(k) for k in mats.keys()])
-            choice, ok = QInputDialog.getItem(self._win, "Delete Material", "Material ID:", items, 0, False)
+            choice, ok = QInputDialog.getItem(
+                self._win, "Delete Material", "Material ID:", items, 0, False
+            )
             if not ok:
                 return
             mid = str(choice).strip()
@@ -1343,7 +1474,9 @@ class MainWindow:
     def _on_manage_sets(self) -> None:
         state = self.model.state()
         if not state.project:
-            self._QMessageBox.information(self._win, "Sets", "Open a project/case first.")
+            self._QMessageBox.information(
+                self._win, "Sets", "Open a project/case first."
+            )
             return
 
         def apply_mesh(new_mesh):
@@ -1355,7 +1488,9 @@ class MainWindow:
     def _on_mesh_quality(self) -> None:
         state = self.model.state()
         if not state.project:
-            self._QMessageBox.information(self._win, "Mesh", "Open a project/case first.")
+            self._QMessageBox.information(
+                self._win, "Mesh", "Open a project/case first."
+            )
             return
         dlg = MeshQualityDialog(self._win, state.project.mesh)
         dlg.exec()
@@ -1363,7 +1498,9 @@ class MainWindow:
     def _on_import_mesh(self) -> None:
         state = self.model.state()
         if not state.project:
-            self._QMessageBox.information(self._win, "Import Mesh", "Open a project/case first.")
+            self._QMessageBox.information(
+                self._win, "Import Mesh", "Open a project/case first."
+            )
             return
         try:
             dlg = ImportMeshDialog(self._win)
@@ -1414,7 +1551,11 @@ class MainWindow:
         for p in items:
             act = QAction(str(p), self._win)
             act.triggered.connect(
-                lambda checked=False, pp=p: self.open_case_folder(pp) if pp.is_dir() else self.open_project_file(pp)
+                lambda checked=False, pp=p: (
+                    self.open_case_folder(pp)
+                    if pp.is_dir()
+                    else self.open_project_file(pp)
+                )
             )
             self._menu_recent.addAction(act)
 
@@ -1437,7 +1578,9 @@ class MainWindow:
             act = QAction(s, self._win)
             act.setCheckable(True)
             act.setChecked(s == cur)
-            act.triggered.connect(lambda checked=False, ss=s: self._select_solver_quick(ss))
+            act.triggered.connect(
+                lambda checked=False, ss=s: self._select_solver_quick(ss)
+            )
             self._menu_recent_solvers.addAction(act)
 
     def _select_solver_quick(self, selector: str) -> None:
@@ -1445,7 +1588,9 @@ class MainWindow:
         try:
             caps = self._get_solver_caps(selector)
         except Exception as exc:
-            self._QMessageBox.critical(self._win, "Solver", f"Failed to load solver '{selector}':\n{exc}")
+            self._QMessageBox.critical(
+                self._win, "Solver", f"Failed to load solver '{selector}':\n{exc}"
+            )
             return
         self._settings.set_solver_selector(selector)
         self._update_run_action_text()
@@ -1469,7 +1614,11 @@ class MainWindow:
                 proj = None
                 if state.display_path:
                     proj = str(state.display_path)
-                input_ws.set_status(project=proj, dirty=bool(state.dirty), solver=self._settings.get_solver_selector())
+                input_ws.set_status(
+                    project=proj,
+                    dirty=bool(state.dirty),
+                    solver=self._settings.get_solver_selector(),
+                )
         except Exception:
             pass
 
@@ -1581,9 +1730,15 @@ class MainWindow:
         if t == "mesh":
             pts = mesh.get("points")
             n_pts = int(getattr(pts, "shape", [0])[0]) if pts is not None else 0
-            n_tri = int(getattr(mesh.get("cells_tri3"), "shape", [0])[0]) if mesh.get("cells_tri3") is not None else 0
+            n_tri = (
+                int(getattr(mesh.get("cells_tri3"), "shape", [0])[0])
+                if mesh.get("cells_tri3") is not None
+                else 0
+            )
             n_quad = (
-                int(getattr(mesh.get("cells_quad4"), "shape", [0])[0]) if mesh.get("cells_quad4") is not None else 0
+                int(getattr(mesh.get("cells_quad4"), "shape", [0])[0])
+                if mesh.get("cells_quad4") is not None
+                else 0
             )
             cards = [
                 ("Points", str(n_pts)),
@@ -1612,7 +1767,11 @@ class MainWindow:
                 ("Edge", str(n_edge)),
                 ("Element", str(n_elem)),
             ]
-            fields = [("Node sets", str(n_node)), ("Edge sets", str(n_edge)), ("Element sets", str(n_elem))]
+            fields = [
+                ("Node sets", str(n_node)),
+                ("Edge sets", str(n_edge)),
+                ("Element sets", str(n_elem)),
+            ]
             self.properties_dock.show_info(
                 "Sets",
                 fields,
@@ -1751,6 +1910,10 @@ class MainWindow:
         self.model.update_assignments(assignments)
         self.log_dock.append_info(f"Updated assignments: {len(assignments)}")
 
-    def _apply_global_output_requests(self, output_requests: list[dict[str, Any]]) -> None:
+    def _apply_global_output_requests(
+        self, output_requests: list[dict[str, Any]]
+    ) -> None:
         self.model.update_global_output_requests(output_requests)
-        self.log_dock.append_info(f"Updated global output_requests: {len(output_requests)}")
+        self.log_dock.append_info(
+            f"Updated global output_requests: {len(output_requests)}"
+        )

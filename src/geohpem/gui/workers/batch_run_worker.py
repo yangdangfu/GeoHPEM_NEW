@@ -10,7 +10,14 @@ class BatchRunWorker:
     Background batch runner for multiple case folders.
     """
 
-    def __init__(self, root: Path, *, solver_selector: str, baseline_root: Path | None, report_path: Path) -> None:
+    def __init__(
+        self,
+        root: Path,
+        *,
+        solver_selector: str,
+        baseline_root: Path | None,
+        report_path: Path,
+    ) -> None:
         from PySide6.QtCore import QObject, QThread, Signal, Slot  # type: ignore
 
         class _Worker(QObject):
@@ -22,7 +29,13 @@ class BatchRunWorker:
             failed = Signal(str)  # message
             cancel_requested = Signal()
 
-            def __init__(self, root: Path, solver_selector: str, baseline_root: Path | None, report_path: Path) -> None:
+            def __init__(
+                self,
+                root: Path,
+                solver_selector: str,
+                baseline_root: Path | None,
+                report_path: Path,
+            ) -> None:
                 super().__init__()
                 self._root = Path(root)
                 self._solver_selector = solver_selector
@@ -38,7 +51,11 @@ class BatchRunWorker:
 
             @Slot()
             def run(self) -> None:
-                from geohpem.app.case_runner import discover_case_folders, run_cases, write_case_run_report
+                from geohpem.app.case_runner import (
+                    discover_case_folders,
+                    run_cases,
+                    write_case_run_report,
+                )
 
                 self.started.emit()
 
@@ -50,13 +67,19 @@ class BatchRunWorker:
 
                 t0 = time.perf_counter()
 
-                def on_progress(i: int, total: int, case_dir: Path, status: str) -> None:
+                def on_progress(
+                    i: int, total: int, case_dir: Path, status: str
+                ) -> None:
                     # Rough overall progress, one case at a time.
                     pct = int(((i - 1) / max(total, 1)) * 100)
                     if status == "running":
-                        self.progress.emit(pct, f"[{i}/{total}] Running: {case_dir.name}")
+                        self.progress.emit(
+                            pct, f"[{i}/{total}] Running: {case_dir.name}"
+                        )
                     else:
-                        self.progress.emit(pct, f"[{i}/{total}] {status.upper()}: {case_dir.name}")
+                        self.progress.emit(
+                            pct, f"[{i}/{total}] {status.upper()}: {case_dir.name}"
+                        )
                     self.log.emit(f"{status}: {case_dir}")
 
                 records = run_cases(
@@ -71,12 +94,20 @@ class BatchRunWorker:
 
                 total = len(records)
                 failed = sum(1 for r in records if r.status != "success")
-                self.progress.emit(100, f"Completed: cases={total}, failed={failed}, elapsed={elapsed:.2f}s")
+                self.progress.emit(
+                    100,
+                    f"Completed: cases={total}, failed={failed}, elapsed={elapsed:.2f}s",
+                )
                 self.report_ready.emit(self._report_path)
                 self.finished.emit()
 
         self._thread = QThread()
-        self._worker = _Worker(root=root, solver_selector=solver_selector, baseline_root=baseline_root, report_path=report_path)
+        self._worker = _Worker(
+            root=root,
+            solver_selector=solver_selector,
+            baseline_root=baseline_root,
+            report_path=report_path,
+        )
         self._worker.moveToThread(self._thread)
 
         self._thread.started.connect(self._worker.run)
@@ -98,4 +129,3 @@ class BatchRunWorker:
             self._worker.cancel_requested.emit()
         except Exception:
             pass
-

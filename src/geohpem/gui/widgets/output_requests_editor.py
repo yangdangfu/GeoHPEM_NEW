@@ -32,8 +32,8 @@ class OutputRequestsEditor:
 
     def __init__(self, parent, *, title: str) -> None:  # noqa: ANN001
         from PySide6.QtCore import Qt  # type: ignore
-        from PySide6.QtWidgets import (  # type: ignore
-            QAbstractItemView,
+        from PySide6.QtWidgets import (
+            QAbstractItemView,  # type: ignore
             QComboBox,
             QHBoxLayout,
             QLabel,
@@ -76,10 +76,16 @@ class OutputRequestsEditor:
 
         self.table = QTableWidget()
         self.table.setColumnCount(5)
-        self.table.setHorizontalHeaderLabels(["uid", "name", "location", "every_n", "extra(json)"])
+        self.table.setHorizontalHeaderLabels(
+            ["uid", "name", "location", "every_n", "extra(json)"]
+        )
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.table.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed | QAbstractItemView.AnyKeyPressed)
+        self.table.setEditTriggers(
+            QAbstractItemView.DoubleClicked
+            | QAbstractItemView.EditKeyPressed
+            | QAbstractItemView.AnyKeyPressed
+        )
         self.table.horizontalHeader().setStretchLastSection(True)
         self.tabs.addTab(self.table, "Table")
 
@@ -192,7 +198,11 @@ class OutputRequestsEditor:
         r = self.table.rowCount()
         self.table.insertRow(r)
 
-        uid = str(obj.get("uid", "")) if isinstance(obj.get("uid"), str) else new_uid("outreq")
+        uid = (
+            str(obj.get("uid", ""))
+            if isinstance(obj.get("uid"), str)
+            else new_uid("outreq")
+        )
         it_uid = self._QTableWidgetItem(uid)
         it_uid.setFlags(it_uid.flags() & ~self._Qt.ItemIsEditable)
         it_uid.setData(self._Qt.UserRole, dict(obj))
@@ -238,7 +248,12 @@ class OutputRequestsEditor:
 
     def _on_add(self) -> None:
         default_name = self._options.names[0] if self._options.names else ""
-        obj: dict[str, Any] = {"uid": new_uid("outreq"), "name": default_name, "location": "node", "every_n": 1}
+        obj: dict[str, Any] = {
+            "uid": new_uid("outreq"),
+            "name": default_name,
+            "location": "node",
+            "every_n": 1,
+        }
         self._append_row(obj)
         self.table.selectRow(self.table.rowCount() - 1)
 
@@ -254,7 +269,9 @@ class OutputRequestsEditor:
             if not isinstance(data, list):
                 raise ValueError("Expected a JSON list")
         except Exception as exc:
-            self._QMessageBox.information(self.widget, "JSON -> Table", f"Invalid JSON:\n{exc}")
+            self._QMessageBox.information(
+                self.widget, "JSON -> Table", f"Invalid JSON:\n{exc}"
+            )
             return
         cleaned: list[dict[str, Any]] = [it for it in data if isinstance(it, dict)]
         self.set_requests(cleaned)

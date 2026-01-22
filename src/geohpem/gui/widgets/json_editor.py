@@ -4,18 +4,18 @@ import json
 from typing import Any
 
 from PySide6.QtCore import Qt  # type: ignore
-from PySide6.QtWidgets import (  # type: ignore
+from PySide6.QtWidgets import (
     QAbstractItemView,
-    QHBoxLayout,
+    QHBoxLayout,  # type: ignore
+    QInputDialog,
     QMessageBox,
-    QPushButton,
     QPlainTextEdit,
+    QPushButton,
     QTabWidget,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
-    QInputDialog,
 )
 
 
@@ -30,7 +30,9 @@ class JsonEditorWidget(QWidget):
 
     _ROLE_TYPE = Qt.ItemDataRole.UserRole + 1
 
-    def __init__(self, parent: QWidget | None = None, *, show_toolbar: bool = True) -> None:
+    def __init__(
+        self, parent: QWidget | None = None, *, show_toolbar: bool = True
+    ) -> None:
         super().__init__(parent)
         self._block = False
         self._root_type: str = "object"
@@ -88,9 +90,13 @@ class JsonEditorWidget(QWidget):
         self._root_type = "array" if isinstance(data, list) else "object"
         self._block = True
         self._tree.clear()
-        self._root_item = QTreeWidgetItem(["root", "{...}" if self._root_type == "object" else "[...]"])
+        self._root_item = QTreeWidgetItem(
+            ["root", "{...}" if self._root_type == "object" else "[...]"]
+        )
         try:
-            self._root_item.setFlags(self._root_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self._root_item.setFlags(
+                self._root_item.flags() & ~Qt.ItemFlag.ItemIsEditable
+            )
         except Exception:
             pass
         self._root_item.setData(0, self._ROLE_TYPE, self._root_type)
@@ -113,7 +119,9 @@ class JsonEditorWidget(QWidget):
     def _tree_to_data(self) -> Any:
         root = self._root_item or self._tree.invisibleRootItem()
         if self._root_type == "array":
-            return [self._item_to_value(root.child(i)) for i in range(root.childCount())]
+            return [
+                self._item_to_value(root.child(i)) for i in range(root.childCount())
+            ]
         out: dict[str, Any] = {}
         for i in range(root.childCount()):
             child = root.child(i)
@@ -129,7 +137,9 @@ class JsonEditorWidget(QWidget):
                 out[str(child.text(0))] = self._item_to_value(child)
             return out
         if typ == "array":
-            return [self._item_to_value(item.child(i)) for i in range(item.childCount())]
+            return [
+                self._item_to_value(item.child(i)) for i in range(item.childCount())
+            ]
         text = str(item.text(1)).strip()
         if not text:
             return ""

@@ -27,14 +27,20 @@ def read_case_folder(case_dir: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     return request, mesh
 
 
-def write_case_folder(case_dir: Path, request: dict[str, Any], mesh: dict[str, Any]) -> None:
+def write_case_folder(
+    case_dir: Path, request: dict[str, Any], mesh: dict[str, Any]
+) -> None:
     case_dir.mkdir(parents=True, exist_ok=True)
     validate_request_basic(request)
-    (case_dir / "request.json").write_text(json.dumps(request, indent=2, ensure_ascii=False), encoding="utf-8")
+    (case_dir / "request.json").write_text(
+        json.dumps(request, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
     np.savez_compressed(case_dir / "mesh.npz", **mesh)
 
 
-def write_result_folder(out_dir: Path, result_meta: dict[str, Any], result_arrays: dict[str, Any]) -> None:
+def write_result_folder(
+    out_dir: Path, result_meta: dict[str, Any], result_arrays: dict[str, Any]
+) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "result.json").write_text(
         json.dumps(result_meta, indent=2, ensure_ascii=False),

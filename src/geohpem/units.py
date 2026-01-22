@@ -43,7 +43,9 @@ def conversion_factor(unit_from: str, unit_to: str) -> float:
     if not a or not b:
         raise KeyError(f"Unknown unit(s): {unit_from!r} -> {unit_to!r}")
     if a[0] != b[0]:
-        raise ValueError(f"Incompatible units: {unit_from!r} ({a[0]}) -> {unit_to!r} ({b[0]})")
+        raise ValueError(
+            f"Incompatible units: {unit_from!r} ({a[0]}) -> {unit_to!r} ({b[0]})"
+        )
     # value_to = value_from * (from_to_SI / to_to_SI)
     return float(a[1]) / float(b[1])
 
@@ -102,7 +104,9 @@ class UnitContext:
             return 1.0
         return conversion_factor(ub, ud)
 
-    def format_value(self, kind: str, value: float | None, *, precision: int = 6) -> str:
+    def format_value(
+        self, kind: str, value: float | None, *, precision: int = 6
+    ) -> str:
         if value is None:
             return "None"
         ub = self.base_unit(kind)
@@ -134,7 +138,22 @@ def available_units_for_kind(kind: str) -> list[str]:
             items.append(u)
     # keep a stable, intuitive order
     preferred: list[str] = []
-    for u in ("mm", "cm", "m", "km", "Pa", "kPa", "MPa", "GPa", "N", "kN", "MN", "s", "min", "h"):
+    for u in (
+        "mm",
+        "cm",
+        "m",
+        "km",
+        "Pa",
+        "kPa",
+        "MPa",
+        "GPa",
+        "N",
+        "kN",
+        "MN",
+        "s",
+        "min",
+        "h",
+    ):
         if u in items:
             preferred.append(u)
     rest = sorted([u for u in items if u not in preferred])
@@ -179,4 +198,3 @@ def merge_display_units(
                 out[k] = u
     # If base has unknown unit, display override must still be compatible; we keep out only.
     return out
-

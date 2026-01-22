@@ -69,8 +69,11 @@ def map_exception(exc: BaseException) -> ErrorInfo:
             continue
 
     if code:
-        return ErrorInfo(code=normalize_error_code(code), message=str(exc) or normalize_error_code(code), details=details)
+        return ErrorInfo(
+            code=normalize_error_code(code),
+            message=str(exc) or normalize_error_code(code),
+            details=details,
+        )
 
     # Generic fallback.
     return ErrorInfo(code="SOLVER_RUNTIME", message=str(exc) or exc.__class__.__name__)
-

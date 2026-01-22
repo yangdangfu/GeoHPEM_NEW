@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 DEFAULT_QSS = """
 QMainWindow {
   background: #f7f7f9;

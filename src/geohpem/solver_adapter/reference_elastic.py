@@ -24,11 +24,17 @@ def _plane_D(*, E: float, nu: float, mode: str) -> np.ndarray:
     nu = float(nu)
     if mode == "plane_stress":
         c = E / (1.0 - nu**2)
-        return c * np.array([[1.0, nu, 0.0], [nu, 1.0, 0.0], [0.0, 0.0, (1.0 - nu) / 2.0]], dtype=float)
+        return c * np.array(
+            [[1.0, nu, 0.0], [nu, 1.0, 0.0], [0.0, 0.0, (1.0 - nu) / 2.0]], dtype=float
+        )
     if mode == "plane_strain":
         c = E / ((1.0 + nu) * (1.0 - 2.0 * nu))
         return c * np.array(
-            [[1.0 - nu, nu, 0.0], [nu, 1.0 - nu, 0.0], [0.0, 0.0, (1.0 - 2.0 * nu) / 2.0]],
+            [
+                [1.0 - nu, nu, 0.0],
+                [nu, 1.0 - nu, 0.0],
+                [0.0, 0.0, (1.0 - 2.0 * nu) / 2.0],
+            ],
             dtype=float,
         )
     raise ValueError(f"Unsupported mode for reference_elastic: {mode}")
@@ -62,19 +68,28 @@ def _tri_B_area(xy: np.ndarray) -> tuple[np.ndarray, float]:
 
 def _quad_shape_derivs(xi: float, eta: float) -> tuple[np.ndarray, np.ndarray]:
     # Node ordering: (-1,-1),(+1,-1),(+1,+1),(-1,+1)
-    dN_dxi = 0.25 * np.array([-(1 - eta), (1 - eta), (1 + eta), -(1 + eta)], dtype=float)
+    dN_dxi = 0.25 * np.array(
+        [-(1 - eta), (1 - eta), (1 + eta), -(1 + eta)], dtype=float
+    )
     dN_deta = 0.25 * np.array([-(1 - xi), -(1 + xi), (1 + xi), (1 - xi)], dtype=float)
     return dN_dxi, dN_deta
 
 
 def _quad_shape(xi: float, eta: float) -> np.ndarray:
     return 0.25 * np.array(
-        [(1 - xi) * (1 - eta), (1 + xi) * (1 - eta), (1 + xi) * (1 + eta), (1 - xi) * (1 + eta)],
+        [
+            (1 - xi) * (1 - eta),
+            (1 + xi) * (1 - eta),
+            (1 + xi) * (1 + eta),
+            (1 - xi) * (1 + eta),
+        ],
         dtype=float,
     )
 
 
-def _quad_ke_fe(xy: np.ndarray, D: np.ndarray, b: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def _quad_ke_fe(
+    xy: np.ndarray, D: np.ndarray, b: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
     # 2x2 Gauss points
     gp = 1.0 / np.sqrt(3.0)
     pts = [(-gp, -gp), (gp, -gp), (gp, gp), (-gp, gp)]
@@ -110,7 +125,9 @@ def _quad_ke_fe(xy: np.ndarray, D: np.ndarray, b: np.ndarray) -> tuple[np.ndarra
     return ke, fe
 
 
-def _tri_ke_fe(xy: np.ndarray, D: np.ndarray, b: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def _tri_ke_fe(
+    xy: np.ndarray, D: np.ndarray, b: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
     B, A = _tri_B_area(xy)
     ke = (B.T @ D @ B) * A
     # constant body force: fe = b * A/3 per node
@@ -155,8 +172,12 @@ def _material_assignment(
     assignments: list[dict[str, Any]],
     materials: dict[str, Any],
 ) -> tuple[list[_MatElastic], np.ndarray, np.ndarray]:
-    tri = np.asarray(mesh.get("cells_tri3", np.zeros((0, 3), dtype=np.int64)), dtype=np.int64)
-    quad = np.asarray(mesh.get("cells_quad4", np.zeros((0, 4), dtype=np.int64)), dtype=np.int64)
+    tri = np.asarray(
+        mesh.get("cells_tri3", np.zeros((0, 3), dtype=np.int64)), dtype=np.int64
+    )
+    quad = np.asarray(
+        mesh.get("cells_quad4", np.zeros((0, 4), dtype=np.int64)), dtype=np.int64
+    )
     tri_mat = np.full((tri.shape[0],), -1, dtype=np.int32)
     quad_mat = np.full((quad.shape[0],), -1, dtype=np.int32)
 
@@ -170,7 +191,9 @@ def _material_assignment(
         if not isinstance(m, dict):
             raise ValueError(f"Unknown material_id: {mid}")
         if str(m.get("model_name")) != "linear_elastic":
-            raise ValueError(f"reference_elastic supports only linear_elastic, got {m.get('model_name')}")
+            raise ValueError(
+                f"reference_elastic supports only linear_elastic, got {m.get('model_name')}"
+            )
         pars = m.get("parameters")
         if not isinstance(pars, dict):
             raise ValueError(f"material.parameters must be object for {mid}")
@@ -242,7 +265,12 @@ class ReferenceElasticSolver:
             if callbacks and (fn := callbacks.get("on_progress")):
                 fn(float(p), str(msg), str(stage_id), int(step))
 
-        def cb_frame(frame_meta: dict[str, Any], *, mesh_out: dict[str, Any] | None = None, arrays_out: dict[str, Any] | None = None) -> None:
+        def cb_frame(
+            frame_meta: dict[str, Any],
+            *,
+            mesh_out: dict[str, Any] | None = None,
+            arrays_out: dict[str, Any] | None = None,
+        ) -> None:
             """
             Optional per-frame callback (PFEM/HPEM-friendly): can be used for streaming visualization/logging.
             Platform currently may ignore this; it is provided as a template for solver teams.
@@ -261,10 +289,14 @@ class ReferenceElasticSolver:
                     return False
             return False
 
-        model = request.get("model", {}) if isinstance(request.get("model"), dict) else {}
+        model = (
+            request.get("model", {}) if isinstance(request.get("model"), dict) else {}
+        )
         mode = str(model.get("mode", "plane_strain"))
         if mode not in ("plane_strain", "plane_stress"):
-            raise ValueError(f"reference_elastic supports only plane_strain/plane_stress, got {mode}")
+            raise ValueError(
+                f"reference_elastic supports only plane_strain/plane_stress, got {mode}"
+            )
 
         points = np.asarray(mesh["points"], dtype=float)
         if points.ndim != 2 or points.shape[1] < 2:
@@ -273,8 +305,12 @@ class ReferenceElasticSolver:
         n_nodes = int(xy.shape[0])
         ndof = 2 * n_nodes
 
-        tri = np.asarray(mesh.get("cells_tri3", np.zeros((0, 3), dtype=np.int64)), dtype=np.int64)
-        quad = np.asarray(mesh.get("cells_quad4", np.zeros((0, 4), dtype=np.int64)), dtype=np.int64)
+        tri = np.asarray(
+            mesh.get("cells_tri3", np.zeros((0, 3), dtype=np.int64)), dtype=np.int64
+        )
+        quad = np.asarray(
+            mesh.get("cells_quad4", np.zeros((0, 4), dtype=np.int64)), dtype=np.int64
+        )
 
         assignments = request.get("assignments", [])
         if not isinstance(assignments, list):
@@ -282,7 +318,9 @@ class ReferenceElasticSolver:
         materials = request.get("materials", {})
         if not isinstance(materials, dict):
             materials = {}
-        mats, tri_mat, quad_mat = _material_assignment(mesh=mesh, assignments=assignments, materials=materials)
+        mats, tri_mat, quad_mat = _material_assignment(
+            mesh=mesh, assignments=assignments, materials=materials
+        )
 
         # Assemble global K and base body force F (gravity)
         rows: list[int] = []
@@ -327,7 +365,10 @@ class ReferenceElasticSolver:
             ke, fe = _quad_ke_fe(xy[np.asarray(conn, dtype=np.int64)], D, b)
             add_ke_fe(np.asarray(conn, dtype=np.int64), ke, fe)
 
-        K = coo_matrix((np.asarray(data, dtype=float), (np.asarray(rows), np.asarray(cols))), shape=(ndof, ndof)).tocsr()
+        K = coo_matrix(
+            (np.asarray(data, dtype=float), (np.asarray(rows), np.asarray(cols))),
+            shape=(ndof, ndof),
+        ).tocsr()
 
         # Helper: traction loads -> global F
         def traction_vector(load: dict[str, Any]) -> tuple[str, np.ndarray]:
@@ -349,11 +390,16 @@ class ReferenceElasticSolver:
                 F[2 * int(n2) + 1] += float(f[1])
 
         # BCs: accumulate fixed dofs and prescribed values (later stages override earlier)
-        def accumulate_bcs(stages_upto: list[dict[str, Any]]) -> tuple[np.ndarray, np.ndarray]:
+        def accumulate_bcs(
+            stages_upto: list[dict[str, Any]]
+        ) -> tuple[np.ndarray, np.ndarray]:
             fixed: dict[int, float] = {}
             for st in stages_upto:
                 for bc in st.get("bcs", []) if isinstance(st.get("bcs"), list) else []:
-                    if not isinstance(bc, dict) or str(bc.get("type", "")) != "displacement":
+                    if (
+                        not isinstance(bc, dict)
+                        or str(bc.get("type", "")) != "displacement"
+                    ):
                         continue
                     set_name = str(bc.get("set", "")).strip()
                     if not set_name:
@@ -377,7 +423,9 @@ class ReferenceElasticSolver:
             return dofs, vals
 
         # Loads: gravity override + traction (cumulative)
-        def accumulate_loads(stages_upto: list[dict[str, Any]], scale_current: float) -> np.ndarray:
+        def accumulate_loads(
+            stages_upto: list[dict[str, Any]], scale_current: float
+        ) -> np.ndarray:
             F = np.array(F_body, copy=True)
             for si, st in enumerate(stages_upto):
                 is_current = si == (len(stages_upto) - 1)
@@ -407,8 +455,14 @@ class ReferenceElasticSolver:
                                 m = mats[midx]
                                 D = _plane_D(E=m.E, nu=m.nu, mode=mode)
                                 b = m.rho * dg
-                                _ke, fe = _tri_ke_fe(xy[np.asarray(conn, dtype=np.int64)], D, b)
-                                dofs = np.array([2 * int(n) for n in conn] + [2 * int(n) + 1 for n in conn], dtype=np.int64)
+                                _ke, fe = _tri_ke_fe(
+                                    xy[np.asarray(conn, dtype=np.int64)], D, b
+                                )
+                                dofs = np.array(
+                                    [2 * int(n) for n in conn]
+                                    + [2 * int(n) + 1 for n in conn],
+                                    dtype=np.int64,
+                                )
                                 # fe is interleaved; map by loop
                                 for i, nid in enumerate(conn):
                                     Fb[2 * int(nid) + 0] += float(fe[2 * i + 0])
@@ -418,7 +472,9 @@ class ReferenceElasticSolver:
                                 m = mats[midx]
                                 D = _plane_D(E=m.E, nu=m.nu, mode=mode)
                                 b = m.rho * dg
-                                _ke, fe = _quad_ke_fe(xy[np.asarray(conn, dtype=np.int64)], D, b)
+                                _ke, fe = _quad_ke_fe(
+                                    xy[np.asarray(conn, dtype=np.int64)], D, b
+                                )
                                 for i, nid in enumerate(conn):
                                     Fb[2 * int(nid) + 0] += float(fe[2 * i + 0])
                                     Fb[2 * int(nid) + 1] += float(fe[2 * i + 1])
@@ -473,7 +529,13 @@ class ReferenceElasticSolver:
             return names, every_n
 
         def stage_output_steps(num_steps: int, every_n: int) -> list[int]:
-            idx = sorted({i for i in range(max(int(num_steps), 1)) if (i % max(int(every_n), 1) == 0) or (i == int(num_steps) - 1)})
+            idx = sorted(
+                {
+                    i
+                    for i in range(max(int(num_steps), 1))
+                    if (i % max(int(every_n), 1) == 0) or (i == int(num_steps) - 1)
+                }
+            )
             return idx or [int(num_steps) - 1]
 
         total_frames = 0
@@ -495,7 +557,9 @@ class ReferenceElasticSolver:
         for si, st in enumerate(stages):
             if not isinstance(st, dict):
                 continue
-            stage_id = str(st.get("id") or st.get("uid") or st.get("name") or f"stage_{si+1}")
+            stage_id = str(
+                st.get("id") or st.get("uid") or st.get("name") or f"stage_{si+1}"
+            )
             num_steps = int(st.get("num_steps", 1) or 1)
             dt = float(st.get("dt", 1.0) or 1.0)
             want, every_n = requested_outputs(st)
@@ -541,7 +605,12 @@ class ReferenceElasticSolver:
                         m = mats[midx]
                         D = _plane_D(E=m.E, nu=m.nu, mode=mode)
                         B, _A = _tri_B_area(xy[np.asarray(conn, dtype=np.int64)])
-                        ue = u[np.array([2 * int(n) + d for n in conn for d in (0, 1)], dtype=np.int64)]
+                        ue = u[
+                            np.array(
+                                [2 * int(n) + d for n in conn for d in (0, 1)],
+                                dtype=np.int64,
+                            )
+                        ]
                         eps = B @ ue
                         sig = D @ eps
                         sx_list.append(float(sig[0]))
@@ -559,7 +628,12 @@ class ReferenceElasticSolver:
                         sigs: list[np.ndarray] = []
                         conn_i = np.asarray(conn, dtype=np.int64)
                         xy_e = xy[conn_i]
-                        ue = u[np.array([2 * int(n) + d for n in conn_i for d in (0, 1)], dtype=np.int64)]
+                        ue = u[
+                            np.array(
+                                [2 * int(n) + d for n in conn_i for d in (0, 1)],
+                                dtype=np.int64,
+                            )
+                        ]
                         for xi, eta in pts:
                             dN_dxi, dN_deta = _quad_shape_derivs(float(xi), float(eta))
                             J = np.zeros((2, 2), dtype=float)
@@ -589,24 +663,49 @@ class ReferenceElasticSolver:
                 arrays_out: dict[str, Any] = {}
                 if "u" in want:
                     arrays[f"nodal__u__step{step_key}"] = u_xy
-                    arrays_out[f"nodal__u__step{step_key}"] = arrays[f"nodal__u__step{step_key}"]
+                    arrays_out[f"nodal__u__step{step_key}"] = arrays[
+                        f"nodal__u__step{step_key}"
+                    ]
                 if "sx" in want:
-                    arrays[f"elem__sx__step{step_key}"] = np.asarray(sx_list, dtype=float)
-                    arrays_out[f"elem__sx__step{step_key}"] = arrays[f"elem__sx__step{step_key}"]
+                    arrays[f"elem__sx__step{step_key}"] = np.asarray(
+                        sx_list, dtype=float
+                    )
+                    arrays_out[f"elem__sx__step{step_key}"] = arrays[
+                        f"elem__sx__step{step_key}"
+                    ]
                 if "sy" in want:
-                    arrays[f"elem__sy__step{step_key}"] = np.asarray(sy_list, dtype=float)
-                    arrays_out[f"elem__sy__step{step_key}"] = arrays[f"elem__sy__step{step_key}"]
+                    arrays[f"elem__sy__step{step_key}"] = np.asarray(
+                        sy_list, dtype=float
+                    )
+                    arrays_out[f"elem__sy__step{step_key}"] = arrays[
+                        f"elem__sy__step{step_key}"
+                    ]
                 if "sxy" in want:
-                    arrays[f"elem__sxy__step{step_key}"] = np.asarray(sxy_list, dtype=float)
-                    arrays_out[f"elem__sxy__step{step_key}"] = arrays[f"elem__sxy__step{step_key}"]
+                    arrays[f"elem__sxy__step{step_key}"] = np.asarray(
+                        sxy_list, dtype=float
+                    )
+                    arrays_out[f"elem__sxy__step{step_key}"] = arrays[
+                        f"elem__sxy__step{step_key}"
+                    ]
                 if "vm" in want:
-                    arrays[f"elem__vm__step{step_key}"] = np.asarray(vm_list, dtype=float)
-                    arrays_out[f"elem__vm__step{step_key}"] = arrays[f"elem__vm__step{step_key}"]
+                    arrays[f"elem__vm__step{step_key}"] = np.asarray(
+                        vm_list, dtype=float
+                    )
+                    arrays_out[f"elem__vm__step{step_key}"] = arrays[
+                        f"elem__vm__step{step_key}"
+                    ]
 
                 t = t_stage0 + float(sstep + 1) * float(dt)
                 times.append(float(t))
                 stage_step_ids.append(int(sstep))
-                global_steps.append({"id": int(step_counter), "stage_id": stage_id, "stage_step": int(sstep), "time": float(t)})
+                global_steps.append(
+                    {
+                        "id": int(step_counter),
+                        "stage_id": stage_id,
+                        "stage_step": int(sstep),
+                        "time": float(t),
+                    }
+                )
 
                 cb_frame(
                     {
@@ -623,17 +722,55 @@ class ReferenceElasticSolver:
 
             # Advance stage physical time to its end (even if we downsampled frames).
             t_acc = t_stage0 + float(num_steps) * float(dt)
-            stage_infos.append({"id": stage_id, "num_steps": int(num_steps), "output_every_n": int(every_n), "output_stage_steps": stage_step_ids, "times": list(times)})
+            stage_infos.append(
+                {
+                    "id": stage_id,
+                    "num_steps": int(num_steps),
+                    "output_every_n": int(every_n),
+                    "output_stage_steps": stage_step_ids,
+                    "times": list(times),
+                }
+            )
 
         unit_len = request.get("unit_system", {}).get("length", "m")
         unit_p = request.get("unit_system", {}).get("pressure", "Pa")
         # Only expose fields we actually wrote (so Output doesn't list missing arrays).
         reg_all = [
-            {"name": "u", "location": "node", "shape": "vector2", "unit": unit_len, "npz_pattern": "nodal__u__step{step:06d}"},
-            {"name": "sx", "location": "element", "shape": "scalar", "unit": unit_p, "npz_pattern": "elem__sx__step{step:06d}"},
-            {"name": "sy", "location": "element", "shape": "scalar", "unit": unit_p, "npz_pattern": "elem__sy__step{step:06d}"},
-            {"name": "sxy", "location": "element", "shape": "scalar", "unit": unit_p, "npz_pattern": "elem__sxy__step{step:06d}"},
-            {"name": "vm", "location": "element", "shape": "scalar", "unit": unit_p, "npz_pattern": "elem__vm__step{step:06d}"},
+            {
+                "name": "u",
+                "location": "node",
+                "shape": "vector2",
+                "unit": unit_len,
+                "npz_pattern": "nodal__u__step{step:06d}",
+            },
+            {
+                "name": "sx",
+                "location": "element",
+                "shape": "scalar",
+                "unit": unit_p,
+                "npz_pattern": "elem__sx__step{step:06d}",
+            },
+            {
+                "name": "sy",
+                "location": "element",
+                "shape": "scalar",
+                "unit": unit_p,
+                "npz_pattern": "elem__sy__step{step:06d}",
+            },
+            {
+                "name": "sxy",
+                "location": "element",
+                "shape": "scalar",
+                "unit": unit_p,
+                "npz_pattern": "elem__sxy__step{step:06d}",
+            },
+            {
+                "name": "vm",
+                "location": "element",
+                "shape": "scalar",
+                "unit": unit_p,
+                "npz_pattern": "elem__vm__step{step:06d}",
+            },
         ]
         present: set[str] = set()
         for k in arrays.keys():
@@ -650,7 +787,10 @@ class ReferenceElasticSolver:
         meta = {
             "schema_version": "0.2",
             "status": "success",
-            "solver_info": {"name": "reference_elastic", "note": "linear elastic reference solver (scipy.sparse)"},
+            "solver_info": {
+                "name": "reference_elastic",
+                "note": "linear elastic reference solver (scipy.sparse)",
+            },
             "stages": stage_infos,
             "global_steps": global_steps,
             "warnings": [],

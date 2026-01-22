@@ -4,7 +4,14 @@ from __future__ import annotations
 class TasksDock:
     def __init__(self) -> None:
         from PySide6.QtCore import QObject, Slot  # type: ignore
-        from PySide6.QtWidgets import QDockWidget, QLabel, QProgressBar, QPushButton, QVBoxLayout, QWidget  # type: ignore
+        from PySide6.QtWidgets import (
+            QDockWidget,
+            QLabel,  # type: ignore
+            QProgressBar,
+            QPushButton,
+            QVBoxLayout,
+            QWidget,
+        )
 
         self.dock = QDockWidget("Tasks")
         self.dock.setObjectName("dock_tasks")

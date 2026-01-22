@@ -30,7 +30,9 @@ def _triangle_angles_deg(a: np.ndarray, b: np.ndarray, c: np.ndarray) -> np.ndar
     return np.stack([A, B, C], axis=1)
 
 
-def triangle_quality(points: np.ndarray, tri3: np.ndarray) -> tuple[np.ndarray, np.ndarray, TriangleQualityStats]:
+def triangle_quality(
+    points: np.ndarray, tri3: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, TriangleQualityStats]:
     """
     Returns:
     - min_angle_deg: (M,) minimum interior angle per triangle
@@ -40,7 +42,13 @@ def triangle_quality(points: np.ndarray, tri3: np.ndarray) -> tuple[np.ndarray, 
     pts = np.asarray(points, dtype=float)
     tri = np.asarray(tri3, dtype=np.int64)
     if tri.size == 0:
-        stats = TriangleQualityStats(count=0, min_angle_deg_min=float("nan"), min_angle_deg_p50=float("nan"), min_angle_deg_p95=float("nan"), aspect_ratio_max=float("nan"))
+        stats = TriangleQualityStats(
+            count=0,
+            min_angle_deg_min=float("nan"),
+            min_angle_deg_p50=float("nan"),
+            min_angle_deg_p95=float("nan"),
+            aspect_ratio_max=float("nan"),
+        )
         return np.zeros((0,), dtype=float), np.zeros((0,), dtype=float), stats
 
     p0 = pts[tri[:, 0], :2]
@@ -68,4 +76,3 @@ def triangle_quality(points: np.ndarray, tri3: np.ndarray) -> tuple[np.ndarray, 
         aspect_ratio_max=float(np.nanmax(aspect)),
     )
     return min_angle, aspect, stats
-

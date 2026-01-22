@@ -15,14 +15,14 @@ class PrecheckDialog:
     ) -> None:
         from PySide6.QtCore import Qt  # type: ignore
         from PySide6.QtWidgets import (
-            QDialog,
+            QDialog,  # type: ignore
             QDialogButtonBox,
             QLabel,
-            QListWidgetItem,
             QListWidget,
+            QListWidgetItem,
             QPushButton,
             QVBoxLayout,
-        )  # type: ignore
+        )
 
         self._Qt = Qt
         self._QDialog = QDialog

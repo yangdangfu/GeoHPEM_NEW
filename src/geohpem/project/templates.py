@@ -13,11 +13,14 @@ def new_empty_project(
     unit_system: dict[str, str] | None = None,
 ) -> ProjectData:
     if mode not in ("plane_strain", "plane_stress", "axisymmetric"):
-        raise ValueError("mode must be 'plane_strain', 'plane_stress' or 'axisymmetric'")
+        raise ValueError(
+            "mode must be 'plane_strain', 'plane_stress' or 'axisymmetric'"
+        )
 
     request: dict[str, Any] = {
         "schema_version": "0.2",
-        "unit_system": unit_system or {"force": "kN", "length": "m", "time": "s", "pressure": "kPa"},
+        "unit_system": unit_system
+        or {"force": "kN", "length": "m", "time": "s", "pressure": "kPa"},
         "model": {"dimension": 2, "mode": mode, "gravity": [0.0, -9.81]},
         "materials": {},
         "assignments": [],
@@ -48,7 +51,9 @@ def new_sample_project(
     unit_system: dict[str, str] | None = None,
 ) -> ProjectData:
     if mode not in ("plane_strain", "plane_stress", "axisymmetric"):
-        raise ValueError("mode must be 'plane_strain', 'plane_stress' or 'axisymmetric'")
+        raise ValueError(
+            "mode must be 'plane_strain', 'plane_stress' or 'axisymmetric'"
+        )
 
     points = np.array(
         [
@@ -63,7 +68,8 @@ def new_sample_project(
 
     request: dict[str, Any] = {
         "schema_version": "0.2",
-        "unit_system": unit_system or {"force": "kN", "length": "m", "time": "s", "pressure": "kPa"},
+        "unit_system": unit_system
+        or {"force": "kN", "length": "m", "time": "s", "pressure": "kPa"},
         "model": {"dimension": 2, "mode": mode, "gravity": [0.0, -9.81]},
         "materials": {
             "soil_1": {
@@ -72,14 +78,22 @@ def new_sample_project(
                 "parameters": {"E": 3.0e7, "nu": 0.3, "rho": 1800.0},
             }
         },
-        "assignments": [{"element_set": "domain", "cell_type": "tri3", "material_id": "soil_1"}],
+        "assignments": [
+            {"element_set": "domain", "cell_type": "tri3", "material_id": "soil_1"}
+        ],
         "stages": [
             {
                 "id": "stage_1",
                 "analysis_type": "static",
                 "num_steps": 5,
                 "dt": 1.0,
-                "bcs": [{"type": "displacement", "set": "bottom", "value": {"ux": 0.0, "uy": 0.0}}],
+                "bcs": [
+                    {
+                        "type": "displacement",
+                        "set": "bottom",
+                        "value": {"ux": 0.0, "uy": 0.0},
+                    }
+                ],
                 "loads": [],
                 "output_requests": [
                     {"name": "u", "location": "node", "every_n": 1},

@@ -6,9 +6,9 @@ from pathlib import Path
 class BatchRunDialog:
     def __init__(self, parent, *, solver_selector: str) -> None:  # noqa: ANN001
         from PySide6.QtCore import QObject, Slot  # type: ignore
-        from PySide6.QtWidgets import (  # type: ignore
+        from PySide6.QtWidgets import (
             QCheckBox,
-            QDialog,
+            QDialog,  # type: ignore
             QDialogButtonBox,
             QFileDialog,
             QFormLayout,
@@ -16,9 +16,9 @@ class BatchRunDialog:
             QLabel,
             QLineEdit,
             QMessageBox,
-            QPushButton,
             QPlainTextEdit,
             QProgressBar,
+            QPushButton,
             QVBoxLayout,
             QWidget,
         )
@@ -31,8 +31,12 @@ class BatchRunDialog:
         self._dialog.resize(760, 520)
 
         layout = QVBoxLayout(self._dialog)
-        layout.addWidget(QLabel("Run multiple case folders under a root directory.\n"
-                                "Each case folder must contain request.json + mesh.npz."))
+        layout.addWidget(
+            QLabel(
+                "Run multiple case folders under a root directory.\n"
+                "Each case folder must contain request.json + mesh.npz."
+            )
+        )
 
         form = QFormLayout()
         layout.addLayout(form)
@@ -48,7 +52,9 @@ class BatchRunDialog:
 
         self._solver = QLineEdit()
         self._solver.setText(solver_selector)
-        self._solver.setPlaceholderText("fake | ref_elastic | ref_seepage | python:<module>")
+        self._solver.setPlaceholderText(
+            "fake | ref_elastic | ref_seepage | ref_hpem_static | python:<module>"
+        )
         form.addRow("Solver", self._solver)
 
         self._use_baseline = QCheckBox("Compare with baseline root")
@@ -112,7 +118,9 @@ class BatchRunDialog:
             @Slot(object)
             def on_report_ready(self, p) -> None:  # noqa: ANN001
                 outer._append(f"Report written: {p}")
-                outer._QMessageBox.information(outer._dialog, "Batch Run", f"Completed.\nReport:\n{p}")
+                outer._QMessageBox.information(
+                    outer._dialog, "Batch Run", f"Completed.\nReport:\n{p}"
+                )
 
             @Slot()
             def on_finished(self) -> None:
@@ -132,19 +140,25 @@ class BatchRunDialog:
         update_baseline_enabled()
 
         def browse_root() -> None:
-            d = self._QFileDialog.getExistingDirectory(self._dialog, "Select Cases Root")
+            d = self._QFileDialog.getExistingDirectory(
+                self._dialog, "Select Cases Root"
+            )
             if d:
                 self._root.setText(d)
                 # default report path
                 self._report.setText(str(Path(d) / "batch_report.json"))
 
         def browse_base() -> None:
-            d = self._QFileDialog.getExistingDirectory(self._dialog, "Select Baseline Root")
+            d = self._QFileDialog.getExistingDirectory(
+                self._dialog, "Select Baseline Root"
+            )
             if d:
                 self._baseline.setText(d)
 
         def browse_report() -> None:
-            f, _ = self._QFileDialog.getSaveFileName(self._dialog, "Report Path", "", "JSON (*.json);;All Files (*)")
+            f, _ = self._QFileDialog.getSaveFileName(
+                self._dialog, "Report Path", "", "JSON (*.json);;All Files (*)"
+            )
             if f:
                 self._report.setText(f)
 
@@ -167,7 +181,9 @@ class BatchRunDialog:
 
         root = Path(self._root.text().strip())
         if not root.exists():
-            self._QMessageBox.information(self._dialog, "Batch Run", "Please select a valid cases root folder.")
+            self._QMessageBox.information(
+                self._dialog, "Batch Run", "Please select a valid cases root folder."
+            )
             return
         solver = self._solver.text().strip() or "fake"
 
@@ -175,7 +191,9 @@ class BatchRunDialog:
         if self._use_baseline.isChecked():
             b = Path(self._baseline.text().strip())
             if not b.exists():
-                self._QMessageBox.information(self._dialog, "Batch Run", "Baseline root does not exist.")
+                self._QMessageBox.information(
+                    self._dialog, "Batch Run", "Baseline root does not exist."
+                )
                 return
             baseline = b
 
@@ -188,7 +206,12 @@ class BatchRunDialog:
         self._progress.setValue(0)
         self._append(f"Starting batch run: root={root} solver={solver}")
 
-        worker = BatchRunWorker(root, solver_selector=solver, baseline_root=baseline, report_path=report_path)
+        worker = BatchRunWorker(
+            root,
+            solver_selector=solver,
+            baseline_root=baseline,
+            report_path=report_path,
+        )
         self._worker = worker
         # Connect to QObject slots to ensure UI updates happen in GUI thread.
         worker.progress.connect(self._slots.on_progress)

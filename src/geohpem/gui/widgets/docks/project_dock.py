@@ -7,7 +7,13 @@ from typing import Any
 class ProjectDock:
     def __init__(self) -> None:
         from PySide6.QtCore import Qt, Signal  # type: ignore
-        from PySide6.QtWidgets import QDockWidget, QTreeWidget, QWidget, QVBoxLayout, QPushButton  # type: ignore
+        from PySide6.QtWidgets import (
+            QDockWidget,  # type: ignore
+            QPushButton,
+            QTreeWidget,
+            QVBoxLayout,
+            QWidget,
+        )
 
         class _Signals(QWidget):
             case_open_requested = Signal(Path)
@@ -41,7 +47,9 @@ class ProjectDock:
         self._request: dict[str, Any] | None = None
         self._mesh: dict[str, Any] | None = None
 
-    def set_case(self, case_dir: Path, request: dict[str, Any], mesh: dict[str, Any]) -> None:
+    def set_case(
+        self, case_dir: Path, request: dict[str, Any], mesh: dict[str, Any]
+    ) -> None:
         from PySide6.QtWidgets import QTreeWidgetItem  # type: ignore
 
         self._case_dir = case_dir
@@ -69,7 +77,11 @@ class ProjectDock:
         model_item.setData(0, self._Qt.UserRole, {"type": "model"})
         inputs.addChild(model_item)
 
-        points_n = int(getattr(mesh.get("points"), "shape", [0])[0]) if mesh.get("points") is not None else 0
+        points_n = (
+            int(getattr(mesh.get("points"), "shape", [0])[0])
+            if mesh.get("points") is not None
+            else 0
+        )
         mesh_item = QTreeWidgetItem([f"Mesh (points={points_n})"])
         mesh_item.setData(0, self._Qt.UserRole, {"type": "mesh"})
         inputs.addChild(mesh_item)
@@ -114,7 +126,11 @@ class ProjectDock:
             cell_type = parts[1] if len(parts) > 1 else "?"
             count = int(getattr(v, "size", 0))
             child = QTreeWidgetItem([f"{name}:{cell_type} ({count})"])
-            child.setData(0, self._Qt.UserRole, {"type": "element_set", "name": name, "cell_type": cell_type})
+            child.setData(
+                0,
+                self._Qt.UserRole,
+                {"type": "element_set", "name": name, "cell_type": cell_type},
+            )
             elem_sets_item.addChild(child)
 
         materials_item = QTreeWidgetItem(["Materials"])
@@ -144,7 +160,9 @@ class ProjectDock:
             sid = s.get("id", f"stage_{i+1}") if isinstance(s, dict) else f"stage_{i+1}"
             suid = s.get("uid", "") if isinstance(s, dict) else ""
             child = QTreeWidgetItem([sid])
-            child.setData(0, self._Qt.UserRole, {"type": "stage", "uid": suid, "index": i})
+            child.setData(
+                0, self._Qt.UserRole, {"type": "stage", "uid": suid, "index": i}
+            )
             stages_item.addChild(child)
 
         outputs = QTreeWidgetItem(["Outputs"])
@@ -204,9 +222,10 @@ class ProjectDock:
             if target_type in ("node_set", "edge_set"):
                 return str(item_payload.get("name", "")) == str(payload.get("name", ""))
             if target_type == "element_set":
-                return (
-                    str(item_payload.get("name", "")) == str(payload.get("name", ""))
-                    and str(item_payload.get("cell_type", "")) == str(payload.get("cell_type", ""))
+                return str(item_payload.get("name", "")) == str(
+                    payload.get("name", "")
+                ) and str(item_payload.get("cell_type", "")) == str(
+                    payload.get("cell_type", "")
                 )
             # For general nodes (model/mesh/sets/etc.), type match is enough.
             return True

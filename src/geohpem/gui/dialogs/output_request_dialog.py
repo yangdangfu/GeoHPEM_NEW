@@ -16,9 +16,9 @@ class OutputRequestDialog:
         *,
         capabilities: dict[str, Any] | None,
     ) -> None:  # noqa: ANN001
-        from PySide6.QtWidgets import (  # type: ignore
+        from PySide6.QtWidgets import (
             QComboBox,
-            QDialog,
+            QDialog,  # type: ignore
             QDialogButtonBox,
             QFormLayout,
             QLabel,
@@ -36,7 +36,9 @@ class OutputRequestDialog:
         self._dialog.resize(520, 420)
 
         layout = QVBoxLayout(self._dialog)
-        layout.addWidget(QLabel("Select outputs to request from solver (stage.output_requests)."))
+        layout.addWidget(
+            QLabel("Select outputs to request from solver (stage.output_requests).")
+        )
 
         self._list = QListWidget()
         self._list.setSelectionMode(QListWidget.MultiSelection)
@@ -80,9 +82,13 @@ class OutputRequestDialog:
 
         if self._dialog.exec() != QDialog.Accepted:
             return None
-        selected = [it.text().strip() for it in self._list.selectedItems() if it.text().strip()]
+        selected = [
+            it.text().strip() for it in self._list.selectedItems() if it.text().strip()
+        ]
         if not selected:
-            self._QMessageBox.information(self._dialog, "Output Requests", "Please select at least one field.")
+            self._QMessageBox.information(
+                self._dialog, "Output Requests", "Please select at least one field."
+            )
             return None
 
         from geohpem.util.ids import new_uid
@@ -91,6 +97,12 @@ class OutputRequestDialog:
         every_n = int(self._every_n.value())
         reqs: list[dict[str, Any]] = []
         for n in selected:
-            reqs.append({"uid": new_uid("outreq"), "name": n, "location": location, "every_n": every_n})
+            reqs.append(
+                {
+                    "uid": new_uid("outreq"),
+                    "name": n,
+                    "location": location,
+                    "every_n": every_n,
+                }
+            )
         return OutputRequestDialogResult(output_requests=reqs)
-

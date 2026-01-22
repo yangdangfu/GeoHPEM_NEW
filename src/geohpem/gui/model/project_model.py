@@ -85,7 +85,9 @@ class ProjectModel:
         self.stages_changed.emit(project.request.get("stages", []))
         self.materials_changed.emit(project.request.get("materials", {}))
         self.assignments_changed.emit(project.request.get("assignments", []))
-        self.undo_state_changed.emit(self.undo_stack.can_undo(), self.undo_stack.can_redo())
+        self.undo_state_changed.emit(
+            self.undo_stack.can_undo(), self.undo_stack.can_redo()
+        )
 
     def set_dirty(self, dirty: bool) -> None:
         if self._dirty == dirty:
@@ -101,12 +103,16 @@ class ProjectModel:
 
     def undo(self) -> None:
         self.undo_stack.undo()
-        self.undo_state_changed.emit(self.undo_stack.can_undo(), self.undo_stack.can_redo())
+        self.undo_state_changed.emit(
+            self.undo_stack.can_undo(), self.undo_stack.can_redo()
+        )
         self.set_dirty(True)
 
     def redo(self) -> None:
         self.undo_stack.redo()
-        self.undo_state_changed.emit(self.undo_stack.can_undo(), self.undo_stack.can_redo())
+        self.undo_state_changed.emit(
+            self.undo_stack.can_undo(), self.undo_stack.can_redo()
+        )
         self.set_dirty(True)
 
     def ensure_project(self) -> ProjectData:
@@ -132,7 +138,9 @@ class ProjectModel:
         self.materials_changed.emit(project.request.get("materials", {}))
         self.assignments_changed.emit(project.request.get("assignments", []))
 
-    def _with_request_undo(self, name: str, mutator: Callable[[], None], *, merge_key: str | None = None) -> None:
+    def _with_request_undo(
+        self, name: str, mutator: Callable[[], None], *, merge_key: str | None = None
+    ) -> None:
         before = self._clone_request()
         mutator()
         after = self._clone_request()
@@ -145,11 +153,17 @@ class ProjectModel:
         def _redo() -> None:
             self._set_request_no_undo(copy.deepcopy(after))
 
-        self.undo_stack.push_and_redo(UndoCommand(name=name, undo=_undo, redo=_redo), merge_key=merge_key)
-        self.undo_state_changed.emit(self.undo_stack.can_undo(), self.undo_stack.can_redo())
+        self.undo_stack.push_and_redo(
+            UndoCommand(name=name, undo=_undo, redo=_redo), merge_key=merge_key
+        )
+        self.undo_state_changed.emit(
+            self.undo_stack.can_undo(), self.undo_stack.can_redo()
+        )
         self.set_dirty(True)
 
-    def update_request(self, new_request: dict[str, Any], *, merge_key: str | None = None) -> None:
+    def update_request(
+        self, new_request: dict[str, Any], *, merge_key: str | None = None
+    ) -> None:
         def mut() -> None:
             project = self.ensure_project()
             project.request = new_request
@@ -171,12 +185,16 @@ class ProjectModel:
 
         self._with_request_undo("Edit Assignments", mut)
 
-    def update_global_output_requests(self, output_requests: list[dict[str, Any]]) -> None:
+    def update_global_output_requests(
+        self, output_requests: list[dict[str, Any]]
+    ) -> None:
         from geohpem.domain.request_ops import set_global_output_requests
 
         def mut() -> None:
             project = self.ensure_project()
-            project.request = set_global_output_requests(project.request, output_requests)
+            project.request = set_global_output_requests(
+                project.request, output_requests
+            )
 
         self._with_request_undo("Edit Global Output Requests", mut)
 
@@ -199,8 +217,12 @@ class ProjectModel:
             ensure_request_ids(project.request, project.mesh)
             self.mesh_changed.emit(project.mesh)
 
-        self.undo_stack.push_and_redo(UndoCommand(name="Edit Mesh", undo=_undo, redo=_redo))
-        self.undo_state_changed.emit(self.undo_stack.can_undo(), self.undo_stack.can_redo())
+        self.undo_stack.push_and_redo(
+            UndoCommand(name="Edit Mesh", undo=_undo, redo=_redo)
+        )
+        self.undo_state_changed.emit(
+            self.undo_stack.can_undo(), self.undo_stack.can_redo()
+        )
         self.set_dirty(True)
 
     def update_request_and_mesh(
@@ -240,13 +262,23 @@ class ProjectModel:
             self.assignments_changed.emit(project.request.get("assignments", []))
 
         def _undo() -> None:
-            _apply(copy.deepcopy(before_req), {k: np.asarray(v).copy() for k, v in before_mesh.items()})
+            _apply(
+                copy.deepcopy(before_req),
+                {k: np.asarray(v).copy() for k, v in before_mesh.items()},
+            )
 
         def _redo() -> None:
-            _apply(copy.deepcopy(after_req), {k: np.asarray(v).copy() for k, v in after_mesh.items()})
+            _apply(
+                copy.deepcopy(after_req),
+                {k: np.asarray(v).copy() for k, v in after_mesh.items()},
+            )
 
-        self.undo_stack.push_and_redo(UndoCommand(name=name, undo=_undo, redo=_redo), merge_key=merge_key)
-        self.undo_state_changed.emit(self.undo_stack.can_undo(), self.undo_stack.can_redo())
+        self.undo_stack.push_and_redo(
+            UndoCommand(name=name, undo=_undo, redo=_redo), merge_key=merge_key
+        )
+        self.undo_state_changed.emit(
+            self.undo_stack.can_undo(), self.undo_stack.can_redo()
+        )
         self.set_dirty(True)
 
     def update_model(self, mode: str, gx: float, gy: float) -> None:
@@ -293,7 +325,9 @@ class ProjectModel:
 
         def mut() -> None:
             project = self.ensure_project()
-            project.request = apply_stage_patch_by_uid(project.request, stage_uid, patch)
+            project.request = apply_stage_patch_by_uid(
+                project.request, stage_uid, patch
+            )
 
         self._with_request_undo("Edit Stage", mut)
 

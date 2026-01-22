@@ -58,7 +58,11 @@ def build_diagnostics_zip(
         "time": ts,
         "solver_selector": solver_selector,
         "python": sys.version,
-        "platform": {"system": platform.system(), "release": platform.release(), "version": platform.version()},
+        "platform": {
+            "system": platform.system(),
+            "release": platform.release(),
+            "version": platform.version(),
+        },
         "cwd": os.getcwd(),
     }
     if capabilities is not None:

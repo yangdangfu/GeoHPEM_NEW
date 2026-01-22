@@ -13,8 +13,8 @@ class PropertiesDock:
 
     def __init__(self) -> None:
         from PySide6.QtCore import Qt  # type: ignore
-        from PySide6.QtWidgets import (  # type: ignore
-            QAbstractItemView,
+        from PySide6.QtWidgets import (
+            QAbstractItemView,  # type: ignore
             QComboBox,
             QDockWidget,
             QDoubleSpinBox,
@@ -55,7 +55,9 @@ class PropertiesDock:
         self._page_info = QWidget()
         info_layout = QVBoxLayout(self._page_info)
         self._apply_page_layout(info_layout)
-        info_header, self._info_header_title, self._info_header_subtitle = self._build_header("Info", "")
+        info_header, self._info_header_title, self._info_header_subtitle = (
+            self._build_header("Info", "")
+        )
         info_layout.addWidget(info_header)
         self._info_cards = QWidget()
         self._info_cards_layout = QHBoxLayout(self._info_cards)
@@ -82,9 +84,11 @@ class PropertiesDock:
         self._page_model = QWidget()
         model_layout = QVBoxLayout(self._page_model)
         self._apply_page_layout(model_layout)
-        model_header, self._model_header_title, self._model_header_subtitle = self._build_header(
-            "Model",
-            "Global analysis settings for the project.",
+        model_header, self._model_header_title, self._model_header_subtitle = (
+            self._build_header(
+                "Model",
+                "Global analysis settings for the project.",
+            )
         )
         model_layout.addWidget(model_header)
         self._cap_hint_model = QLabel("")
@@ -118,9 +122,11 @@ class PropertiesDock:
         self._page_stage = QWidget()
         stage_layout = QVBoxLayout(self._page_stage)
         self._apply_page_layout(stage_layout)
-        stage_header, self._stage_header_title, self._stage_header_subtitle = self._build_header(
-            "Stage",
-            "Configure analysis, loads, and outputs.",
+        stage_header, self._stage_header_title, self._stage_header_subtitle = (
+            self._build_header(
+                "Stage",
+                "Configure analysis, loads, and outputs.",
+            )
         )
         stage_layout.addWidget(stage_header)
         self._cap_hint_stage = QLabel("")
@@ -135,7 +141,14 @@ class PropertiesDock:
         stage_form.addRow("Stage ID", self._stage_id)
 
         self._analysis_type = QComboBox()
-        for v in ("static", "dynamic", "seepage_steady", "seepage_transient", "consolidation_u_p", "pfem"):
+        for v in (
+            "static",
+            "dynamic",
+            "seepage_steady",
+            "seepage_transient",
+            "consolidation_u_p",
+            "pfem",
+        ):
             self._analysis_type.addItem(v, v)
         stage_form.addRow("Analysis Type", self._analysis_type)
 
@@ -173,7 +186,9 @@ class PropertiesDock:
         self._cap_hint_outputs.setStyleSheet("color: #b45309;")  # amber-ish
         stage_layout.addWidget(self._cap_hint_outputs)
 
-        self._stage_out_editor = OutputRequestsEditor(self._page_stage, title="Stage output_requests")
+        self._stage_out_editor = OutputRequestsEditor(
+            self._page_stage, title="Stage output_requests"
+        )
         stage_layout.addWidget(self._stage_out_editor.widget, 1)
 
         from geohpem.gui.widgets.stage_table_editor import (
@@ -185,7 +200,11 @@ class PropertiesDock:
         self._bcs_editor = StageItemTableEditor(
             self._page_stage,
             config=StageItemTableConfig(
-                kind="bc", uid_prefix="bc", title="Stage BCs", default_field="u", default_type="dirichlet"
+                kind="bc",
+                uid_prefix="bc",
+                title="Stage BCs",
+                default_field="u",
+                default_type="dirichlet",
             ),
         )
         stage_layout.addWidget(self._bcs_editor.widget, 1)
@@ -193,7 +212,11 @@ class PropertiesDock:
         self._loads_editor = StageItemTableEditor(
             self._page_stage,
             config=StageItemTableConfig(
-                kind="load", uid_prefix="load", title="Stage Loads", default_field="p", default_type="neumann"
+                kind="load",
+                uid_prefix="load",
+                title="Stage Loads",
+                default_field="p",
+                default_type="neumann",
             ),
         )
         stage_layout.addWidget(self._loads_editor.widget, 1)
@@ -206,9 +229,11 @@ class PropertiesDock:
         self._page_material = QWidget()
         mat_layout = QVBoxLayout(self._page_material)
         self._apply_page_layout(mat_layout)
-        mat_header, self._mat_header_title, self._mat_header_subtitle = self._build_header(
-            "Material",
-            "Define constitutive model and parameters.",
+        mat_header, self._mat_header_title, self._mat_header_subtitle = (
+            self._build_header(
+                "Material",
+                "Define constitutive model and parameters.",
+            )
         )
         mat_layout.addWidget(mat_header)
         mat_form = QFormLayout()
@@ -226,7 +251,6 @@ class PropertiesDock:
         self._mat_behavior = QLineEdit()
         self._mat_behavior.setReadOnly(True)
         mat_form.addRow("Behavior", self._mat_behavior)
-
 
         mat_buttons = QWidget()
         mbl = QHBoxLayout(mat_buttons)
@@ -278,9 +302,11 @@ class PropertiesDock:
         self._page_assignments = QWidget()
         asg_layout = QVBoxLayout(self._page_assignments)
         self._apply_page_layout(asg_layout)
-        asg_header, self._asg_header_title, self._asg_header_subtitle = self._build_header(
-            "Assignments",
-            "Map element sets to materials.",
+        asg_header, self._asg_header_title, self._asg_header_subtitle = (
+            self._build_header(
+                "Assignments",
+                "Map element sets to materials.",
+            )
         )
         asg_layout.addWidget(asg_header)
         self._assign_hint = QLabel("")
@@ -298,13 +324,17 @@ class PropertiesDock:
         self._page_global_out = QWidget()
         g_layout = QVBoxLayout(self._page_global_out)
         self._apply_page_layout(g_layout)
-        gout_header, self._gout_header_title, self._gout_header_subtitle = self._build_header(
-            "Global Outputs",
-            "Optional outputs shared by all stages.",
+        gout_header, self._gout_header_title, self._gout_header_subtitle = (
+            self._build_header(
+                "Global Outputs",
+                "Optional outputs shared by all stages.",
+            )
         )
         g_layout.addWidget(gout_header)
         g_layout.addWidget(QLabel("Global output_requests (optional)"))
-        self._global_out_editor = OutputRequestsEditor(self._page_global_out, title="Global output_requests")
+        self._global_out_editor = OutputRequestsEditor(
+            self._page_global_out, title="Global output_requests"
+        )
         g_layout.addWidget(self._global_out_editor.widget, 1)
         self._btn_apply_global_out = QPushButton("Apply")
         self._add_footer_button(g_layout, self._btn_apply_global_out)
@@ -313,9 +343,13 @@ class PropertiesDock:
         # Callbacks configured by MainWindow
         self._apply_model_cb: Callable[[str, float, float], None] | None = None
         self._apply_stage_cb: Callable[[str, dict[str, Any]], None] | None = None
-        self._apply_material_cb: Callable[[str, str, dict[str, Any], str | None], None] | None = None
+        self._apply_material_cb: (
+            Callable[[str, str, dict[str, Any], str | None], None] | None
+        ) = None
         self._apply_assignments_cb: Callable[[list[dict[str, Any]]], None] | None = None
-        self._apply_global_output_requests_cb: Callable[[list[dict[str, Any]]], None] | None = None
+        self._apply_global_output_requests_cb: (
+            Callable[[list[dict[str, Any]]], None] | None
+        ) = None
 
         self._current_stage_index: int | None = None
         self._current_stage_uid: str | None = None
@@ -333,7 +367,9 @@ class PropertiesDock:
         self._mat_tabs.currentChanged.connect(self._on_material_tab_changed)
         self._mat_model_name.currentTextChanged.connect(self._on_material_model_changed)
         self._btn_apply_assign.clicked.connect(self._on_apply_assignments)
-        self._btn_apply_global_out.clicked.connect(self._on_apply_global_output_requests)
+        self._btn_apply_global_out.clicked.connect(
+            self._on_apply_global_output_requests
+        )
         self._btn_q_fix_bottom.clicked.connect(self._quick_fix_bottom)
         self._btn_q_fix_lr.clicked.connect(self._quick_fix_left_right)
         self._btn_q_roller.clicked.connect(self._quick_roller)
@@ -363,14 +399,22 @@ class PropertiesDock:
         try:
             bc_types = caps.get("bcs") if isinstance(caps, dict) else None
             ld_types = caps.get("loads") if isinstance(caps, dict) else None
-            bc_list = [str(x) for x in (bc_types or []) if isinstance(x, str) and x.strip()]
-            ld_list = [str(x) for x in (ld_types or []) if isinstance(x, str) and x.strip()]
+            bc_list = [
+                str(x) for x in (bc_types or []) if isinstance(x, str) and x.strip()
+            ]
+            ld_list = [
+                str(x) for x in (ld_types or []) if isinstance(x, str) and x.strip()
+            ]
             self._bcs_editor.set_type_options(bc_list)
             self._loads_editor.set_type_options(ld_list)
 
             # Fields are optional in v0.2; keep a small common set and let presets auto-fill.
             field_opts: list[str] = []
-            if "displacement" in bc_list or "traction" in ld_list or "gravity" in ld_list:
+            if (
+                "displacement" in bc_list
+                or "traction" in ld_list
+                or "gravity" in ld_list
+            ):
                 field_opts.append("u")
             if "p" in bc_list or "flux" in ld_list:
                 field_opts.append("p")
@@ -401,7 +445,9 @@ class PropertiesDock:
         except Exception:
             pass
 
-    def _set_combo_item_enabled(self, combo, index: int, enabled: bool) -> None:  # noqa: ANN001
+    def _set_combo_item_enabled(
+        self, combo, index: int, enabled: bool
+    ) -> None:  # noqa: ANN001
         try:
             model = combo.model()
             if hasattr(model, "item"):
@@ -438,7 +484,9 @@ class PropertiesDock:
             self._set_combo_item_enabled(self._mode, i, v in allow)
         cur = str(self._mode.currentData())
         if cur and cur not in allow:
-            self._cap_hint_model.setText(f"Current mode '{cur}' is not supported by selected solver.")
+            self._cap_hint_model.setText(
+                f"Current mode '{cur}' is not supported by selected solver."
+            )
         else:
             self._cap_hint_model.setText("")
 
@@ -456,7 +504,9 @@ class PropertiesDock:
             self._set_combo_item_enabled(self._analysis_type, i, v in allow)
         cur = str(self._analysis_type.currentData())
         if cur and cur not in allow:
-            self._cap_hint_stage.setText(f"Current analysis_type '{cur}' is not supported by selected solver.")
+            self._cap_hint_stage.setText(
+                f"Current analysis_type '{cur}' is not supported by selected solver."
+            )
         else:
             self._cap_hint_stage.setText("")
 
@@ -490,7 +540,9 @@ class PropertiesDock:
             if isinstance(name, str) and name and name not in allowed:
                 bad.append(name)
         if bad:
-            self._cap_hint_outputs.setText(f"Some outputs are not supported by selected solver: {sorted(set(bad))}")
+            self._cap_hint_outputs.setText(
+                f"Some outputs are not supported by selected solver: {sorted(set(bad))}"
+            )
         else:
             self._cap_hint_outputs.setText("")
 
@@ -500,13 +552,19 @@ class PropertiesDock:
     def bind_apply_stage(self, cb: Callable[[str, dict[str, Any]], None]) -> None:
         self._apply_stage_cb = cb
 
-    def bind_apply_material(self, cb: Callable[[str, str, dict[str, Any], str | None], None]) -> None:
+    def bind_apply_material(
+        self, cb: Callable[[str, str, dict[str, Any], str | None], None]
+    ) -> None:
         self._apply_material_cb = cb
 
-    def bind_apply_assignments(self, cb: Callable[[list[dict[str, Any]]], None]) -> None:
+    def bind_apply_assignments(
+        self, cb: Callable[[list[dict[str, Any]]], None]
+    ) -> None:
         self._apply_assignments_cb = cb
 
-    def bind_apply_global_output_requests(self, cb: Callable[[list[dict[str, Any]]], None]) -> None:
+    def bind_apply_global_output_requests(
+        self, cb: Callable[[list[dict[str, Any]]], None]
+    ) -> None:
         self._apply_global_output_requests_cb = cb
 
     def show_empty(self) -> None:
@@ -567,11 +625,15 @@ class PropertiesDock:
 
         self._stack.setCurrentWidget(self._page_info)
 
-    def _build_header(self, title: str, subtitle: str) -> tuple[QWidget, QLabel, QLabel]:
+    def _build_header(
+        self, title: str, subtitle: str
+    ) -> tuple[QWidget, QLabel, QLabel]:
         from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout  # type: ignore
 
         header = QFrame()
-        header.setStyleSheet("QFrame { background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 6px; }")
+        header.setStyleSheet(
+            "QFrame { background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 6px; }"
+        )
         layout = QVBoxLayout(header)
         layout.setContentsMargins(10, 8, 10, 8)
         title_label = QLabel(title)
@@ -621,7 +683,9 @@ class PropertiesDock:
         from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout  # type: ignore
 
         card = QFrame()
-        card.setStyleSheet("QFrame { border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px; }")
+        card.setStyleSheet(
+            "QFrame { border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px; }"
+        )
         lay = QVBoxLayout(card)
         lay.setContentsMargins(8, 6, 8, 6)
         lab_title = QLabel(str(title))
@@ -633,7 +697,9 @@ class PropertiesDock:
         return card
 
     def show_model(self, request: dict[str, Any]) -> None:
-        model = request.get("model", {}) if isinstance(request.get("model"), dict) else {}
+        model = (
+            request.get("model", {}) if isinstance(request.get("model"), dict) else {}
+        )
         mode = model.get("mode", "plane_strain")
         idx = self._mode.findData(mode)
         if idx >= 0:
@@ -654,7 +720,9 @@ class PropertiesDock:
 
     def show_stage(self, stage_index: int, stage: dict[str, Any]) -> None:
         self._current_stage_index = stage_index
-        self._current_stage_uid = str(stage.get("uid", "")) if isinstance(stage, dict) else None
+        self._current_stage_uid = (
+            str(stage.get("uid", "")) if isinstance(stage, dict) else None
+        )
         self._stage_id.setText(str(stage.get("id", f"stage_{stage_index+1}")))
         at = stage.get("analysis_type", "static")
         idx = self._analysis_type.findData(at)
@@ -670,7 +738,9 @@ class PropertiesDock:
 
         self._stage_out_editor.set_options(self._outreq_options())
         out_req = stage.get("output_requests", [])
-        self._stage_out_editor.set_requests(out_req if isinstance(out_req, list) else [])
+        self._stage_out_editor.set_requests(
+            out_req if isinstance(out_req, list) else []
+        )
         self._validate_stage_outputs()
 
         self._bcs_editor.set_set_options(self._available_sets)
@@ -683,12 +753,18 @@ class PropertiesDock:
         self._stack.setCurrentWidget(self._page_stage)
 
     def show_material(self, material_id: str, material: dict[str, Any]) -> None:
-        from geohpem.domain.material_catalog import behavior_for_model, behavior_label, model_meta
+        from geohpem.domain.material_catalog import (
+            behavior_for_model,
+            behavior_label,
+            model_meta,
+        )
 
         self._current_material_id = material_id
         self._mat_id.setText(material_id)
         model_name = str(material.get("model_name", ""))
-        behavior = behavior_for_model(model_name) or str(material.get("behavior", "custom"))
+        behavior = behavior_for_model(model_name) or str(
+            material.get("behavior", "custom")
+        )
 
         self._mat_behavior.setText(behavior_label(behavior))
         self._refresh_material_model_options(model_name)
@@ -696,13 +772,17 @@ class PropertiesDock:
         self._update_material_header(model_name, behavior)
         self._mat_param_meta = model_meta(model_name)
         params = material.get("parameters", {})
-        self._set_material_params(params if isinstance(params, dict) else {}, meta=self._mat_param_meta)
+        self._set_material_params(
+            params if isinstance(params, dict) else {}, meta=self._mat_param_meta
+        )
         self._stack.setCurrentWidget(self._page_material)
 
     def show_assignments(self, request: dict[str, Any]) -> None:
         assigns = request.get("assignments", [])
         self._assign_editor.set_options(self._assign_options())
-        self._assign_editor.set_assignments(assigns if isinstance(assigns, list) else [])
+        self._assign_editor.set_assignments(
+            assigns if isinstance(assigns, list) else []
+        )
         self._validate_assignments()
         self._stack.setCurrentWidget(self._page_assignments)
 
@@ -715,7 +795,11 @@ class PropertiesDock:
     def _on_apply_model(self) -> None:
         if not self._apply_model_cb:
             return
-        self._apply_model_cb(str(self._mode.currentData()), float(self._gx.value()), float(self._gy.value()))
+        self._apply_model_cb(
+            str(self._mode.currentData()),
+            float(self._gx.value()),
+            float(self._gy.value()),
+        )
 
     def _on_apply_stage(self) -> None:
         if not self._current_stage_uid or not self._apply_stage_cb:
@@ -781,9 +865,20 @@ class PropertiesDock:
         if not name:
             from PySide6.QtWidgets import QMessageBox  # type: ignore
 
-            QMessageBox.information(self.dock, "Quick Preset", "No bottom set found (bottom/boundary_bottom).")
+            QMessageBox.information(
+                self.dock,
+                "Quick Preset",
+                "No bottom set found (bottom/boundary_bottom).",
+            )
             return
-        self._add_stage_bc({"type": "displacement", "field": "u", "set": name, "value": {"ux": 0.0, "uy": 0.0}})
+        self._add_stage_bc(
+            {
+                "type": "displacement",
+                "field": "u",
+                "set": name,
+                "value": {"ux": 0.0, "uy": 0.0},
+            }
+        )
         self._on_apply_stage()
 
     def _quick_fix_left_right(self) -> None:
@@ -793,19 +888,35 @@ class PropertiesDock:
         for key in ("left", "boundary_left"):
             if key in self._available_sets:
                 added = (
-                    self._add_stage_bc({"type": "displacement", "field": "u", "set": key, "value": {"ux": 0.0}})
+                    self._add_stage_bc(
+                        {
+                            "type": "displacement",
+                            "field": "u",
+                            "set": key,
+                            "value": {"ux": 0.0},
+                        }
+                    )
                     or added
                 )
         for key in ("right", "boundary_right"):
             if key in self._available_sets:
                 added = (
-                    self._add_stage_bc({"type": "displacement", "field": "u", "set": key, "value": {"ux": 0.0}})
+                    self._add_stage_bc(
+                        {
+                            "type": "displacement",
+                            "field": "u",
+                            "set": key,
+                            "value": {"ux": 0.0},
+                        }
+                    )
                     or added
                 )
         if not added:
             from PySide6.QtWidgets import QMessageBox  # type: ignore
 
-            QMessageBox.information(self.dock, "Quick Preset", "No left/right sets found.")
+            QMessageBox.information(
+                self.dock, "Quick Preset", "No left/right sets found."
+            )
             return
         self._on_apply_stage()
 
@@ -817,14 +928,20 @@ class PropertiesDock:
 
             QMessageBox.information(self.dock, "Roller", "No sets available.")
             return
-        set_name, ok = self._QInputDialog.getItem(self.dock, "Roller", "Set:", self._available_sets, 0, False)
+        set_name, ok = self._QInputDialog.getItem(
+            self.dock, "Roller", "Set:", self._available_sets, 0, False
+        )
         if not ok:
             return
-        axis, ok2 = self._QInputDialog.getItem(self.dock, "Roller", "Direction:", ["ux", "uy"], 0, False)
+        axis, ok2 = self._QInputDialog.getItem(
+            self.dock, "Roller", "Direction:", ["ux", "uy"], 0, False
+        )
         if not ok2:
             return
         val = {"ux": 0.0} if axis == "ux" else {"uy": 0.0}
-        self._add_stage_bc({"type": "displacement", "field": "u", "set": str(set_name), "value": val})
+        self._add_stage_bc(
+            {"type": "displacement", "field": "u", "set": str(set_name), "value": val}
+        )
         self._on_apply_stage()
 
     def _quick_gravity(self) -> None:
@@ -840,9 +957,13 @@ class PropertiesDock:
         if not name:
             from PySide6.QtWidgets import QMessageBox  # type: ignore
 
-            QMessageBox.information(self.dock, "Quick Preset", "No top set found (top/boundary_top).")
+            QMessageBox.information(
+                self.dock, "Quick Preset", "No top set found (top/boundary_top)."
+            )
             return
-        self._add_stage_load({"type": "traction", "field": "u", "set": name, "value": [0.0, -1.0e5]})
+        self._add_stage_load(
+            {"type": "traction", "field": "u", "set": name, "value": [0.0, -1.0e5]}
+        )
         self._on_apply_stage()
 
     def _quick_default_outputs(self) -> None:
@@ -854,7 +975,10 @@ class PropertiesDock:
 
         def has_req(name: str, loc: str) -> bool:
             for it in items:
-                if str(it.get("name", "")) == name and str(it.get("location", "")) == loc:
+                if (
+                    str(it.get("name", "")) == name
+                    and str(it.get("location", "")) == loc
+                ):
                     return True
             return False
 
@@ -923,7 +1047,14 @@ class PropertiesDock:
             ct = a.get("cell_type")
             if isinstance(es, str) and es and es not in es_names and es_names:
                 bad_es.add(es)
-            if isinstance(es, str) and isinstance(ct, str) and es and ct and es_pairs and (es, ct) not in es_pairs:
+            if (
+                isinstance(es, str)
+                and isinstance(ct, str)
+                and es
+                and ct
+                and es_pairs
+                and (es, ct) not in es_pairs
+            ):
                 bad_pair.add(f"{es}:{ct}")
             if isinstance(mid, str) and mid and mid not in mats and mats:
                 bad_mat.add(mid)
@@ -948,16 +1079,22 @@ class PropertiesDock:
             return
         self._apply_global_output_requests_cb(self._global_out_editor.requests())
 
-    def _set_material_params(self, params: dict[str, Any], *, meta: dict[str, dict[str, str]] | None = None) -> None:
+    def _set_material_params(
+        self, params: dict[str, Any], *, meta: dict[str, dict[str, str]] | None = None
+    ) -> None:
         if meta is None:
             meta = self._mat_param_meta
         self._material_set_tree(params, meta=meta)
         try:
-            self._mat_params.setPlainText(json.dumps(params, indent=2, ensure_ascii=False))
+            self._mat_params.setPlainText(
+                json.dumps(params, indent=2, ensure_ascii=False)
+            )
         except Exception:
             self._mat_params.setPlainText("{}")
 
-    def _material_set_tree(self, params: dict[str, Any], *, meta: dict[str, dict[str, str]] | None = None) -> None:
+    def _material_set_tree(
+        self, params: dict[str, Any], *, meta: dict[str, dict[str, str]] | None = None
+    ) -> None:
         from PySide6.QtWidgets import QTreeWidgetItem  # type: ignore
 
         self._mat_tree.clear()
@@ -1109,7 +1246,9 @@ class PropertiesDock:
         if self._mat_tabs.widget(index) == self._mat_params:
             try:
                 params = self._material_params_from_tree()
-                self._mat_params.setPlainText(json.dumps(params, indent=2, ensure_ascii=False))
+                self._mat_params.setPlainText(
+                    json.dumps(params, indent=2, ensure_ascii=False)
+                )
             except Exception:
                 pass
 
@@ -1118,12 +1257,16 @@ class PropertiesDock:
 
         item = self._mat_tree.currentItem()
         if item is None:
-            QMessageBox.information(self.dock, "Add Child", "Select a parameter to add a child.")
+            QMessageBox.information(
+                self.dock, "Add Child", "Select a parameter to add a child."
+            )
             return
         meta = item.data(0, self._Qt.UserRole) or {}
         kind = meta.get("kind")
         if kind not in ("dict", "list"):
-            QMessageBox.information(self.dock, "Add Child", "Select a dict/list node to add a child.")
+            QMessageBox.information(
+                self.dock, "Add Child", "Select a dict/list node to add a child."
+            )
             return
         if kind == "list":
             key = f"[{item.childCount()}]"
@@ -1137,7 +1280,12 @@ class PropertiesDock:
         self._mat_tree.setCurrentItem(child)
 
     def _on_material_model_changed(self) -> None:
-        from geohpem.domain.material_catalog import behavior_for_model, behavior_label, model_defaults, model_meta
+        from geohpem.domain.material_catalog import (
+            behavior_for_model,
+            behavior_label,
+            model_defaults,
+            model_meta,
+        )
 
         model_name = self._current_material_model_name()
         behavior = behavior_for_model(model_name) or "custom"

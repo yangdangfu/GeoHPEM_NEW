@@ -5,7 +5,9 @@ import argparse
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="geohpem")
-    parser.add_argument("--open", dest="open_dir", default=None, help="Open a case folder on startup.")
+    parser.add_argument(
+        "--open", dest="open_dir", default=None, help="Open a case folder on startup."
+    )
     return parser
 
 

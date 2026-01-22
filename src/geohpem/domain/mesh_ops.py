@@ -35,7 +35,9 @@ def collect_element_sets(mesh: dict[str, Any]) -> list[tuple[str, str]]:
     return sorted(out)
 
 
-def add_node_set(mesh: dict[str, Any], name: str, indices: np.ndarray) -> dict[str, Any]:
+def add_node_set(
+    mesh: dict[str, Any], name: str, indices: np.ndarray
+) -> dict[str, Any]:
     m = dict(mesh)
     m[f"node_set__{name}"] = np.asarray(indices, dtype=np.int32).reshape(-1)
     return m
@@ -47,9 +49,13 @@ def add_edge_set(mesh: dict[str, Any], name: str, edges: np.ndarray) -> dict[str
     return m
 
 
-def add_elem_set(mesh: dict[str, Any], name: str, cell_type: str, indices: np.ndarray) -> dict[str, Any]:
+def add_elem_set(
+    mesh: dict[str, Any], name: str, cell_type: str, indices: np.ndarray
+) -> dict[str, Any]:
     m = dict(mesh)
-    m[f"elem_set__{name}__{cell_type}"] = np.asarray(indices, dtype=np.int32).reshape(-1)
+    m[f"elem_set__{name}__{cell_type}"] = np.asarray(indices, dtype=np.int32).reshape(
+        -1
+    )
     return m
 
 

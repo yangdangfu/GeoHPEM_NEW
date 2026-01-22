@@ -7,7 +7,9 @@ from geohpem.project.normalize import find_stage_index_by_uid
 from geohpem.util.ids import new_uid
 
 
-def apply_stage_patch_by_uid(request: dict[str, Any], stage_uid: str, patch: dict[str, Any]) -> dict[str, Any]:
+def apply_stage_patch_by_uid(
+    request: dict[str, Any], stage_uid: str, patch: dict[str, Any]
+) -> dict[str, Any]:
     """
     Pure-ish helper: returns a deep-copied request with patch applied to the stage with given uid.
     """
@@ -25,7 +27,9 @@ def apply_stage_patch_by_uid(request: dict[str, Any], stage_uid: str, patch: dic
     return req
 
 
-def apply_stage_patch_by_index(request: dict[str, Any], index: int, patch: dict[str, Any]) -> dict[str, Any]:
+def apply_stage_patch_by_index(
+    request: dict[str, Any], index: int, patch: dict[str, Any]
+) -> dict[str, Any]:
     req = copy.deepcopy(request)
     stages = req.get("stages", [])
     if not isinstance(stages, list) or index < 0 or index >= len(stages):
@@ -57,7 +61,12 @@ def set_gravity(request: dict[str, Any], gx: float, gy: float) -> dict[str, Any]
     return req
 
 
-def set_model(request: dict[str, Any], *, mode: str | None = None, gravity: tuple[float, float] | None = None) -> dict[str, Any]:
+def set_model(
+    request: dict[str, Any],
+    *,
+    mode: str | None = None,
+    gravity: tuple[float, float] | None = None,
+) -> dict[str, Any]:
     req = copy.deepcopy(request)
     model_obj = req.setdefault("model", {})
     if not isinstance(model_obj, dict):
@@ -87,7 +96,10 @@ def upsert_material(
     uid = None
     if isinstance(existing, dict):
         uid = existing.get("uid")
-    payload: dict[str, Any] = {"model_name": str(model_name), "parameters": dict(parameters)}
+    payload: dict[str, Any] = {
+        "model_name": str(model_name),
+        "parameters": dict(parameters),
+    }
     if isinstance(behavior, str) and behavior:
         payload["behavior"] = behavior
     elif isinstance(existing, dict) and isinstance(existing.get("behavior"), str):
@@ -111,7 +123,9 @@ def delete_material(request: dict[str, Any], material_id: str) -> dict[str, Any]
     return req
 
 
-def set_assignments(request: dict[str, Any], assignments: list[dict[str, Any]]) -> dict[str, Any]:
+def set_assignments(
+    request: dict[str, Any], assignments: list[dict[str, Any]]
+) -> dict[str, Any]:
     req = copy.deepcopy(request)
     cleaned: list[dict[str, Any]] = []
     for it in assignments:
@@ -126,7 +140,9 @@ def set_assignments(request: dict[str, Any], assignments: list[dict[str, Any]]) 
     return req
 
 
-def set_global_output_requests(request: dict[str, Any], output_requests: list[dict[str, Any]]) -> dict[str, Any]:
+def set_global_output_requests(
+    request: dict[str, Any], output_requests: list[dict[str, Any]]
+) -> dict[str, Any]:
     req = copy.deepcopy(request)
     cleaned: list[dict[str, Any]] = []
     for it in output_requests:
@@ -142,7 +158,11 @@ def set_global_output_requests(request: dict[str, Any], output_requests: list[di
 
 
 def _regen_nested_uids(stage: dict[str, Any]) -> None:
-    for key, prefix in (("bcs", "bc"), ("loads", "load"), ("output_requests", "outreq")):
+    for key, prefix in (
+        ("bcs", "bc"),
+        ("loads", "load"),
+        ("output_requests", "outreq"),
+    ):
         items = stage.get(key)
         if not isinstance(items, list):
             continue
@@ -151,7 +171,9 @@ def _regen_nested_uids(stage: dict[str, Any]) -> None:
                 it["uid"] = new_uid(prefix)
 
 
-def add_stage(request: dict[str, Any], *, copy_from_index: int | None = None) -> tuple[dict[str, Any], int]:
+def add_stage(
+    request: dict[str, Any], *, copy_from_index: int | None = None
+) -> tuple[dict[str, Any], int]:
     """
     Returns (new_request, new_stage_index).
 
@@ -201,7 +223,9 @@ def delete_stage(request: dict[str, Any], index: int) -> dict[str, Any]:
     return req
 
 
-def set_geometry(request: dict[str, Any], geometry: dict[str, Any] | None) -> dict[str, Any]:
+def set_geometry(
+    request: dict[str, Any], geometry: dict[str, Any] | None
+) -> dict[str, Any]:
     req = copy.deepcopy(request)
     if geometry is None:
         req.pop("geometry", None)

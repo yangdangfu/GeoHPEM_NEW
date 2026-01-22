@@ -61,8 +61,12 @@ def contract_mesh_to_pyvista(mesh: dict[str, Any]) -> VtkMesh:
         tri = np.asarray(mesh["cells_tri3"], dtype=np.int64)
         if tri.size:
             cells_parts.append(_vtk_cells_from_conn(tri))
-            celltypes_parts.append(np.full((tri.shape[0],), VTK_TRIANGLE, dtype=np.uint8))
-            cell_type_code_parts.append(np.full((tri.shape[0],), TYPE_TRI3, dtype=np.int32))
+            celltypes_parts.append(
+                np.full((tri.shape[0],), VTK_TRIANGLE, dtype=np.uint8)
+            )
+            cell_type_code_parts.append(
+                np.full((tri.shape[0],), TYPE_TRI3, dtype=np.int32)
+            )
             cell_local_id_parts.append(np.arange(tri.shape[0], dtype=np.int32))
 
     if "cells_quad4" in mesh:
@@ -70,12 +74,16 @@ def contract_mesh_to_pyvista(mesh: dict[str, Any]) -> VtkMesh:
         if quad.size:
             cells_parts.append(_vtk_cells_from_conn(quad))
             celltypes_parts.append(np.full((quad.shape[0],), VTK_QUAD, dtype=np.uint8))
-            cell_type_code_parts.append(np.full((quad.shape[0],), TYPE_QUAD4, dtype=np.int32))
+            cell_type_code_parts.append(
+                np.full((quad.shape[0],), TYPE_QUAD4, dtype=np.int32)
+            )
             cell_local_id_parts.append(np.arange(quad.shape[0], dtype=np.int32))
 
     if not cells_parts:
         # empty grid
-        grid = pv.UnstructuredGrid(np.array([], dtype=np.int64), np.array([], dtype=np.uint8), points3)
+        grid = pv.UnstructuredGrid(
+            np.array([], dtype=np.int64), np.array([], dtype=np.uint8), points3
+        )
         return VtkMesh(grid=grid, n_points=int(points3.shape[0]), n_cells=0)
 
     cells = np.concatenate(cells_parts)
@@ -120,7 +128,9 @@ def get_array_for(
     name: str,
     step: int,
 ) -> np.ndarray | None:
-    prefix = {"node": "nodal", "element": "elem", "ip": "ip", "global": "global"}.get(location, None)
+    prefix = {"node": "nodal", "element": "elem", "ip": "ip", "global": "global"}.get(
+        location, None
+    )
     if not prefix:
         return None
     key = f"{prefix}__{name}__step{step:06d}"

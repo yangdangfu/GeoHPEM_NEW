@@ -19,9 +19,9 @@ class OutputWorkspace:
         from PySide6.QtCore import QObject, Qt, Signal  # type: ignore
         from PySide6.QtGui import QCursor, QKeySequence, QShortcut  # type: ignore
         from PySide6.QtWidgets import (
-            QDoubleSpinBox,
             QCheckBox,
-            QComboBox,
+            QComboBox,  # type: ignore
+            QDoubleSpinBox,
             QFormLayout,
             QGroupBox,
             QHBoxLayout,
@@ -37,7 +37,8 @@ class OutputWorkspace:
             QTabWidget,
             QVBoxLayout,
             QWidget,
-        )  # type: ignore
+        )
+
         from geohpem.util.ids import new_uid
 
         class _Signals(QObject):
@@ -53,7 +54,9 @@ class OutputWorkspace:
         self._QCursor = QCursor
         self._new_uid = new_uid
         self._is_2d_view = True
-        self._color_range_cache: dict[tuple[str, str, str, str], tuple[float, float]] = {}
+        self._color_range_cache: dict[
+            tuple[str, str, str, str], tuple[float, float]
+        ] = {}
 
         self.widget = QWidget()
         layout = QVBoxLayout(self.widget)
@@ -325,7 +328,9 @@ class OutputWorkspace:
         self._step_infos: dict[int, dict[str, Any]] = {}
         self._reg_items: list[dict[str, Any]] = []
         self._node_set_membership: dict[int, list[str]] = {}
-        self._elem_set_membership: dict[str, dict[int, list[str]]] = {}  # cell_type -> local_id -> names
+        self._elem_set_membership: dict[str, dict[int, list[str]]] = (
+            {}
+        )  # cell_type -> local_id -> names
         self._sets_label_by_key: dict[str, str] = {}
 
         self.registry_list.currentRowChanged.connect(self._render)
@@ -349,7 +354,9 @@ class OutputWorkspace:
         self.btn_profile_edit_finish.clicked.connect(self._finish_profile_edit)
         self.btn_profile_edit_cancel.clicked.connect(self._cancel_profile_edit)
         self.profile_list.currentRowChanged.connect(self._on_profile_selection_changed)
-        self.profile_list.itemDoubleClicked.connect(lambda *_: self._plot_selected_profile())
+        self.profile_list.itemDoubleClicked.connect(
+            lambda *_: self._plot_selected_profile()
+        )
         self.pin_list.currentRowChanged.connect(self._on_pin_selection_changed)
         self.btn_pin_node.clicked.connect(self._pin_last_probe)
         self.btn_pin_elem.clicked.connect(self._pin_last_cell)
@@ -383,7 +390,12 @@ class OutputWorkspace:
         self._source_path = path
         self._refresh_status()
 
-    def set_result(self, meta: dict[str, Any], arrays: dict[str, Any], mesh: dict[str, Any] | None = None) -> None:
+    def set_result(
+        self,
+        meta: dict[str, Any],
+        arrays: dict[str, Any],
+        mesh: dict[str, Any] | None = None,
+    ) -> None:
         self._meta = meta
         self._arrays = arrays
         self._mesh = mesh
@@ -437,9 +449,13 @@ class OutputWorkspace:
         except Exception:
             pass
         if mode == "global":
-            self.color_range_info.setText("Global range is computed from all available steps (may take a moment).")
+            self.color_range_info.setText(
+                "Global range is computed from all available steps (may take a moment)."
+            )
         elif mode == "manual":
-            self.color_range_info.setText("Manual range uses min/max above (values are in display units).")
+            self.color_range_info.setText(
+                "Manual range uses min/max above (values are in display units)."
+            )
         else:
             self.color_range_info.setText("")
         self._render()
@@ -458,7 +474,9 @@ class OutputWorkspace:
         if isinstance(self._meta, dict):
             solver_info = self._meta.get("solver_info", {})
             if isinstance(solver_info, dict):
-                solver = str(solver_info.get("name") or solver_info.get("id") or solver or "-")
+                solver = str(
+                    solver_info.get("name") or solver_info.get("id") or solver or "-"
+                )
         self._lbl_solver.setText(f"Solver: {solver}")
 
         field = "-"
@@ -483,7 +501,9 @@ class OutputWorkspace:
             pass
         self._lbl_step.setText(f"Step: {step_label}")
         try:
-            self._lbl_marks.setText(f"Pins: {len(self._pins)} | Profiles: {len(self._profiles)}")
+            self._lbl_marks.setText(
+                f"Pins: {len(self._pins)} | Profiles: {len(self._profiles)}"
+            )
         except Exception:
             pass
 
@@ -508,7 +528,9 @@ class OutputWorkspace:
         lo, hi = (a, b) if a < b else (b, a)
         return (float(lo), float(hi))
 
-    def _scalar_for_reg_step(self, reg: dict[str, Any], step_id: int) -> tuple[np.ndarray, str, str | None]:
+    def _scalar_for_reg_step(
+        self, reg: dict[str, Any], step_id: int
+    ) -> tuple[np.ndarray, str, str | None]:
         """
         Return (scalar_values_1d, scalar_name, unit_display_label) for the current field_mode.
         Uses the same unit conversion logic as rendering.
@@ -523,9 +545,13 @@ class OutputWorkspace:
         if not name:
             raise RuntimeError("Invalid registry entry")
 
-        arr = get_array_for(arrays=self._arrays, location=location, name=name, step=int(step_id))
+        arr = get_array_for(
+            arrays=self._arrays, location=location, name=name, step=int(step_id)
+        )
         if arr is None:
-            raise RuntimeError(f"Missing array for {name} ({location}) step {int(step_id):06d}")
+            raise RuntimeError(
+                f"Missing array for {name} ({location}) step {int(step_id):06d}"
+            )
 
         scalar_name = name
         mode = self.field_mode.currentData()
@@ -547,7 +573,9 @@ class OutputWorkspace:
             if kind:
                 unit_display = self._units.display_unit(kind, unit_base)
                 if unit_display and unit_display != unit_base:
-                    scalar = scalar.astype(float, copy=False) * conversion_factor(unit_base, unit_display)
+                    scalar = scalar.astype(float, copy=False) * conversion_factor(
+                        unit_base, unit_display
+                    )
         elif name == "u" and self._units is not None:
             ub = self._units.base_unit("length", None)
             ud = self._units.display_unit("length", None)
@@ -595,7 +623,9 @@ class OutputWorkspace:
         self._color_range_cache[key] = (float(vmin), float(vmax))
         try:
             suf = f" {unit}" if unit else ""
-            self.color_range_info.setText(f"Global range: {vmin:.6g}{suf} .. {vmax:.6g}{suf}")
+            self.color_range_info.setText(
+                f"Global range: {vmin:.6g}{suf} .. {vmax:.6g}{suf}"
+            )
         except Exception:
             pass
         return self._color_range_cache[key]
@@ -606,7 +636,9 @@ class OutputWorkspace:
             clim = self._manual_clim()
             if clim is None:
                 try:
-                    self.color_range_info.setText("Manual range: invalid min/max (leave blank to use Auto).")
+                    self.color_range_info.setText(
+                        "Manual range: invalid min/max (leave blank to use Auto)."
+                    )
                 except Exception:
                     pass
             return clim
@@ -626,6 +658,7 @@ class OutputWorkspace:
         """
         Return a JSON-serializable UI state dict to be persisted in ProjectData.ui_state.
         """
+
         def _clean_profile(p: dict[str, Any]) -> dict[str, Any]:
             out: dict[str, Any] = {}
             for k in ("uid", "name", "p1", "p2", "reg", "step_id"):
@@ -635,14 +668,27 @@ class OutputWorkspace:
 
         def _clean_pin(pin: dict[str, Any]) -> dict[str, Any]:
             out: dict[str, Any] = {}
-            for k in ("uid", "kind", "name", "pid", "x", "y", "cell_id", "cell_type", "local_id", "label"):
+            for k in (
+                "uid",
+                "kind",
+                "name",
+                "pid",
+                "x",
+                "y",
+                "cell_id",
+                "cell_type",
+                "local_id",
+                "label",
+            ):
                 if k in pin:
                     out[k] = pin[k]
             return out
 
         return {
             "output": {
-                "profiles": [_clean_profile(p) for p in self._profiles if isinstance(p, dict)],
+                "profiles": [
+                    _clean_profile(p) for p in self._profiles if isinstance(p, dict)
+                ],
                 "pins": [_clean_pin(p) for p in self._pins if isinstance(p, dict)],
             }
         }
@@ -678,8 +724,12 @@ class OutputWorkspace:
                     kind = str(p.get("kind", ""))
                     if kind == "node":
                         if not p.get("name"):
-                            p["name"] = f"node_{len([pp for pp in self._pins if isinstance(pp, dict) and pp.get('kind')=='node'])}"
-                        if (p.get("x") is None or p.get("y") is None) and self._mesh is not None:
+                            p["name"] = (
+                                f"node_{len([pp for pp in self._pins if isinstance(pp, dict) and pp.get('kind')=='node'])}"
+                            )
+                        if (
+                            p.get("x") is None or p.get("y") is None
+                        ) and self._mesh is not None:
                             try:
                                 pid = int(p.get("pid"))
                                 pts = np.asarray(self._mesh.get("points"), dtype=float)
@@ -690,7 +740,9 @@ class OutputWorkspace:
                                 pass
                     elif kind == "element":
                         if not p.get("name"):
-                            p["name"] = f"elem_{len([pp for pp in self._pins if isinstance(pp, dict) and pp.get('kind')=='element'])}"
+                            p["name"] = (
+                                f"elem_{len([pp for pp in self._pins if isinstance(pp, dict) and pp.get('kind')=='element'])}"
+                            )
             except Exception:
                 pass
             self._refresh_pin_list()
@@ -700,7 +752,9 @@ class OutputWorkspace:
         except Exception:
             pass
 
-    def _infer_steps(self, meta: dict[str, Any], arrays: dict[str, Any]) -> tuple[list[int], dict[int, dict[str, Any]]]:
+    def _infer_steps(
+        self, meta: dict[str, Any], arrays: dict[str, Any]
+    ) -> tuple[list[int], dict[int, dict[str, Any]]]:
         """
         Prefer meta['frames'] when available (PFEM/HPEM), otherwise meta['global_steps'],
         otherwise fall back to parsing array keys.
@@ -786,7 +840,9 @@ class OutputWorkspace:
         except Exception:
             from PySide6.QtWidgets import QLabel  # type: ignore
 
-            self._viewer_host_layout.addWidget(QLabel("PyVistaQt not installed. Install pyvista + pyvistaqt."))
+            self._viewer_host_layout.addWidget(
+                QLabel("PyVistaQt not installed. Install pyvista + pyvistaqt.")
+            )
             return
 
         self._viewer = QtInteractor(self._viewer_host)
@@ -794,8 +850,12 @@ class OutputWorkspace:
         self._apply_2d_view()
         # Prefer Qt's context menu signal over VTK right-click callbacks (more reliable across versions).
         try:
-            self._viewer.setContextMenuPolicy(self._Qt.ContextMenuPolicy.CustomContextMenu)
-            self._viewer.customContextMenuRequested.connect(self._on_viewer_context_menu_requested)
+            self._viewer.setContextMenuPolicy(
+                self._Qt.ContextMenuPolicy.CustomContextMenu
+            )
+            self._viewer.customContextMenuRequested.connect(
+                self._on_viewer_context_menu_requested
+            )
         except Exception:
             pass
 
@@ -857,7 +917,9 @@ class OutputWorkspace:
 
         This works reliably even when point-picking is enabled on LeftClick.
         """
-        if getattr(self, "_shift_cell_pick_installed", False) and getattr(self, "_qt_shift_cell_pick_installed", False):
+        if getattr(self, "_shift_cell_pick_installed", False) and getattr(
+            self, "_qt_shift_cell_pick_installed", False
+        ):
             return
         v = self._viewer
         if v is None:
@@ -921,7 +983,9 @@ class OutputWorkspace:
                 # Restrict picker to the mesh actor when possible (avoids scalarbar/overlays).
                 try:
                     act = getattr(self, "_mesh_actor", None)
-                    if act is not None and hasattr(self._vtk_cell_picker, "PickFromListOn"):
+                    if act is not None and hasattr(
+                        self._vtk_cell_picker, "PickFromListOn"
+                    ):
                         self._vtk_cell_picker.PickFromListOn()  # type: ignore[misc]
                         if hasattr(self._vtk_cell_picker, "InitializePickList"):
                             self._vtk_cell_picker.InitializePickList()  # type: ignore[misc]
@@ -957,7 +1021,7 @@ class OutputWorkspace:
         if getattr(self, "_qt_shift_cell_pick_installed", False):
             return
         try:
-            from PySide6.QtCore import QObject, QEvent  # type: ignore
+            from PySide6.QtCore import QEvent, QObject  # type: ignore
 
             outer = self
 
@@ -1066,7 +1130,9 @@ class OutputWorkspace:
             except Exception:
                 continue
         try:
-            self.probe.setPlainText("Cell pick: nothing (try Shift+click inside an element).")
+            self.probe.setPlainText(
+                "Cell pick: nothing (try Shift+click inside an element)."
+            )
         except Exception:
             pass
 
@@ -1243,8 +1309,10 @@ class OutputWorkspace:
             return
 
         try:
-            grid, scalar_name, scalars_kwargs, unit_display, is_vector = self._build_grid_with_scalars(
-                reg, step_id, warp=bool(self.warp.isChecked())
+            grid, scalar_name, scalars_kwargs, unit_display, is_vector = (
+                self._build_grid_with_scalars(
+                    reg, step_id, warp=bool(self.warp.isChecked())
+                )
             )
         except Exception as exc:
             self.probe.setText(str(exc))
@@ -1261,9 +1329,13 @@ class OutputWorkspace:
 
         # Render
         self._viewer.clear()
-        self._mesh_actor = self._viewer.add_mesh(grid, show_edges=True, cmap="viridis", **scalars_kwargs)
+        self._mesh_actor = self._viewer.add_mesh(
+            grid, show_edges=True, cmap="viridis", **scalars_kwargs
+        )
         try:
-            if self._mesh_actor is not None and hasattr(self._mesh_actor, "SetPickable"):
+            if self._mesh_actor is not None and hasattr(
+                self._mesh_actor, "SetPickable"
+            ):
                 self._mesh_actor.SetPickable(True)  # type: ignore[misc]
         except Exception:
             pass
@@ -1308,7 +1380,12 @@ class OutputWorkspace:
                 uid = p.get("uid")
                 color = "red" if (uid and uid == selected_uid) else "#555555"
                 line = pv.Line(p1, p2, resolution=1)
-                self._viewer.add_mesh(line, color=color, line_width=3 if color == "red" else 2, pickable=False)
+                self._viewer.add_mesh(
+                    line,
+                    color=color,
+                    line_width=3 if color == "red" else 2,
+                    pickable=False,
+                )
         except Exception:
             return
 
@@ -1428,9 +1505,17 @@ class OutputWorkspace:
         # Last picked cell (not necessarily pinned): show subtle highlight for feedback.
         try:
             last_cid = getattr(self, "_last_cell_id", None)
-            if isinstance(last_cid, int) and 0 <= int(last_cid) < int(getattr(grid, "n_cells", 0)):
+            if isinstance(last_cid, int) and 0 <= int(last_cid) < int(
+                getattr(grid, "n_cells", 0)
+            ):
                 # Skip if already pinned (avoid duplicate highlight noise).
-                pinned_ids = {int(pp.get("cell_id")) for pp in self._pins if isinstance(pp, dict) and str(pp.get("kind", "")) == "element" and "cell_id" in pp}
+                pinned_ids = {
+                    int(pp.get("cell_id"))
+                    for pp in self._pins
+                    if isinstance(pp, dict)
+                    and str(pp.get("kind", "")) == "element"
+                    and "cell_id" in pp
+                }
                 if int(last_cid) not in pinned_ids:
                     cell = grid.extract_cells([int(last_cid)])
                     try:
@@ -1649,7 +1734,12 @@ class OutputWorkspace:
             local_id = int(grid.cell_data["__cell_local_id"][cell_id])
             ctype = cell_type_code_to_name(ctype_code) or str(ctype_code)
             elem_sets = self._elem_set_membership.get(ctype, {}).get(local_id, [])
-            self._last_cell_info = {"cell_id": int(cell_id), "cell_type": str(ctype), "local_id": int(local_id), "elem_sets": list(elem_sets)}
+            self._last_cell_info = {
+                "cell_id": int(cell_id),
+                "cell_type": str(ctype),
+                "local_id": int(local_id),
+                "elem_sets": list(elem_sets),
+            }
             self.probe.setPlainText(
                 "Cell pick:\n"
                 f"  cell_id={cell_id}\n"
@@ -1664,7 +1754,9 @@ class OutputWorkspace:
         # Update highlight overlays immediately (last-picked cell orange outline).
         self._schedule_rerender_preserve_camera()
 
-    def _fill_cells_from_base(self, mesh: dict[str, Any], pts: np.ndarray) -> dict[str, Any]:
+    def _fill_cells_from_base(
+        self, mesh: dict[str, Any], pts: np.ndarray
+    ) -> dict[str, Any]:
         base = self._mesh or {}
         if pts.ndim != 2:
             return mesh
@@ -1702,7 +1794,9 @@ class OutputWorkspace:
                 for cell_type in ("tri3", "quad4"):
                     key_cells = f"mesh__cells_{cell_type}__{tag}{sid:06d}"
                     if key_cells in arrays:
-                        mesh[f"cells_{cell_type}"] = np.asarray(arrays[key_cells], dtype=np.int64)
+                        mesh[f"cells_{cell_type}"] = np.asarray(
+                            arrays[key_cells], dtype=np.int64
+                        )
                 return self._fill_cells_from_base(mesh, pts)
         return self._mesh
 
@@ -1783,9 +1877,13 @@ class OutputWorkspace:
         vtk_mesh = contract_mesh_to_pyvista(mesh)
         grid = vtk_mesh.grid.copy()
 
-        arr = get_array_for(arrays=self._arrays, location=location, name=name, step=int(step_id))
+        arr = get_array_for(
+            arrays=self._arrays, location=location, name=name, step=int(step_id)
+        )
         if arr is None:
-            raise RuntimeError(f"Missing array for {name} ({location}) step {int(step_id):06d}")
+            raise RuntimeError(
+                f"Missing array for {name} ({location}) step {int(step_id):06d}"
+            )
 
         scalar_name = name
         mode = self.field_mode.currentData()
@@ -1808,7 +1906,9 @@ class OutputWorkspace:
             if kind:
                 unit_display = self._units.display_unit(kind, unit_base)
                 if unit_display and unit_display != unit_base:
-                    scalar = scalar.astype(float, copy=False) * conversion_factor(unit_base, unit_display)
+                    scalar = scalar.astype(float, copy=False) * conversion_factor(
+                        unit_base, unit_display
+                    )
         elif name == "u" and self._units is not None:
             ub = self._units.base_unit("length", None)
             ud = self._units.display_unit("length", None)
@@ -1820,24 +1920,36 @@ class OutputWorkspace:
 
         if location in ("node", "nodal"):
             if scalar.shape[0] != grid.n_points:
-                raise RuntimeError(f"Array size mismatch: {scalar.shape[0]} vs n_points {grid.n_points}")
+                raise RuntimeError(
+                    f"Array size mismatch: {scalar.shape[0]} vs n_points {grid.n_points}"
+                )
             grid.point_data[scalar_name] = scalar
             scalars_kwargs = {"scalars": scalar_name, "preference": "point"}
         elif location in ("element", "elem"):
             if scalar.shape[0] != grid.n_cells:
-                raise RuntimeError(f"Array size mismatch: {scalar.shape[0]} vs n_cells {grid.n_cells}")
+                raise RuntimeError(
+                    f"Array size mismatch: {scalar.shape[0]} vs n_cells {grid.n_cells}"
+                )
             grid.cell_data[scalar_name] = scalar
             scalars_kwargs = {"scalars": scalar_name, "preference": "cell"}
         else:
             raise RuntimeError(f"Unsupported location for plotting: {location}")
 
         if warp:
-            u = get_array_for(arrays=self._arrays, location="node", name="u", step=int(step_id))
-            if u is not None and np.asarray(u).ndim == 2 and u.shape[0] == grid.n_points:
+            u = get_array_for(
+                arrays=self._arrays, location="node", name="u", step=int(step_id)
+            )
+            if (
+                u is not None
+                and np.asarray(u).ndim == 2
+                and u.shape[0] == grid.n_points
+            ):
                 u3 = np.zeros((grid.n_points, 3), dtype=float)
                 u3[:, : min(2, u.shape[1])] = np.asarray(u)[:, : min(2, u.shape[1])]
                 grid.point_data["u_vec"] = u3
-                grid = grid.warp_by_vector("u_vec", factor=float(self.warp_scale.value()))
+                grid = grid.warp_by_vector(
+                    "u_vec", factor=float(self.warp_scale.value())
+                )
 
         return grid, scalar_name, scalars_kwargs, unit_display or unit_base, is_vector
 
@@ -1875,7 +1987,9 @@ class OutputWorkspace:
             return
         self._profile_pick_points.append((float(x), float(y), float(z)))
         if len(self._profile_pick_points) == 1:
-            self.probe.setPlainText("Profile pick mode: first point set, pick second point...")
+            self.probe.setPlainText(
+                "Profile pick mode: first point set, pick second point..."
+            )
             return
         if len(self._profile_pick_points) >= 2:
             p1 = self._profile_pick_points[0]
@@ -1888,15 +2002,21 @@ class OutputWorkspace:
                 pass
             self._create_profile_from_points(p1, p2)
 
-    def _create_profile_from_points(self, p1: tuple[float, float, float], p2: tuple[float, float, float]) -> None:
+    def _create_profile_from_points(
+        self, p1: tuple[float, float, float], p2: tuple[float, float, float]
+    ) -> None:
         ctx = self._current_field_context()
         if ctx is None:
-            self._QMessageBox.information(self.widget, "Profile", "Select a field and render a step first.")
+            self._QMessageBox.information(
+                self.widget, "Profile", "Select a field and render a step first."
+            )
             return
         reg, step_id, scalar_name, _pref, unit_label = ctx
 
         try:
-            grid, scalar_name2, _scalars_kwargs, unit_label2, _is_vec = self._build_grid_with_scalars(reg, step_id, warp=False)
+            grid, scalar_name2, _scalars_kwargs, unit_label2, _is_vec = (
+                self._build_grid_with_scalars(reg, step_id, warp=False)
+            )
             scalar_name = scalar_name2
             unit_label = unit_label2
         except Exception as exc:
@@ -1961,7 +2081,9 @@ class OutputWorkspace:
             nm = str(p.get("name", "profile"))
             step_id = int(p.get("step_id", 0))
             reg = p.get("reg", {}) if isinstance(p.get("reg"), dict) else {}
-            label = f"{nm}  ({reg.get('name')}@{reg.get('location')} step {step_id:06d})"
+            label = (
+                f"{nm}  ({reg.get('name')}@{reg.get('location')} step {step_id:06d})"
+            )
             self.profile_list.addItem(label)
         self._on_profile_selection_changed(self.profile_list.currentRow())
         if select_uid:
@@ -2041,7 +2163,9 @@ class OutputWorkspace:
         )
         dlg.exec()
 
-    def _recompute_profile_series(self, prof: dict[str, Any]) -> tuple[np.ndarray, np.ndarray, str | None, str | None]:
+    def _recompute_profile_series(
+        self, prof: dict[str, Any]
+    ) -> tuple[np.ndarray, np.ndarray, str | None, str | None]:
         """
         Re-sample the result field over the profile line.
         Returns (dist, vals, scalar_name, unit_label).
@@ -2062,13 +2186,18 @@ class OutputWorkspace:
             for it in self._meta.get("registry", []):
                 if not isinstance(it, dict):
                     continue
-                if str(it.get("location", "")) == location and str(it.get("name", "")) == name:
+                if (
+                    str(it.get("location", "")) == location
+                    and str(it.get("name", "")) == name
+                ):
                     reg = it
                     break
         if reg is None:
             reg = {"location": location, "name": name}
 
-        grid, scalar_name, _scalars_kwargs, unit_label, _is_vec = self._build_grid_with_scalars(reg, step_id, warp=False)
+        grid, scalar_name, _scalars_kwargs, unit_label, _is_vec = (
+            self._build_grid_with_scalars(reg, step_id, warp=False)
+        )
         sampled = grid.sample_over_line(p1, p2, resolution=200)
         dist = None
         for key in ("Distance", "distance"):
@@ -2097,11 +2226,17 @@ class OutputWorkspace:
             return
         p1 = tuple(float(x) for x in (prof.get("p1") or [0.0, 0.0, 0.0])[:3])
         p2 = tuple(float(x) for x in (prof.get("p2") or [0.0, 0.0, 0.0])[:3])
-        self._profile_edit_backup = {"uid": prof.get("uid"), "p1": list(p1), "p2": list(p2)}
+        self._profile_edit_backup = {
+            "uid": prof.get("uid"),
+            "p1": list(p1),
+            "p2": list(p2),
+        }
 
         self._mode = "profile_edit"
         try:
-            self.probe.setPlainText("Profile edit: drag the two endpoints, then click Finish/Cancel.")
+            self.probe.setPlainText(
+                "Profile edit: drag the two endpoints, then click Finish/Cancel."
+            )
         except Exception:
             pass
         try:
@@ -2129,7 +2264,9 @@ class OutputWorkspace:
                 return None
             return None
 
-        def _get_widget_points(widget) -> tuple[list[float], list[float]] | None:  # noqa: ANN001
+        def _get_widget_points(
+            widget,
+        ) -> tuple[list[float], list[float]] | None:  # noqa: ANN001
             """
             Best-effort extraction of (p1, p2) from various VTK line widget types.
             """
@@ -2157,7 +2294,9 @@ class OutputWorkspace:
                 pass
             return None
 
-        def _set_widget_points(widget, a: tuple[float, float, float], b: tuple[float, float, float]) -> None:
+        def _set_widget_points(
+            widget, a: tuple[float, float, float], b: tuple[float, float, float]
+        ) -> None:
             try:
                 if hasattr(widget, "SetPoint1"):
                     widget.SetPoint1(*a)  # type: ignore[misc]
@@ -2170,7 +2309,9 @@ class OutputWorkspace:
                 rep = widget.GetRepresentation() if hasattr(widget, "GetRepresentation") else None  # type: ignore[misc]
                 if rep is None:
                     return
-                if hasattr(rep, "SetPoint1WorldPosition") and hasattr(rep, "SetPoint2WorldPosition"):
+                if hasattr(rep, "SetPoint1WorldPosition") and hasattr(
+                    rep, "SetPoint2WorldPosition"
+                ):
                     rep.SetPoint1WorldPosition(a)  # type: ignore[misc]
                     rep.SetPoint2WorldPosition(b)  # type: ignore[misc]
             except Exception:
@@ -2237,7 +2378,11 @@ class OutputWorkspace:
             return
         # Snapshot current widget endpoints in case callback wasn't invoked (version differences / event timing).
         try:
-            backup = self._profile_edit_backup if isinstance(self._profile_edit_backup, dict) else None
+            backup = (
+                self._profile_edit_backup
+                if isinstance(self._profile_edit_backup, dict)
+                else None
+            )
             uid = backup.get("uid") if backup else None
             w = self._profile_widget
             if uid and w is not None:
@@ -2247,7 +2392,11 @@ class OutputWorkspace:
                     rep = w.GetRepresentation() if hasattr(w, "GetRepresentation") else None  # type: ignore[misc]
                     if hasattr(w, "GetPoint1") and hasattr(w, "GetPoint2"):
                         pts = (w.GetPoint1(), w.GetPoint2())  # type: ignore[misc]
-                    elif rep is not None and hasattr(rep, "GetPoint1WorldPosition") and hasattr(rep, "GetPoint2WorldPosition"):
+                    elif (
+                        rep is not None
+                        and hasattr(rep, "GetPoint1WorldPosition")
+                        and hasattr(rep, "GetPoint2WorldPosition")
+                    ):
                         pts = (rep.GetPoint1WorldPosition(), rep.GetPoint2WorldPosition())  # type: ignore[misc]
                 except Exception:
                     pts = None
@@ -2259,8 +2408,16 @@ class OutputWorkspace:
                             a = a.tolist()
                         if isinstance(b, np.ndarray):
                             b = b.tolist()
-                        p1 = [float(a[0]), float(a[1]), float(a[2]) if len(a) >= 3 else 0.0]
-                        p2 = [float(b[0]), float(b[1]), float(b[2]) if len(b) >= 3 else 0.0]
+                        p1 = [
+                            float(a[0]),
+                            float(a[1]),
+                            float(a[2]) if len(a) >= 3 else 0.0,
+                        ]
+                        p2 = [
+                            float(b[0]),
+                            float(b[1]),
+                            float(b[2]) if len(b) >= 3 else 0.0,
+                        ]
                         for p in self._profiles:
                             if isinstance(p, dict) and p.get("uid") == uid:
                                 p["p1"] = p1
@@ -2348,7 +2505,9 @@ class OutputWorkspace:
             if kind == "node":
                 pid = p.get("pid")
                 x, y = p.get("x"), p.get("y")
-                label = f"{p.get('name','node')}  (pid={pid} x={fmt_num(x)} y={fmt_num(y)})"
+                label = (
+                    f"{p.get('name','node')}  (pid={pid} x={fmt_num(x)} y={fmt_num(y)})"
+                )
             else:
                 cid = p.get("cell_id")
                 ct = p.get("cell_type", "")
@@ -2379,11 +2538,20 @@ class OutputWorkspace:
 
     def _pin_last_probe(self) -> None:
         if self._last_probe_pid is None or self._last_probe_xyz is None:
-            self._QMessageBox.information(self.widget, "Pin", "Probe a point first (left-click).")
+            self._QMessageBox.information(
+                self.widget, "Pin", "Probe a point first (left-click)."
+            )
             return
         px, py, _pz = self._last_probe_xyz
         uid = self._new_uid("pin")
-        pin = {"uid": uid, "kind": "node", "name": f"node_{len([p for p in self._pins if p.get('kind')=='node'])+1}", "pid": int(self._last_probe_pid), "x": float(px), "y": float(py)}
+        pin = {
+            "uid": uid,
+            "kind": "node",
+            "name": f"node_{len([p for p in self._pins if p.get('kind')=='node'])+1}",
+            "pid": int(self._last_probe_pid),
+            "x": float(px),
+            "y": float(py),
+        }
         self._pins.append(pin)
         self._refresh_pin_list(select_uid=uid)
         try:
@@ -2398,11 +2566,18 @@ class OutputWorkspace:
 
     def _pin_last_cell(self) -> None:
         if self._last_cell_id is None or not isinstance(self._last_cell_info, dict):
-            self._QMessageBox.information(self.widget, "Pin", "Pick a cell first (click on mesh).")
+            self._QMessageBox.information(
+                self.widget, "Pin", "Pick a cell first (click on mesh)."
+            )
             return
         info = dict(self._last_cell_info)
         uid = self._new_uid("pin")
-        pin = {"uid": uid, "kind": "element", "name": f"elem_{len([p for p in self._pins if p.get('kind')=='element'])+1}", **info}
+        pin = {
+            "uid": uid,
+            "kind": "element",
+            "name": f"elem_{len([p for p in self._pins if p.get('kind')=='element'])+1}",
+            **info,
+        }
         self._pins.append(pin)
         self._refresh_pin_list(select_uid=uid)
         try:
@@ -2481,7 +2656,9 @@ class OutputWorkspace:
                     continue
         return out
 
-    def _current_field_context(self) -> tuple[dict[str, Any], int, str, str, str | None] | None:
+    def _current_field_context(
+        self,
+    ) -> tuple[dict[str, Any], int, str, str, str | None] | None:
         """
         Returns (reg, step_id, scalar_name, preference, unit_label_for_plot).
         """
@@ -2528,7 +2705,9 @@ class OutputWorkspace:
             return
         from PySide6.QtWidgets import QFileDialog  # type: ignore
 
-        file, _ = QFileDialog.getSaveFileName(self.widget, "Export Image", "view.png", "PNG (*.png);;All Files (*)")
+        file, _ = QFileDialog.getSaveFileName(
+            self.widget, "Export Image", "view.png", "PNG (*.png);;All Files (*)"
+        )
         if not file:
             return
         try:
@@ -2541,7 +2720,9 @@ class OutputWorkspace:
                 if plotter is None or not hasattr(plotter, "screenshot"):
                     raise RuntimeError("Viewer does not support screenshot()")
                 plotter.screenshot(file)  # type: ignore[misc]
-            self._QMessageBox.information(self.widget, "Export Image", f"Saved:\n{file}")
+            self._QMessageBox.information(
+                self.widget, "Export Image", f"Saved:\n{file}"
+            )
         except Exception as exc:
             self._QMessageBox.critical(self.widget, "Export Image Failed", str(exc))
 
@@ -2549,22 +2730,38 @@ class OutputWorkspace:
         """
         Export the currently selected field over all steps as a PNG sequence.
         """
-        if self._viewer is None or self._meta is None or self._arrays is None or self._mesh is None:
+        if (
+            self._viewer is None
+            or self._meta is None
+            or self._arrays is None
+            or self._mesh is None
+        ):
             return
         ctx = self._current_field_context()
         if ctx is None:
-            self._QMessageBox.information(self.widget, "Export Steps", "Select a field and render a step first.")
+            self._QMessageBox.information(
+                self.widget, "Export Steps", "Select a field and render a step first."
+            )
             return
         _reg, _step_id, scalar_name, _pref, _unit_label = ctx
 
         from PySide6.QtCore import Qt  # type: ignore
-        from PySide6.QtWidgets import QFileDialog, QInputDialog, QProgressDialog  # type: ignore
+        from PySide6.QtWidgets import (
+            QFileDialog,  # type: ignore
+            QInputDialog,
+            QProgressDialog,
+        )
 
         folder = QFileDialog.getExistingDirectory(self.widget, "Export Steps (PNG)", "")
         if not folder:
             return
 
-        prefix, ok = QInputDialog.getText(self.widget, "Export Steps", "Filename prefix", text=str(scalar_name or "field"))
+        prefix, ok = QInputDialog.getText(
+            self.widget,
+            "Export Steps",
+            "Filename prefix",
+            text=str(scalar_name or "field"),
+        )
         if not ok:
             return
         prefix = (prefix or "field").strip() or "field"
@@ -2575,7 +2772,13 @@ class OutputWorkspace:
         except Exception:
             cam = None
 
-        prog = QProgressDialog("Exporting PNG sequence...", "Cancel", 0, max(len(self._steps), 1), self.widget)
+        prog = QProgressDialog(
+            "Exporting PNG sequence...",
+            "Cancel",
+            0,
+            max(len(self._steps), 1),
+            self.widget,
+        )
         prog.setWindowModality(Qt.WindowModality.ApplicationModal)
         prog.setMinimumDuration(0)
         prog.show()
@@ -2654,16 +2857,18 @@ class OutputWorkspace:
             pass
         ctx = self._current_field_context()
         if ctx is None:
-            self._QMessageBox.information(self.widget, "Profile Line", "Select a field and render a step first.")
+            self._QMessageBox.information(
+                self.widget, "Profile Line", "Select a field and render a step first."
+            )
             return
         reg, step_id, scalar_name, pref, unit_label = ctx
         grid = getattr(self, "_last_grid", None)
         if grid is None:
             return
 
-        from PySide6.QtWidgets import (  # type: ignore
+        from PySide6.QtWidgets import (
             QCheckBox,
-            QDialog,
+            QDialog,  # type: ignore
             QDialogButtonBox,
             QFormLayout,
             QHBoxLayout,
@@ -2679,7 +2884,9 @@ class OutputWorkspace:
         dialog.resize(520, 260)
         layout = QVBoxLayout(dialog)
 
-        note = QLabel("Tip: use two point picks (left-click) then 'Use last two picks'.")
+        note = QLabel(
+            "Tip: use two point picks (left-click) then 'Use last two picks'."
+        )
         layout.addWidget(note)
 
         form = QFormLayout()
@@ -2817,7 +3024,9 @@ class OutputWorkspace:
                 # Temporary overlay only (not saved).
                 try:
                     line = pv.Line(p1, p2, resolution=1)
-                    self._viewer.add_mesh(line, color="red", line_width=3, pickable=False)
+                    self._viewer.add_mesh(
+                        line, color="red", line_width=3, pickable=False
+                    )
                     self._viewer.render()
                 except Exception:
                     pass
@@ -2851,7 +3060,9 @@ class OutputWorkspace:
             pass
         reg = self._selected_reg()
         if reg is None:
-            self._QMessageBox.information(self.widget, "Time History", "Select a field first.")
+            self._QMessageBox.information(
+                self.widget, "Time History", "Select a field first."
+            )
             return
 
         location = str(reg.get("location", "node"))
@@ -2870,7 +3081,9 @@ class OutputWorkspace:
         elif location in ("element", "elem"):
             cid = int(src["cell_id"])
         else:
-            self._QMessageBox.information(self.widget, "Time History", f"Unsupported location: {location}")
+            self._QMessageBox.information(
+                self.widget, "Time History", f"Unsupported location: {location}"
+            )
             return
 
         # Build time axis (best-effort)
@@ -2881,7 +3094,9 @@ class OutputWorkspace:
         unit_label = self._field_unit_label(reg, name)
 
         for step_id in self._steps:
-            arr = get_array_for(arrays=self._arrays, location=location, name=name, step=step_id)
+            arr = get_array_for(
+                arrays=self._arrays, location=location, name=name, step=step_id
+            )
             if arr is None:
                 continue
             mode = self.field_mode.currentData()
@@ -2900,7 +3115,9 @@ class OutputWorkspace:
                     try:
                         from geohpem.units import conversion_factor
 
-                        scalar = scalar.astype(float, copy=False) * conversion_factor(base, unit_label)
+                        scalar = scalar.astype(float, copy=False) * conversion_factor(
+                            base, unit_label
+                        )
                     except Exception:
                         pass
 
@@ -2916,7 +3133,9 @@ class OutputWorkspace:
             ys.append(v)
 
         if not xs:
-            self._QMessageBox.information(self.widget, "Time History", "No data available for this field.")
+            self._QMessageBox.information(
+                self.widget, "Time History", "No data available for this field."
+            )
             return
 
         from geohpem.gui.dialogs.plot_dialog import PlotDialog, PlotSeries
@@ -2930,7 +3149,13 @@ class OutputWorkspace:
             title=f"Time history: {scalar_name}",
             xlabel=xlabel,
             ylabel=ylabel,
-            series=[PlotSeries(x=np.asarray(xs, dtype=float), y=np.asarray(ys, dtype=float), label=None)],
+            series=[
+                PlotSeries(
+                    x=np.asarray(xs, dtype=float),
+                    y=np.asarray(ys, dtype=float),
+                    label=None,
+                )
+            ],
             default_csv_name=f"history_{scalar_name}.csv",
             default_png_name=f"history_{scalar_name}.png",
         )
@@ -2942,9 +3167,9 @@ class OutputWorkspace:
         - node: last probe pid or pinned node
         - element: last cell pick or pinned element
         """
-        from PySide6.QtWidgets import (  # type: ignore
+        from PySide6.QtWidgets import (
             QComboBox,
-            QDialog,
+            QDialog,  # type: ignore
             QDialogButtonBox,
             QFormLayout,
             QLabel,
@@ -2976,7 +3201,10 @@ class OutputWorkspace:
             if want == "node":
                 combo.addItem(f"{p.get('name')} (pid={p.get('pid')})", p.get("uid"))
             else:
-                combo.addItem(f"{p.get('name')} (cell_id={p.get('cell_id')} {p.get('cell_type')})", p.get("uid"))
+                combo.addItem(
+                    f"{p.get('name')} (cell_id={p.get('cell_id')} {p.get('cell_type')})",
+                    p.get("uid"),
+                )
         combo.setEnabled(False)
 
         def sync() -> None:
@@ -2997,16 +3225,24 @@ class OutputWorkspace:
         if rb_last.isChecked():
             if want == "node":
                 if self._last_probe_pid is None:
-                    self._QMessageBox.information(self.widget, "Time History", "Probe a point first (left-click) or pin one.")
+                    self._QMessageBox.information(
+                        self.widget,
+                        "Time History",
+                        "Probe a point first (left-click) or pin one.",
+                    )
                     return None
                 return {"kind": "node", "pid": int(self._last_probe_pid)}
             if self._last_cell_id is None:
-                self._QMessageBox.information(self.widget, "Time History", "Pick a cell first or pin one.")
+                self._QMessageBox.information(
+                    self.widget, "Time History", "Pick a cell first or pin one."
+                )
                 return None
             return {"kind": "element", "cell_id": int(self._last_cell_id)}
 
         if not pins:
-            self._QMessageBox.information(self.widget, "Time History", "No pinned items available.")
+            self._QMessageBox.information(
+                self.widget, "Time History", "No pinned items available."
+            )
             return None
 
         uid = combo.currentData()

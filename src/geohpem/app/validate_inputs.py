@@ -4,7 +4,10 @@ from typing import Any
 
 from geohpem.app.precheck import PrecheckIssue, precheck_request_mesh
 from geohpem.contract.errors import ContractError
-from geohpem.contract.validate import validate_request_basic, validate_request_jsonschema_if_available
+from geohpem.contract.validate import (
+    validate_request_basic,
+    validate_request_jsonschema_if_available,
+)
 
 
 def validate_inputs(
@@ -24,7 +27,14 @@ def validate_inputs(
     try:
         validate_request_basic(request)
     except ContractError as exc:
-        issues.append(PrecheckIssue(severity="ERROR", code="CONTRACT", message=str(exc), jump={"type": "project"}))
+        issues.append(
+            PrecheckIssue(
+                severity="ERROR",
+                code="CONTRACT",
+                message=str(exc),
+                jump={"type": "project"},
+            )
+        )
     except Exception as exc:
         issues.append(
             PrecheckIssue(
@@ -39,14 +49,24 @@ def validate_inputs(
         validate_request_jsonschema_if_available(request)
     except Exception as exc:
         issues.append(
-            PrecheckIssue(severity="ERROR", code="SCHEMA", message=f"Schema validation failed: {exc}", jump={"type": "project"})
+            PrecheckIssue(
+                severity="ERROR",
+                code="SCHEMA",
+                message=f"Schema validation failed: {exc}",
+                jump={"type": "project"},
+            )
         )
 
     try:
         issues.extend(precheck_request_mesh(request, mesh, capabilities=capabilities))
     except Exception as exc:
         issues.append(
-            PrecheckIssue(severity="ERROR", code="PRECHECK", message=f"Pre-check failed: {exc}", jump={"type": "project"})
+            PrecheckIssue(
+                severity="ERROR",
+                code="PRECHECK",
+                message=f"Pre-check failed: {exc}",
+                jump={"type": "project"},
+            )
         )
 
     # De-duplicate while preserving order.

@@ -27,4 +27,3 @@ class SelectionModel:
 
     def get(self) -> Selection | None:
         return self._sel
-

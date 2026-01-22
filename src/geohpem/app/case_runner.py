@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import Any, Callable, Iterable
 
 from geohpem.app.diagnostics import build_diagnostics_zip
-from geohpem.app.errors import CancelledError
 from geohpem.app.error_mapping import map_exception
+from geohpem.app.errors import CancelledError
 from geohpem.app.run_case import run_case
 from geohpem.contract.io import read_result_folder
 
@@ -90,7 +90,15 @@ def _compare_out_dirs(out_a: Path, out_b: Path) -> dict[str, Any]:
         xa = np.asarray(arr_a[ka]).astype(float, copy=False)
         xb = np.asarray(arr_b[kb]).astype(float, copy=False)
         if xa.shape != xb.shape:
-            diffs.append({"location": key[0], "name": key[1], "shape_a": list(xa.shape), "shape_b": list(xb.shape), "status": "shape_mismatch"})
+            diffs.append(
+                {
+                    "location": key[0],
+                    "name": key[1],
+                    "shape_a": list(xa.shape),
+                    "shape_b": list(xb.shape),
+                    "status": "shape_mismatch",
+                }
+            )
             continue
         d = xa - xb
         diffs.append(
@@ -144,7 +152,9 @@ def run_cases(
             if on_progress:
                 on_progress(i, total, case_dir, "running")
             callbacks = {"should_cancel": (should_cancel or (lambda: False))}
-            out_dir = run_case(str(case_dir), solver_selector=solver_selector, callbacks=callbacks)
+            out_dir = run_case(
+                str(case_dir), solver_selector=solver_selector, callbacks=callbacks
+            )
             if baseline_root is not None:
                 base_out = Path(baseline_root) / case_dir.name / "out"
                 if base_out.exists():
@@ -232,9 +242,13 @@ def write_case_run_report(records: list[CaseRunRecord], out_path: Path) -> Path:
                 "out_dir": str(r.out_dir) if r.out_dir else None,
                 "error_code": r.error_code,
                 "error": r.error,
-                "diagnostics_zip": str(r.diagnostics_zip) if r.diagnostics_zip else None,
+                "diagnostics_zip": (
+                    str(r.diagnostics_zip) if r.diagnostics_zip else None
+                ),
                 "compare": r.compare,
             }
         )
-    out_path.write_text(json.dumps({"records": payload}, indent=2, ensure_ascii=False), encoding="utf-8")
+    out_path.write_text(
+        json.dumps({"records": payload}, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
     return out_path

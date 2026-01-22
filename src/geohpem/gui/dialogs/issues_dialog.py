@@ -14,8 +14,8 @@ class IssuesDialog:
         issues: Iterable[PrecheckIssue],
         ok_text: str = "OK",
     ) -> None:
-        from PySide6.QtWidgets import (  # type: ignore
-            QDialog,
+        from PySide6.QtWidgets import (
+            QDialog,  # type: ignore
             QDialogButtonBox,
             QLabel,
             QListWidget,
@@ -44,4 +44,3 @@ class IssuesDialog:
 
     def exec(self) -> bool:
         return int(self.dialog.exec()) == int(self._QDialog.Accepted)
-

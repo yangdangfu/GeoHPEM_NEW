@@ -16,7 +16,6 @@ from geohpem.project.migrations import migrate_manifest, migrate_request, migrat
 from geohpem.project.normalize import ensure_request_ids
 from geohpem.project.types import ProjectData
 
-
 DEFAULT_EXT = ".geohpem"
 
 
@@ -59,19 +58,29 @@ def save_geohpem(path: str | Path, project: ProjectData) -> Path:
     result_json_bytes: bytes | None = None
     result_npz_bytes: bytes | None = None
     if project.result_meta is not None and project.result_arrays is not None:
-        result_json_bytes = json.dumps(project.result_meta, indent=2, ensure_ascii=False).encode("utf-8")
+        result_json_bytes = json.dumps(
+            project.result_meta, indent=2, ensure_ascii=False
+        ).encode("utf-8")
         result_buf = io.BytesIO()
         np.savez_compressed(result_buf, **project.result_arrays)
         result_npz_bytes = result_buf.getvalue()
 
     ui_state_bytes: bytes | None = None
     if project.ui_state is not None:
-        ui_state_bytes = json.dumps(project.ui_state, indent=2, ensure_ascii=False).encode("utf-8")
+        ui_state_bytes = json.dumps(
+            project.ui_state, indent=2, ensure_ascii=False
+        ).encode("utf-8")
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(out_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("manifest.json", json.dumps(manifest, indent=2, ensure_ascii=False).encode("utf-8"))
-        zf.writestr("request.json", json.dumps(project.request, indent=2, ensure_ascii=False).encode("utf-8"))
+        zf.writestr(
+            "manifest.json",
+            json.dumps(manifest, indent=2, ensure_ascii=False).encode("utf-8"),
+        )
+        zf.writestr(
+            "request.json",
+            json.dumps(project.request, indent=2, ensure_ascii=False).encode("utf-8"),
+        )
         zf.writestr("mesh.npz", mesh_bytes)
 
         if ui_state_bytes is not None:
@@ -90,7 +99,9 @@ def load_geohpem(path: str | Path) -> ProjectData:
         raise FileNotFoundError(in_path)
 
     with zipfile.ZipFile(in_path, "r") as zf:
-        manifest = migrate_manifest(json.loads(zf.read("manifest.json").decode("utf-8")))
+        manifest = migrate_manifest(
+            json.loads(zf.read("manifest.json").decode("utf-8"))
+        )
         request = migrate_request(json.loads(zf.read("request.json").decode("utf-8")))
         validate_request_basic(request)
 

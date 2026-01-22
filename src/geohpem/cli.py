@@ -8,13 +8,23 @@ def _build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("about", help="Show basic project info.")
-    ex = sub.add_parser("contract-example", help="Write a minimal Contract v0.1 example into a folder.")
-    ex.add_argument("--out", default=None, help="Output folder (default: examples/contract_v0_1_minimal)")
+    ex = sub.add_parser(
+        "contract-example", help="Write a minimal Contract v0.1 example into a folder."
+    )
+    ex.add_argument(
+        "--out",
+        default=None,
+        help="Output folder (default: examples/contract_v0_1_minimal)",
+    )
 
     gui = sub.add_parser("gui", help="Launch the GUI.")
-    gui.add_argument("--open", dest="open_dir", default=None, help="Open a case folder on startup.")
+    gui.add_argument(
+        "--open", dest="open_dir", default=None, help="Open a case folder on startup."
+    )
 
-    run = sub.add_parser("run", help="Run a solver (fake or external) for a prepared request folder.")
+    run = sub.add_parser(
+        "run", help="Run a solver (fake or external) for a prepared request folder."
+    )
     run.add_argument("case_dir", help="Folder containing request.json + mesh.npz")
     run.add_argument(
         "--solver",
@@ -22,15 +32,28 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Solver backend: fake | ref_elastic | ref_seepage | python:<module> (default: fake)",
     )
 
-    batch = sub.add_parser("batch-run", help="Run many case folders under a root directory.")
-    batch.add_argument("root", help="Root folder containing multiple case folders (or a single case folder).")
+    batch = sub.add_parser(
+        "batch-run", help="Run many case folders under a root directory."
+    )
+    batch.add_argument(
+        "root",
+        help="Root folder containing multiple case folders (or a single case folder).",
+    )
     batch.add_argument(
         "--solver",
         default="fake",
         help="Solver backend: fake | ref_elastic | ref_seepage | python:<module> (default: fake)",
     )
-    batch.add_argument("--baseline", default=None, help="Baseline root folder for optional comparisons.")
-    batch.add_argument("--report", default=None, help="Write a JSON report to this path (default: <root>/batch_report.json)")
+    batch.add_argument(
+        "--baseline",
+        default=None,
+        help="Baseline root folder for optional comparisons.",
+    )
+    batch.add_argument(
+        "--report",
+        default=None,
+        help="Write a JSON report to this path (default: <root>/batch_report.json)",
+    )
     return parser
 
 
@@ -63,7 +86,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "batch-run":
         from pathlib import Path
 
-        from geohpem.app.case_runner import discover_case_folders, run_cases, write_case_run_report
+        from geohpem.app.case_runner import (
+            discover_case_folders,
+            run_cases,
+            write_case_run_report,
+        )
 
         root = Path(args.root)
         cases = discover_case_folders(root)
@@ -77,7 +104,9 @@ def main(argv: list[str] | None = None) -> int:
         write_case_run_report(records, report)
         failed = sum(1 for r in records if r.status == "failed")
         canceled = sum(1 for r in records if r.status == "canceled")
-        print(f"Wrote report: {report} (cases={len(records)}, failed={failed}, canceled={canceled})")
+        print(
+            f"Wrote report: {report} (cases={len(records)}, failed={failed}, canceled={canceled})"
+        )
         return 0
 
     if args.cmd == "gui":

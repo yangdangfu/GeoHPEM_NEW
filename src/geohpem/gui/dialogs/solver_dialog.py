@@ -11,17 +11,17 @@ class SolverDialogResult:
 class SolverDialog:
     def __init__(self, parent, *, current_selector: str) -> None:  # noqa: ANN001
         from PySide6.QtCore import Qt  # type: ignore
-        from PySide6.QtWidgets import (  # type: ignore
+        from PySide6.QtWidgets import (
             QComboBox,
-            QDialog,
+            QDialog,  # type: ignore
             QDialogButtonBox,
             QFormLayout,
             QHBoxLayout,
             QLabel,
             QLineEdit,
             QMessageBox,
-            QPushButton,
             QPlainTextEdit,
+            QPushButton,
             QVBoxLayout,
             QWidget,
         )
@@ -38,8 +38,12 @@ class SolverDialog:
         layout.addWidget(root)
         v = QVBoxLayout(root)
 
-        v.addWidget(QLabel("Choose which solver implementation to use.\n"
-                            "Tip: external solvers can be loaded via python module (submodule/package)."))
+        v.addWidget(
+            QLabel(
+                "Choose which solver implementation to use.\n"
+                "Tip: external solvers can be loaded via python module (submodule/package)."
+            )
+        )
 
         form = QFormLayout()
         v.addLayout(form)
@@ -48,11 +52,14 @@ class SolverDialog:
         self._type.addItem("Fake (built-in)", "fake")
         self._type.addItem("Reference Elastic (built-in)", "ref_elastic")
         self._type.addItem("Reference Seepage (built-in)", "ref_seepage")
+        self._type.addItem("Reference HPEM Static (built-in)", "ref_hpem_static")
         self._type.addItem("Python module (python:<module>)", "python")
         form.addRow("Solver", self._type)
 
         self._module = QLineEdit()
-        self._module.setPlaceholderText("e.g. geohpem_solver or solver_package.entrypoint")
+        self._module.setPlaceholderText(
+            "e.g. geohpem_solver or solver_package.entrypoint"
+        )
         form.addRow("Module", self._module)
 
         row = QWidget()
@@ -94,6 +101,8 @@ class SolverDialog:
             self._type.setCurrentIndex(self._type.findData("ref_seepage"))
             self._module.setText("")
             return
+        if selector == "ref_hpem_static":
+            self._type.setCurrentIndex(self._type.findData("ref_hpem_static"))
             self._module.setText("")
             return
         if selector.startswith("python:"):
@@ -110,7 +119,7 @@ class SolverDialog:
 
     def _selector(self) -> str:
         t = str(self._type.currentData())
-        if t in ("fake", "ref_elastic", "ref_seepage"):
+        if t in ("fake", "ref_elastic", "ref_seepage", "ref_hpem_static"):
             return t
         module = self._module.text().strip()
         return f"python:{module}"
@@ -119,12 +128,16 @@ class SolverDialog:
         try:
             from geohpem.solver_adapter.loader import load_solver
         except Exception as exc:  # pragma: no cover
-            self._QMessageBox.critical(self._dialog, "Solver", f"Failed to import solver loader: {exc}")
+            self._QMessageBox.critical(
+                self._dialog, "Solver", f"Failed to import solver loader: {exc}"
+            )
             return
 
         selector = self._selector()
         if selector.startswith("python:") and selector == "python:":
-            self._QMessageBox.information(self._dialog, "Solver", "Please enter a python module name.")
+            self._QMessageBox.information(
+                self._dialog, "Solver", "Please enter a python module name."
+            )
             return
 
         try:
@@ -148,6 +161,8 @@ class SolverDialog:
             return None
         selector = self._selector()
         if selector.startswith("python:") and selector == "python:":
-            self._QMessageBox.information(self._dialog, "Solver", "Please enter a python module name.")
+            self._QMessageBox.information(
+                self._dialog, "Solver", "Please enter a python module name."
+            )
             return None
         return SolverDialogResult(solver_selector=selector)

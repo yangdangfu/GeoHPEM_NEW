@@ -59,7 +59,9 @@ def _tri_grad_area(xy: np.ndarray) -> tuple[np.ndarray, float]:
 
 
 def _quad_shape_derivs(xi: float, eta: float) -> tuple[np.ndarray, np.ndarray]:
-    dN_dxi = 0.25 * np.array([-(1 - eta), (1 - eta), (1 + eta), -(1 + eta)], dtype=float)
+    dN_dxi = 0.25 * np.array(
+        [-(1 - eta), (1 - eta), (1 + eta), -(1 + eta)], dtype=float
+    )
     dN_deta = 0.25 * np.array([-(1 - xi), -(1 + xi), (1 + xi), (1 - xi)], dtype=float)
     return dN_dxi, dN_deta
 
@@ -95,7 +97,12 @@ class ReferenceSeepageSolver:
             if callbacks and (fn := callbacks.get("on_progress")):
                 fn(float(p), str(msg), str(stage_id), int(step))
 
-        def cb_frame(frame_meta: dict[str, Any], *, mesh_out: dict[str, Any] | None = None, arrays_out: dict[str, Any] | None = None) -> None:
+        def cb_frame(
+            frame_meta: dict[str, Any],
+            *,
+            mesh_out: dict[str, Any] | None = None,
+            arrays_out: dict[str, Any] | None = None,
+        ) -> None:
             if callbacks and (fn := callbacks.get("on_frame")):
                 try:
                     fn(frame_meta, mesh=mesh_out, arrays=arrays_out)
@@ -114,8 +121,12 @@ class ReferenceSeepageSolver:
         xy = points[:, :2]
         n_nodes = int(xy.shape[0])
 
-        tri = np.asarray(mesh.get("cells_tri3", np.zeros((0, 3), dtype=np.int64)), dtype=np.int64)
-        quad = np.asarray(mesh.get("cells_quad4", np.zeros((0, 4), dtype=np.int64)), dtype=np.int64)
+        tri = np.asarray(
+            mesh.get("cells_tri3", np.zeros((0, 3), dtype=np.int64)), dtype=np.int64
+        )
+        quad = np.asarray(
+            mesh.get("cells_quad4", np.zeros((0, 4), dtype=np.int64)), dtype=np.int64
+        )
 
         materials = request.get("materials", {})
         if not isinstance(materials, dict):
@@ -134,7 +145,9 @@ class ReferenceSeepageSolver:
             if not isinstance(m, dict):
                 raise ValueError(f"Unknown material_id: {mid}")
             if str(m.get("model_name")) != "darcy":
-                raise ValueError(f"reference_seepage supports only darcy, got {m.get('model_name')}")
+                raise ValueError(
+                    f"reference_seepage supports only darcy, got {m.get('model_name')}"
+                )
             pars = m.get("parameters")
             if not isinstance(pars, dict):
                 raise ValueError(f"material.parameters must be object for {mid}")
@@ -213,13 +226,21 @@ class ReferenceSeepageSolver:
                         ke[i, j] += float(k) * float(np.dot(grads[i], grads[j])) * detJ
             add_ke(conn_i, ke)
 
-        K = coo_matrix((np.asarray(data, dtype=float), (np.asarray(rows), np.asarray(cols))), shape=(n_nodes, n_nodes)).tocsr()
+        K = coo_matrix(
+            (np.asarray(data, dtype=float), (np.asarray(rows), np.asarray(cols))),
+            shape=(n_nodes, n_nodes),
+        ).tocsr()
 
-        def accumulate_bcs(stages_upto: list[dict[str, Any]]) -> tuple[np.ndarray, np.ndarray]:
+        def accumulate_bcs(
+            stages_upto: list[dict[str, Any]]
+        ) -> tuple[np.ndarray, np.ndarray]:
             fixed: dict[int, float] = {}
             for st in stages_upto:
                 for bc in st.get("bcs", []) if isinstance(st.get("bcs"), list) else []:
-                    if not isinstance(bc, dict) or str(bc.get("type", "")) not in ("p", "pressure"):
+                    if not isinstance(bc, dict) or str(bc.get("type", "")) not in (
+                        "p",
+                        "pressure",
+                    ):
                         continue
                     set_name = str(bc.get("set", "")).strip()
                     if not set_name:
@@ -240,7 +261,9 @@ class ReferenceSeepageSolver:
             vals = np.asarray([fixed[int(d)] for d in dofs], dtype=float)
             return dofs, vals
 
-        def accumulate_flux_loads(stages_upto: list[dict[str, Any]], scale_current: float) -> np.ndarray:
+        def accumulate_flux_loads(
+            stages_upto: list[dict[str, Any]], scale_current: float
+        ) -> np.ndarray:
             F = np.zeros((n_nodes,), dtype=float)
             for si, st in enumerate(stages_upto):
                 is_current = si == (len(stages_upto) - 1)
@@ -301,7 +324,13 @@ class ReferenceSeepageSolver:
             return names, every_n
 
         def stage_output_steps(num_steps: int, every_n: int) -> list[int]:
-            idx = sorted({i for i in range(max(int(num_steps), 1)) if (i % max(int(every_n), 1) == 0) or (i == int(num_steps) - 1)})
+            idx = sorted(
+                {
+                    i
+                    for i in range(max(int(num_steps), 1))
+                    if (i % max(int(every_n), 1) == 0) or (i == int(num_steps) - 1)
+                }
+            )
             return idx or [int(num_steps) - 1]
 
         total_frames = 0
@@ -322,7 +351,9 @@ class ReferenceSeepageSolver:
         for si, st in enumerate(stages):
             if not isinstance(st, dict):
                 continue
-            stage_id = str(st.get("id") or st.get("uid") or st.get("name") or f"stage_{si+1}")
+            stage_id = str(
+                st.get("id") or st.get("uid") or st.get("name") or f"stage_{si+1}"
+            )
             num_steps = int(st.get("num_steps", 1) or 1)
             dt = float(st.get("dt", 1.0) or 1.0)
             want, every_n = requested_outputs(st)
@@ -359,12 +390,21 @@ class ReferenceSeepageSolver:
                 arrays_out: dict[str, Any] = {}
                 if "p" in want:
                     arrays[f"nodal__p__step{step_key}"] = p.reshape(-1)
-                    arrays_out[f"nodal__p__step{step_key}"] = arrays[f"nodal__p__step{step_key}"]
+                    arrays_out[f"nodal__p__step{step_key}"] = arrays[
+                        f"nodal__p__step{step_key}"
+                    ]
 
                 t = t_stage0 + float(sstep + 1) * float(dt)
                 times.append(float(t))
                 stage_step_ids.append(int(sstep))
-                global_steps.append({"id": int(step_counter), "stage_id": stage_id, "stage_step": int(sstep), "time": float(t)})
+                global_steps.append(
+                    {
+                        "id": int(step_counter),
+                        "stage_id": stage_id,
+                        "stage_step": int(sstep),
+                        "time": float(t),
+                    }
+                )
 
                 cb_frame(
                     {
@@ -380,19 +420,42 @@ class ReferenceSeepageSolver:
                 )
 
             t_acc = t_stage0 + float(num_steps) * float(dt)
-            stage_infos.append({"id": stage_id, "num_steps": int(num_steps), "output_every_n": int(every_n), "output_stage_steps": stage_step_ids, "times": list(times)})
+            stage_infos.append(
+                {
+                    "id": stage_id,
+                    "num_steps": int(num_steps),
+                    "output_every_n": int(every_n),
+                    "output_stage_steps": stage_step_ids,
+                    "times": list(times),
+                }
+            )
 
         unit_p = request.get("unit_system", {}).get("pressure", "Pa")
         present = any(k.startswith("nodal__p__step") for k in arrays.keys())
         meta = {
             "schema_version": "0.2",
             "status": "success",
-            "solver_info": {"name": "reference_seepage", "note": "steady seepage reference solver (scipy.sparse)"},
+            "solver_info": {
+                "name": "reference_seepage",
+                "note": "steady seepage reference solver (scipy.sparse)",
+            },
             "stages": stage_infos,
             "global_steps": global_steps,
             "warnings": [],
             "errors": [],
-            "registry": ([{"name": "p", "location": "node", "shape": "scalar", "unit": unit_p, "npz_pattern": "nodal__p__step{step:06d}"}] if present else []),
+            "registry": (
+                [
+                    {
+                        "name": "p",
+                        "location": "node",
+                        "shape": "scalar",
+                        "unit": unit_p,
+                        "npz_pattern": "nodal__p__step{step:06d}",
+                    }
+                ]
+                if present
+                else []
+            ),
         }
         return meta, arrays
 

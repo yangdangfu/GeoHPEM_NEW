@@ -6,7 +6,9 @@ from geohpem.geometry.polygon2d import Polygon2D
 from geohpem.util.ids import new_uid
 
 
-def ensure_request_ids(request: dict[str, Any], mesh: dict[str, Any] | None = None) -> dict[str, Any]:
+def ensure_request_ids(
+    request: dict[str, Any], mesh: dict[str, Any] | None = None
+) -> dict[str, Any]:
     """
     Ensure stable IDs exist for key project objects.
 
@@ -26,7 +28,11 @@ def ensure_request_ids(request: dict[str, Any], mesh: dict[str, Any] | None = No
             # stage inner objects
             if not isinstance(s, dict):
                 continue
-            for key, prefix in (("bcs", "bc"), ("loads", "load"), ("output_requests", "outreq")):
+            for key, prefix in (
+                ("bcs", "bc"),
+                ("loads", "load"),
+                ("output_requests", "outreq"),
+            ):
                 items = s.get(key)
                 if not isinstance(items, list):
                     continue
@@ -82,7 +88,11 @@ def ensure_request_ids(request: dict[str, Any], mesh: dict[str, Any] | None = No
             k
             for k in list(sets_meta.keys())
             if isinstance(k, str)
-            and (k.startswith("node_set__") or k.startswith("edge_set__") or k.startswith("elem_set__"))
+            and (
+                k.startswith("node_set__")
+                or k.startswith("edge_set__")
+                or k.startswith("elem_set__")
+            )
             and k not in mesh
         ]
         for k in stale:
@@ -91,9 +101,17 @@ def ensure_request_ids(request: dict[str, Any], mesh: dict[str, Any] | None = No
             except Exception:
                 pass
         for k in mesh.keys():
-            if not (k.startswith("node_set__") or k.startswith("edge_set__") or k.startswith("elem_set__")):
+            if not (
+                k.startswith("node_set__")
+                or k.startswith("edge_set__")
+                or k.startswith("elem_set__")
+            ):
                 continue
-            if k not in sets_meta or not isinstance(sets_meta.get(k), dict) or not sets_meta[k].get("uid"):
+            if (
+                k not in sets_meta
+                or not isinstance(sets_meta.get(k), dict)
+                or not sets_meta[k].get("uid")
+            ):
                 sets_meta[k] = {
                     "uid": new_uid("set"),
                     "label": k,  # display label can be edited later without renaming NPZ key

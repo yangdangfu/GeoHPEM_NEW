@@ -23,4 +23,3 @@ class WorkspaceStack:
 
     def get(self, name: str):
         return self._workspaces[name]
-

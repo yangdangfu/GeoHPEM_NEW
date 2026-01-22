@@ -7,7 +7,11 @@ from typing import Any
 import numpy as np
 
 from geohpem.contract.io import read_result_folder
-from geohpem.viz.vtk_convert import available_steps_from_arrays, get_array_for, vector_magnitude
+from geohpem.viz.vtk_convert import (
+    available_steps_from_arrays,
+    get_array_for,
+    vector_magnitude,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,8 +68,12 @@ def diff_stats_for(
     field: FieldKey,
     step: int,
 ) -> FieldStats | None:
-    a = get_array_for(arrays=arrays_a, location=field.location, name=field.name, step=step)
-    b = get_array_for(arrays=arrays_b, location=field.location, name=field.name, step=step)
+    a = get_array_for(
+        arrays=arrays_a, location=field.location, name=field.name, step=step
+    )
+    b = get_array_for(
+        arrays=arrays_b, location=field.location, name=field.name, step=step
+    )
     if a is None or b is None:
         return None
     sa = _as_scalar(a)
@@ -95,7 +103,9 @@ def step_curve_for(
     """
     out: list[dict[str, float]] = []
     for s in steps:
-        a = get_array_for(arrays=arrays, location=field.location, name=field.name, step=s)
+        a = get_array_for(
+            arrays=arrays, location=field.location, name=field.name, step=s
+        )
         if a is None:
             out.append({"min": float("nan"), "max": float("nan"), "mean": float("nan")})
             continue
@@ -103,7 +113,13 @@ def step_curve_for(
         if sc.size == 0:
             out.append({"min": 0.0, "max": 0.0, "mean": 0.0})
             continue
-        out.append({"min": float(np.min(sc)), "max": float(np.max(sc)), "mean": float(np.mean(sc))})
+        out.append(
+            {
+                "min": float(np.min(sc)),
+                "max": float(np.max(sc)),
+                "mean": float(np.mean(sc)),
+            }
+        )
     return out
 
 
@@ -117,4 +133,3 @@ def load_outputs(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     if p.is_dir() and (p / "out").is_dir():
         return read_result_folder(p / "out")
     raise FileNotFoundError(f"Not an output folder or case folder: {p}")
-

@@ -22,7 +22,12 @@ def compute_boundary_edges(mesh: dict[str, Any]) -> np.ndarray:
             return np.zeros((0, 2), dtype=np.int32)
         edges = np.sort(edges, axis=1)
         n_points = int(pts.shape[0])
-        ok = (edges[:, 0] >= 0) & (edges[:, 1] >= 0) & (edges[:, 0] < n_points) & (edges[:, 1] < n_points)
+        ok = (
+            (edges[:, 0] >= 0)
+            & (edges[:, 1] >= 0)
+            & (edges[:, 0] < n_points)
+            & (edges[:, 1] < n_points)
+        )
         edges = edges[ok]
         if edges.size == 0:
             return np.zeros((0, 2), dtype=np.int32)
@@ -33,12 +38,16 @@ def compute_boundary_edges(mesh: dict[str, Any]) -> np.ndarray:
 
     tri = np.asarray(mesh.get("cells_tri3", np.zeros((0, 3))), dtype=np.int64)
     if tri.ndim == 2 and tri.shape[1] == 3 and tri.shape[0] > 0:
-        tri_edges = np.concatenate([tri[:, [0, 1]], tri[:, [1, 2]], tri[:, [2, 0]]], axis=0)
+        tri_edges = np.concatenate(
+            [tri[:, [0, 1]], tri[:, [1, 2]], tri[:, [2, 0]]], axis=0
+        )
         boundary_parts.append(boundary_for_edges(tri_edges))
 
     quad = np.asarray(mesh.get("cells_quad4", np.zeros((0, 4))), dtype=np.int64)
     if quad.ndim == 2 and quad.shape[1] == 4 and quad.shape[0] > 0:
-        quad_edges = np.concatenate([quad[:, [0, 1]], quad[:, [1, 2]], quad[:, [2, 3]], quad[:, [3, 0]]], axis=0)
+        quad_edges = np.concatenate(
+            [quad[:, [0, 1]], quad[:, [1, 2]], quad[:, [2, 3]], quad[:, [3, 0]]], axis=0
+        )
         boundary_parts.append(boundary_for_edges(quad_edges))
 
     if not boundary_parts:
@@ -49,7 +58,11 @@ def compute_boundary_edges(mesh: dict[str, Any]) -> np.ndarray:
     # overlap (e.g., tri3 subdivision + quad4), a global edge count will mark
     # boundary edges as "shared" and incorrectly drop them. Per-block boundary
     # detection + union avoids that.
-    bd = np.concatenate([b for b in boundary_parts if b.size], axis=0) if any(b.size for b in boundary_parts) else np.zeros((0, 2), dtype=np.int32)
+    bd = (
+        np.concatenate([b for b in boundary_parts if b.size], axis=0)
+        if any(b.size for b in boundary_parts)
+        else np.zeros((0, 2), dtype=np.int32)
+    )
     if bd.size == 0:
         return np.zeros((0, 2), dtype=np.int32)
     bd = np.asarray(bd, dtype=np.int64).reshape(-1, 2)
@@ -77,7 +90,9 @@ def compute_all_edges(mesh: dict[str, Any]) -> np.ndarray:
 
     quad = np.asarray(mesh.get("cells_quad4", np.zeros((0, 4))), dtype=np.int64)
     if quad.ndim == 2 and quad.shape[1] == 4 and quad.shape[0] > 0:
-        edges_parts.extend([quad[:, [0, 1]], quad[:, [1, 2]], quad[:, [2, 3]], quad[:, [3, 0]]])
+        edges_parts.extend(
+            [quad[:, [0, 1]], quad[:, [1, 2]], quad[:, [2, 3]], quad[:, [3, 0]]]
+        )
 
     if not edges_parts:
         return np.zeros((0, 2), dtype=np.int32)
@@ -85,7 +100,12 @@ def compute_all_edges(mesh: dict[str, Any]) -> np.ndarray:
     edges = np.concatenate(edges_parts, axis=0).reshape(-1, 2)
     edges = np.sort(edges, axis=1)
     n_points = int(pts.shape[0])
-    ok = (edges[:, 0] >= 0) & (edges[:, 1] >= 0) & (edges[:, 0] < n_points) & (edges[:, 1] < n_points)
+    ok = (
+        (edges[:, 0] >= 0)
+        & (edges[:, 1] >= 0)
+        & (edges[:, 0] < n_points)
+        & (edges[:, 1] < n_points)
+    )
     edges = edges[ok]
     if edges.size == 0:
         return np.zeros((0, 2), dtype=np.int32)
@@ -109,13 +129,29 @@ def classify_boundary_edges(
     pts = np.asarray(mesh.get("points", np.zeros((0, 2))), dtype=float)
     if pts.ndim != 2 or pts.shape[1] < 2:
         empty = np.zeros((0, 2), dtype=np.int32)
-        return {"all": empty, "bottom": empty, "top": empty, "left": empty, "right": empty}
+        return {
+            "all": empty,
+            "bottom": empty,
+            "top": empty,
+            "left": empty,
+            "right": empty,
+        }
 
-    bd = compute_boundary_edges(mesh) if edges is None else np.asarray(edges, dtype=np.int64).reshape(-1, 2)
+    bd = (
+        compute_boundary_edges(mesh)
+        if edges is None
+        else np.asarray(edges, dtype=np.int64).reshape(-1, 2)
+    )
     bd = np.asarray(bd, dtype=np.int64).reshape(-1, 2)
     if bd.size == 0:
         empty = np.zeros((0, 2), dtype=np.int32)
-        return {"all": empty, "bottom": empty, "top": empty, "left": empty, "right": empty}
+        return {
+            "all": empty,
+            "bottom": empty,
+            "top": empty,
+            "left": empty,
+            "right": empty,
+        }
 
     x = pts[:, 0]
     y = pts[:, 1]
@@ -135,10 +171,10 @@ def classify_boundary_edges(
     ya = y[a]
     yb = y[b]
 
-    bottom = (np.maximum(ya, yb) <= (ymin + tol_y))
-    top = (np.minimum(ya, yb) >= (ymax - tol_y))
-    left = (np.maximum(xa, xb) <= (xmin + tol_x))
-    right = (np.minimum(xa, xb) >= (xmax - tol_x))
+    bottom = np.maximum(ya, yb) <= (ymin + tol_y)
+    top = np.minimum(ya, yb) >= (ymax - tol_y)
+    left = np.maximum(xa, xb) <= (xmin + tol_x)
+    right = np.minimum(xa, xb) >= (xmax - tol_x)
 
     out: dict[str, np.ndarray] = {"all": np.asarray(bd, dtype=np.int32)}
     out["bottom"] = np.asarray(bd[bottom], dtype=np.int32)

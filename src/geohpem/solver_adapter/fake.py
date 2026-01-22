@@ -12,7 +12,12 @@ class FakeSolver:
             "name": "fake",
             "contract": {"min": "0.1", "max": "0.1"},
             "modes": ["plane_strain", "axisymmetric"],
-            "analysis_types": ["static", "dynamic", "seepage_transient", "consolidation_u_p"],
+            "analysis_types": [
+                "static",
+                "dynamic",
+                "seepage_transient",
+                "consolidation_u_p",
+            ],
             "fields": ["u", "p"],
             "results": ["u", "p", "stress", "strain", "vm"],
         }
@@ -27,8 +32,16 @@ class FakeSolver:
 
         points = np.asarray(mesh["points"])
         n = points.shape[0]
-        n_tri = int(np.asarray(mesh.get("cells_tri3", np.zeros((0, 3), dtype=np.int64))).shape[0])
-        n_quad = int(np.asarray(mesh.get("cells_quad4", np.zeros((0, 4), dtype=np.int64))).shape[0])
+        n_tri = int(
+            np.asarray(mesh.get("cells_tri3", np.zeros((0, 3), dtype=np.int64))).shape[
+                0
+            ]
+        )
+        n_quad = int(
+            np.asarray(mesh.get("cells_quad4", np.zeros((0, 4), dtype=np.int64))).shape[
+                0
+            ]
+        )
         n_cells = n_tri + n_quad
 
         # Precompute centroids per cell in the same order as vtk_convert (tri3 then quad4)
@@ -38,11 +51,19 @@ class FakeSolver:
             pts = points[np.asarray(conn, dtype=np.int64)]
             return np.mean(pts[:, :, :2], axis=1)
 
-        tri_conn = np.asarray(mesh.get("cells_tri3", np.zeros((0, 3), dtype=np.int64)), dtype=np.int64)
-        quad_conn = np.asarray(mesh.get("cells_quad4", np.zeros((0, 4), dtype=np.int64)), dtype=np.int64)
+        tri_conn = np.asarray(
+            mesh.get("cells_tri3", np.zeros((0, 3), dtype=np.int64)), dtype=np.int64
+        )
+        quad_conn = np.asarray(
+            mesh.get("cells_quad4", np.zeros((0, 4), dtype=np.int64)), dtype=np.int64
+        )
         cent_tri = centroids_for(tri_conn)
         cent_quad = centroids_for(quad_conn)
-        cent = np.vstack([cent_tri, cent_quad]) if (cent_tri.size or cent_quad.size) else np.zeros((0, 2), dtype=float)
+        cent = (
+            np.vstack([cent_tri, cent_quad])
+            if (cent_tri.size or cent_quad.size)
+            else np.zeros((0, 2), dtype=float)
+        )
 
         def cb_progress(p: float, msg: str, stage_id: str, step: int) -> None:
             if callbacks and (fn := callbacks.get("on_progress")):
@@ -85,7 +106,11 @@ class FakeSolver:
                 vm = None
                 if n_cells > 0:
                     # Create a smooth field varying with depth and time.
-                    y = cent[:, 1] if cent.shape[0] == n_cells else np.zeros((n_cells,), dtype=float)
+                    y = (
+                        cent[:, 1]
+                        if cent.shape[0] == n_cells
+                        else np.zeros((n_cells,), dtype=float)
+                    )
                     vm = (50.0 * p) + (5.0 * y)
 
                 step_key = f"{step_counter:06d}"
@@ -108,7 +133,10 @@ class FakeSolver:
         meta = {
             "schema_version": "0.1",
             "status": "success",
-            "solver_info": {"name": "fake", "note": "placeholder solver for platform bring-up"},
+            "solver_info": {
+                "name": "fake",
+                "note": "placeholder solver for platform bring-up",
+            },
             "stages": stage_infos,
             "global_steps": global_steps,
             "warnings": [],

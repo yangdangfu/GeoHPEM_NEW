@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from typing import Any, Callable
 import weakref
+from typing import Any, Callable
 
 
-def apply_2d_interaction(plotter: Any, *, on_right_click: Callable[..., Any] | None = None) -> None:
+def apply_2d_interaction(
+    plotter: Any, *, on_right_click: Callable[..., Any] | None = None
+) -> None:
     """
     Configure a PyVista/VTK plotter for 2D-only interaction:
     - No 3D rotation

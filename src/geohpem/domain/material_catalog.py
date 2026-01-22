@@ -4,8 +4,8 @@ import copy
 import json
 from dataclasses import dataclass
 from datetime import datetime
-from shutil import copy2
 from pathlib import Path
+from shutil import copy2
 from typing import Any
 
 
@@ -60,7 +60,10 @@ def read_user_catalog() -> dict[str, Any] | None:
 
 
 def read_default_catalog() -> dict[str, Any]:
-    return _read_catalog(_DEFAULT_CATALOG_PATH) or {"behaviors": _DEFAULT_BEHAVIORS, "models": []}
+    return _read_catalog(_DEFAULT_CATALOG_PATH) or {
+        "behaviors": _DEFAULT_BEHAVIORS,
+        "models": [],
+    }
 
 
 def default_model_dicts() -> dict[str, dict[str, Any]]:
@@ -109,7 +112,9 @@ def _normalize_models(raw: Any) -> dict[str, dict[str, Any]]:
     return {}
 
 
-def _merge_catalogs(base: dict[str, Any], override: dict[str, Any] | None) -> dict[str, Any]:
+def _merge_catalogs(
+    base: dict[str, Any], override: dict[str, Any] | None
+) -> dict[str, Any]:
     merged = dict(base)
     behaviors = dict(_DEFAULT_BEHAVIORS)
     if isinstance(base.get("behaviors"), dict):
@@ -256,9 +261,21 @@ def all_models() -> list[MaterialModel]:
                 name=name,
                 label=str(it.get("label", name)),
                 behavior=str(it.get("behavior", "custom")),
-                defaults=copy.deepcopy(it.get("defaults", {})) if isinstance(it.get("defaults"), dict) else {},
-                meta=copy.deepcopy(it.get("meta", {})) if isinstance(it.get("meta"), dict) else {},
-                solver_mapping=copy.deepcopy(it.get("solver_mapping", {})) if isinstance(it.get("solver_mapping"), dict) else {},
+                defaults=(
+                    copy.deepcopy(it.get("defaults", {}))
+                    if isinstance(it.get("defaults"), dict)
+                    else {}
+                ),
+                meta=(
+                    copy.deepcopy(it.get("meta", {}))
+                    if isinstance(it.get("meta"), dict)
+                    else {}
+                ),
+                solver_mapping=(
+                    copy.deepcopy(it.get("solver_mapping", {}))
+                    if isinstance(it.get("solver_mapping"), dict)
+                    else {}
+                ),
                 description=str(it.get("description", "")),
             )
         )

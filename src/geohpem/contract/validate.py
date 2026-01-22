@@ -17,10 +17,14 @@ def validate_request_basic(request: dict[str, Any]) -> None:
         raise ContractError("request.model.dimension must be 2")
     if schema_version == "0.1":
         if model.get("mode") not in ("plane_strain", "axisymmetric"):
-            raise ContractError("request.model.mode must be 'plane_strain' or 'axisymmetric'")
+            raise ContractError(
+                "request.model.mode must be 'plane_strain' or 'axisymmetric'"
+            )
     else:
         if model.get("mode") not in ("plane_strain", "plane_stress", "axisymmetric"):
-            raise ContractError("request.model.mode must be 'plane_strain' or 'plane_stress' or 'axisymmetric'")
+            raise ContractError(
+                "request.model.mode must be 'plane_strain' or 'plane_stress' or 'axisymmetric'"
+            )
 
     stages = request.get("stages")
     if not isinstance(stages, list) or not stages:
@@ -39,6 +43,8 @@ def validate_request_jsonschema_if_available(request: dict[str, Any]) -> None:
 
     from importlib.resources import files
 
-    schema_text = (files("geohpem.contract.schemas") / "request.schema.json").read_text(encoding="utf-8")
+    schema_text = (files("geohpem.contract.schemas") / "request.schema.json").read_text(
+        encoding="utf-8"
+    )
     schema = __import__("json").loads(schema_text)
     jsonschema.validate(instance=request, schema=schema)

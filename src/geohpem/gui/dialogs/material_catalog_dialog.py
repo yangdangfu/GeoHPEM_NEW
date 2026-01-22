@@ -4,19 +4,19 @@ import copy
 from typing import Any
 
 from PySide6.QtCore import Qt  # type: ignore
-from PySide6.QtWidgets import (  # type: ignore
-    QComboBox,
+from PySide6.QtWidgets import (
     QAbstractItemView,
+    QComboBox,  # type: ignore
     QDialog,
     QDialogButtonBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
+    QHeaderView,
     QInputDialog,
     QLabel,
     QLineEdit,
     QMessageBox,
-    QHeaderView,
     QPushButton,
     QSplitter,
     QTabWidget,
@@ -87,7 +87,9 @@ class MaterialCatalogDialog(QDialog):
         self._btn_rename = QPushButton("Rename")
         self._btn_delete = QPushButton("Delete")
         self._btn_reset = QPushButton("Reset Model")
-        self._btn_reset.setToolTip("Reset this model back to the default catalog values.")
+        self._btn_reset.setToolTip(
+            "Reset this model back to the default catalog values."
+        )
         btn_bar.addWidget(self._btn_copy)
         btn_bar.addWidget(self._btn_rename)
         btn_bar.addWidget(self._btn_delete)
@@ -213,7 +215,9 @@ class MaterialCatalogDialog(QDialog):
             QMessageBox.information(self, "Solver Mapping", f"Invalid JSON:\n{exc}")
             return False
         if not isinstance(solver_mapping, dict):
-            QMessageBox.information(self, "Solver Mapping", "Solver mapping must be a JSON object.")
+            QMessageBox.information(
+                self, "Solver Mapping", "Solver mapping must be a JSON object."
+            )
             return False
 
         new_model = dict(model)
@@ -287,7 +291,9 @@ class MaterialCatalogDialog(QDialog):
         is_override = self._has_saved_override(name)
         self._btn_rename.setEnabled(is_user_only)
         self._btn_delete.setEnabled(is_user_only)
-        self._btn_reset.setEnabled(is_base and (is_override or name in self._dirty_models))
+        self._btn_reset.setEnabled(
+            is_base and (is_override or name in self._dirty_models)
+        )
 
     def _ask_new_name(self, title: str, default: str = "") -> str | None:
         text, ok = QInputDialog.getText(self, title, "Model name:", text=default)
@@ -304,7 +310,9 @@ class MaterialCatalogDialog(QDialog):
         if not new_name:
             return
         if new_name in self._view_models:
-            QMessageBox.information(self, "Copy Model", f"Model '{new_name}' already exists.")
+            QMessageBox.information(
+                self, "Copy Model", f"Model '{new_name}' already exists."
+            )
             return
         base = copy.deepcopy(self._view_models[name])
         base["name"] = new_name
@@ -327,10 +335,16 @@ class MaterialCatalogDialog(QDialog):
         if not new_name or new_name == name:
             return
         if new_name in self._view_models:
-            QMessageBox.information(self, "Rename Model", f"Model '{new_name}' already exists.")
+            QMessageBox.information(
+                self, "Rename Model", f"Model '{new_name}' already exists."
+            )
             return
         if name not in self._user_models or name in self._base_models:
-            QMessageBox.information(self, "Rename Model", "Default models cannot be renamed. Use Copy instead.")
+            QMessageBox.information(
+                self,
+                "Rename Model",
+                "Default models cannot be renamed. Use Copy instead.",
+            )
             return
         model = copy.deepcopy(self._view_models[name])
         model["name"] = new_name
@@ -352,7 +366,9 @@ class MaterialCatalogDialog(QDialog):
         if not name:
             return
         if name in self._base_models:
-            QMessageBox.information(self, "Delete Model", "Default models cannot be deleted. Use Reset.")
+            QMessageBox.information(
+                self, "Delete Model", "Default models cannot be deleted. Use Reset."
+            )
             return
         btn = QMessageBox.warning(
             self,
@@ -374,10 +390,14 @@ class MaterialCatalogDialog(QDialog):
         if not name:
             return
         if name not in self._base_models:
-            QMessageBox.information(self, "Reset Model", "Reset is only available for default models.")
+            QMessageBox.information(
+                self, "Reset Model", "Reset is only available for default models."
+            )
             return
         if name not in self._user_models:
-            QMessageBox.information(self, "Reset Model", "No user override exists for this model.")
+            QMessageBox.information(
+                self, "Reset Model", "No user override exists for this model."
+            )
             return
         btn = QMessageBox.warning(
             self,
@@ -412,7 +432,9 @@ class MaterialCatalogDialog(QDialog):
                     models_list.append(model)
             else:
                 models_list.append(model)
-        data: dict[str, Any] = {"version": str(self._user_catalog.get("version", "1.0"))}
+        data: dict[str, Any] = {
+            "version": str(self._user_catalog.get("version", "1.0"))
+        }
         if isinstance(self._user_catalog.get("behaviors"), dict):
             data["behaviors"] = self._user_catalog.get("behaviors")
         data["models"] = models_list
@@ -421,12 +443,16 @@ class MaterialCatalogDialog(QDialog):
             msg = "\n".join(errors[:15])
             if len(errors) > 15:
                 msg += f"\n... ({len(errors)} errors)"
-            QMessageBox.information(self, "Catalog Validation", f"Please fix these issues:\n{msg}")
+            QMessageBox.information(
+                self, "Catalog Validation", f"Please fix these issues:\n{msg}"
+            )
             return
         try:
             mc.write_user_catalog(data)
         except Exception as exc:
-            QMessageBox.information(self, "Save Catalog", f"Failed to save catalog:\n{exc}")
+            QMessageBox.information(
+                self, "Save Catalog", f"Failed to save catalog:\n{exc}"
+            )
             return
         self._saved = True
         self._user_models = self._build_user_models_from_view()
@@ -487,18 +513,24 @@ class MaterialCatalogDialog(QDialog):
             return False
         if name not in self._base_models:
             return False
-        return self._normalize_model_for_compare(self._user_models[name], name) != self._normalize_model_for_compare(
+        return self._normalize_model_for_compare(
+            self._user_models[name], name
+        ) != self._normalize_model_for_compare(
             self._base_models[name],
             name,
         )
 
-    def _prune_user_models(self, raw: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    def _prune_user_models(
+        self, raw: dict[str, dict[str, Any]]
+    ) -> dict[str, dict[str, Any]]:
         out: dict[str, dict[str, Any]] = {}
         for name, model in raw.items():
             if name not in self._base_models:
                 out[name] = copy.deepcopy(model)
                 continue
-            if self._normalize_model_for_compare(model, name) != self._normalize_model_for_compare(
+            if self._normalize_model_for_compare(
+                model, name
+            ) != self._normalize_model_for_compare(
                 self._base_models[name],
                 name,
             ):
@@ -514,7 +546,9 @@ class MaterialCatalogDialog(QDialog):
         if saved is None:
             self._dirty_models.add(name)
             return
-        if self._normalize_model_for_compare(view, name) != self._normalize_model_for_compare(saved, name):
+        if self._normalize_model_for_compare(
+            view, name
+        ) != self._normalize_model_for_compare(saved, name):
             self._dirty_models.add(name)
         else:
             self._dirty_models.discard(name)
@@ -523,13 +557,17 @@ class MaterialCatalogDialog(QDialog):
         out: dict[str, dict[str, Any]] = {}
         for name, model in self._view_models.items():
             if name in self._base_models:
-                if self._normalize_model_for_compare(model, name) != self._normalize_model_for_compare(self._base_models[name], name):
+                if self._normalize_model_for_compare(
+                    model, name
+                ) != self._normalize_model_for_compare(self._base_models[name], name):
                     out[name] = copy.deepcopy(model)
             else:
                 out[name] = copy.deepcopy(model)
         return out
 
-    def _normalize_model_for_compare(self, model: dict[str, Any], name: str) -> dict[str, Any]:
+    def _normalize_model_for_compare(
+        self, model: dict[str, Any], name: str
+    ) -> dict[str, Any]:
         out = dict(model)
         label = out.get("label")
         if not isinstance(label, str) or not label.strip():
@@ -546,7 +584,9 @@ class MaterialCatalogDialog(QDialog):
                 out[key] = {}
         # Normalize scalar types inside defaults/solver_mapping to reduce false diffs.
         out["defaults"] = self._normalize_scalar_values(out.get("defaults", {}))
-        out["solver_mapping"] = self._normalize_scalar_values(out.get("solver_mapping", {}))
+        out["solver_mapping"] = self._normalize_scalar_values(
+            out.get("solver_mapping", {})
+        )
         return out
 
     def _normalize_scalar_values(self, value: Any) -> Any:

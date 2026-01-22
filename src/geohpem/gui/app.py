@@ -8,7 +8,9 @@ def run_gui(open_case_dir: str | None = None) -> int:
     try:
         from PySide6.QtWidgets import QApplication  # type: ignore
     except Exception as exc:  # pragma: no cover
-        raise RuntimeError("PySide6 is required: install dependencies (e.g. conda env geohpem)") from exc
+        raise RuntimeError(
+            "PySide6 is required: install dependencies (e.g. conda env geohpem)"
+        ) from exc
 
     from geohpem.gui.main_window import MainWindow
     from geohpem.gui.settings import SettingsStore
@@ -17,7 +19,9 @@ def run_gui(open_case_dir: str | None = None) -> int:
     try:
         from PySide6.QtGui import QIcon  # type: ignore
 
-        icon_path = Path(__file__).resolve().parents[2] / "assets" / "branding" / "geohpem.xpm"
+        icon_path = (
+            Path(__file__).resolve().parents[2] / "assets" / "branding" / "geohpem.xpm"
+        )
         if icon_path.exists():
             app.setWindowIcon(QIcon(str(icon_path)))
     except Exception:

@@ -4,7 +4,6 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
-
 from geohpem.util.ids import new_uid
 
 
@@ -35,8 +34,8 @@ class StageItemTableEditor:
 
     def __init__(self, parent, *, config: StageItemTableConfig) -> None:  # noqa: ANN001
         from PySide6.QtCore import Qt  # type: ignore
-        from PySide6.QtWidgets import (  # type: ignore
-            QAbstractItemView,
+        from PySide6.QtWidgets import (
+            QAbstractItemView,  # type: ignore
             QComboBox,
             QHBoxLayout,
             QLabel,
@@ -82,7 +81,11 @@ class StageItemTableEditor:
         self.table.setHorizontalHeaderLabels(["uid", "field", "type", "set", "value"])
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.table.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed | QAbstractItemView.AnyKeyPressed)
+        self.table.setEditTriggers(
+            QAbstractItemView.DoubleClicked
+            | QAbstractItemView.EditKeyPressed
+            | QAbstractItemView.AnyKeyPressed
+        )
         self.table.horizontalHeader().setStretchLastSection(True)
         self.tabs.addTab(self.table, "Table")
 
@@ -122,7 +125,9 @@ class StageItemTableEditor:
             self._populate_set_combo(cb, current)
 
     def set_field_options(self, names: list[str]) -> None:
-        self._field_options = [str(n) for n in names if isinstance(n, str) and str(n).strip()]
+        self._field_options = [
+            str(n) for n in names if isinstance(n, str) and str(n).strip()
+        ]
         for row in range(self.table.rowCount()):
             cb = self.table.cellWidget(row, self.COL_FIELD)
             if cb is None:
@@ -134,7 +139,9 @@ class StageItemTableEditor:
             self._populate_field_combo(cb, current)
 
     def set_type_options(self, names: list[str]) -> None:
-        self._type_options = [str(n) for n in names if isinstance(n, str) and str(n).strip()]
+        self._type_options = [
+            str(n) for n in names if isinstance(n, str) and str(n).strip()
+        ]
         for row in range(self.table.rowCount()):
             cb = self.table.cellWidget(row, self.COL_TYPE)
             if cb is None:
@@ -252,7 +259,11 @@ class StageItemTableEditor:
         r = self.table.rowCount()
         self.table.insertRow(r)
 
-        uid = str(obj.get("uid", "")) if isinstance(obj.get("uid"), str) else new_uid(self.config.uid_prefix)
+        uid = (
+            str(obj.get("uid", ""))
+            if isinstance(obj.get("uid"), str)
+            else new_uid(self.config.uid_prefix)
+        )
         it_uid = self._QTableWidgetItem(uid)
         it_uid.setFlags(it_uid.flags() & ~self._Qt.ItemIsEditable)
         it_uid.setData(self._Qt.UserRole, dict(obj))
@@ -266,7 +277,9 @@ class StageItemTableEditor:
         cb_type = self._QComboBox()
         cb_type.setEditable(True)
         self._populate_type_combo(cb_type, str(obj.get("type", "")))
-        cb_type.currentTextChanged.connect(lambda _txt, w=cb_type: self._on_type_changed(w))
+        cb_type.currentTextChanged.connect(
+            lambda _txt, w=cb_type: self._on_type_changed(w)
+        )
         self.table.setCellWidget(r, self.COL_TYPE, cb_type)
 
         cb = self._QComboBox()
@@ -317,7 +330,11 @@ class StageItemTableEditor:
         try:
             v = preset.get("value")
             if isinstance(v, (dict, list, int, float, bool)) or v is None:
-                it_val.setText(json.dumps(v, ensure_ascii=False) if isinstance(v, (dict, list)) else ("" if v is None else str(v)))
+                it_val.setText(
+                    json.dumps(v, ensure_ascii=False)
+                    if isinstance(v, (dict, list))
+                    else ("" if v is None else str(v))
+                )
             else:
                 it_val.setText(str(v))
         except Exception:
@@ -372,8 +389,15 @@ class StageItemTableEditor:
         combo.blockSignals(False)
 
     def _on_add(self) -> None:
-        default_type = self._type_options[0] if self._type_options else self.config.default_type
-        obj: dict[str, Any] = {"uid": new_uid(self.config.uid_prefix), "field": self.config.default_field, "type": default_type, "set": ""}
+        default_type = (
+            self._type_options[0] if self._type_options else self.config.default_type
+        )
+        obj: dict[str, Any] = {
+            "uid": new_uid(self.config.uid_prefix),
+            "field": self.config.default_field,
+            "type": default_type,
+            "set": "",
+        }
         # Apply preset value if possible; otherwise use generic fallback.
         preset = self._type_presets.get(default_type)
         if isinstance(preset, dict):
@@ -402,7 +426,9 @@ class StageItemTableEditor:
             if not isinstance(data, list):
                 raise ValueError("Expected a JSON list")
         except Exception as exc:
-            self._QMessageBox.information(self.widget, "JSON -> Table", f"Invalid JSON:\n{exc}")
+            self._QMessageBox.information(
+                self.widget, "JSON -> Table", f"Invalid JSON:\n{exc}"
+            )
             return
         cleaned: list[dict[str, Any]] = []
         for it in data:

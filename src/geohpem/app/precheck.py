@@ -12,7 +12,9 @@ class PrecheckIssue:
     jump: dict[str, Any] | None = None
 
 
-def _issue(severity: str, code: str, message: str, *, jump: dict[str, Any] | None = None) -> PrecheckIssue:
+def _issue(
+    severity: str, code: str, message: str, *, jump: dict[str, Any] | None = None
+) -> PrecheckIssue:
     return PrecheckIssue(severity=severity, code=code, message=message, jump=jump)
 
 
@@ -25,7 +27,10 @@ def _as_set_name(value: Any) -> str | None:
 
 
 def _mesh_has_cells(mesh: dict[str, Any]) -> bool:
-    return any(k.startswith("cells_") and getattr(mesh.get(k), "shape", None) is not None for k in mesh.keys())
+    return any(
+        k.startswith("cells_") and getattr(mesh.get(k), "shape", None) is not None
+        for k in mesh.keys()
+    )
 
 
 def _collect_set_names(mesh: dict[str, Any]) -> set[str]:
@@ -117,7 +122,11 @@ def precheck_request_mesh(
             vmin = contract.get("min")
             vmax = contract.get("max")
             if isinstance(vmin, str) or isinstance(vmax, str):
-                if not _version_in_range(str(request.get("schema_version", "")), str(vmin) if isinstance(vmin, str) else None, str(vmax) if isinstance(vmax, str) else None):
+                if not _version_in_range(
+                    str(request.get("schema_version", "")),
+                    str(vmin) if isinstance(vmin, str) else None,
+                    str(vmax) if isinstance(vmax, str) else None,
+                ):
                     issues.append(
                         _issue(
                             "ERROR",
@@ -129,11 +138,29 @@ def precheck_request_mesh(
 
     model = request.get("model")
     if not isinstance(model, dict):
-        issues.append(_issue("ERROR", "REQ_MODEL", "request.model must be an object", jump={"type": "model"}))
+        issues.append(
+            _issue(
+                "ERROR",
+                "REQ_MODEL",
+                "request.model must be an object",
+                jump={"type": "model"},
+            )
+        )
     else:
         if model.get("dimension") != 2:
-            issues.append(_issue("ERROR", "REQ_DIM", "request.model.dimension must be 2", jump={"type": "model"}))
-        allowed_modes = ("plane_strain", "axisymmetric") if schema_version == "0.1" else ("plane_strain", "plane_stress", "axisymmetric")
+            issues.append(
+                _issue(
+                    "ERROR",
+                    "REQ_DIM",
+                    "request.model.dimension must be 2",
+                    jump={"type": "model"},
+                )
+            )
+        allowed_modes = (
+            ("plane_strain", "axisymmetric")
+            if schema_version == "0.1"
+            else ("plane_strain", "plane_stress", "axisymmetric")
+        )
         if model.get("mode") not in allowed_modes:
             issues.append(
                 _issue(
@@ -159,11 +186,25 @@ def precheck_request_mesh(
 
     stages = request.get("stages")
     if not isinstance(stages, list) or not stages:
-        issues.append(_issue("ERROR", "REQ_STAGES", "request.stages must be a non-empty list", jump={"type": "stages"}))
+        issues.append(
+            _issue(
+                "ERROR",
+                "REQ_STAGES",
+                "request.stages must be a non-empty list",
+                jump={"type": "stages"},
+            )
+        )
         stages = []
 
     if "points" not in mesh:
-        issues.append(_issue("ERROR", "MESH_POINTS", "mesh.npz must contain 'points'", jump={"type": "mesh"}))
+        issues.append(
+            _issue(
+                "ERROR",
+                "MESH_POINTS",
+                "mesh.npz must contain 'points'",
+                jump={"type": "mesh"},
+            )
+        )
     else:
         pts = mesh.get("points")
         try:
@@ -171,7 +212,14 @@ def precheck_request_mesh(
         except Exception:
             npts = -1
         if npts == 0:
-            issues.append(_issue("WARN", "MESH_EMPTY", "Mesh has 0 points (empty mesh).", jump={"type": "mesh"}))
+            issues.append(
+                _issue(
+                    "WARN",
+                    "MESH_EMPTY",
+                    "Mesh has 0 points (empty mesh).",
+                    jump={"type": "mesh"},
+                )
+            )
 
     if not _mesh_has_cells(mesh):
         issues.append(
@@ -222,11 +270,19 @@ def precheck_request_mesh(
                             "ERROR",
                             "CAP_ANALYSIS_UNSUPPORTED",
                             f"{stage_id}: analysis_type '{at}' not supported by solver. Supported: {sorted(allowed)}",
-                            jump={"type": "stage", "index": si, "uid": stage.get("uid", "")},
+                            jump={
+                                "type": "stage",
+                                "index": si,
+                                "uid": stage.get("uid", ""),
+                            },
                         )
                     )
 
-        if not stage.get("bcs") and not stage.get("loads") and not stage.get("output_requests"):
+        if (
+            not stage.get("bcs")
+            and not stage.get("loads")
+            and not stage.get("output_requests")
+        ):
             issues.append(
                 _issue(
                     "WARN",
@@ -250,7 +306,9 @@ def precheck_request_mesh(
                     )
                 )
 
-        for load in stage.get("loads", []) if isinstance(stage.get("loads"), list) else []:
+        for load in (
+            stage.get("loads", []) if isinstance(stage.get("loads"), list) else []
+        ):
             if not isinstance(load, dict):
                 continue
             set_name = _as_set_name(load.get("set"))
@@ -278,7 +336,11 @@ def precheck_request_mesh(
                                 "WARN",
                                 "CAP_OUTPUT_UNSUPPORTED",
                                 f"{stage_id}: output_requests[{oi}] name '{name}' not in solver capabilities",
-                                jump={"type": "stage", "index": si, "uid": stage.get("uid", "")},
+                                jump={
+                                    "type": "stage",
+                                    "index": si,
+                                    "uid": stage.get("uid", ""),
+                                },
                             )
                         )
 
@@ -318,7 +380,12 @@ def precheck_request_mesh(
                     )
                 )
             mid = _as_set_name(a.get("material_id"))
-            if mid and isinstance(materials, dict) and materials and mid not in materials:
+            if (
+                mid
+                and isinstance(materials, dict)
+                and materials
+                and mid not in materials
+            ):
                 issues.append(
                     _issue(
                         "ERROR",
@@ -337,14 +404,14 @@ def precheck_request_mesh(
                     continue
                 name = o.get("name")
                 if isinstance(name, str) and name and name not in allowed_outputs:
-                        issues.append(
-                            _issue(
-                                "WARN",
-                                "CAP_OUTPUT_UNSUPPORTED",
-                                f"request.output_requests[{oi}] name '{name}' not in solver capabilities",
-                                jump={"type": "global_output_requests"},
-                            )
+                    issues.append(
+                        _issue(
+                            "WARN",
+                            "CAP_OUTPUT_UNSUPPORTED",
+                            f"request.output_requests[{oi}] name '{name}' not in solver capabilities",
+                            jump={"type": "global_output_requests"},
                         )
+                    )
 
     return issues
 

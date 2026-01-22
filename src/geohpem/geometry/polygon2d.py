@@ -16,7 +16,9 @@ class Polygon2D:
         if len(self.vertices) < 3:
             raise ValueError("Polygon must have at least 3 vertices")
         if len(self.edge_groups) not in (0, len(self.vertices)):
-            raise ValueError("edge_groups must be empty or have the same length as vertices")
+            raise ValueError(
+                "edge_groups must be empty or have the same length as vertices"
+            )
         if self.vertex_ids is not None and len(self.vertex_ids) != len(self.vertices):
             raise ValueError("vertex_ids must have the same length as vertices")
         if self.edge_ids is not None and len(self.edge_ids) != len(self.vertices):
@@ -85,7 +87,9 @@ def get_polygon_from_request(request: dict[str, Any]) -> Polygon2D | None:
     return Polygon2D.from_dict(geo)
 
 
-def set_polygon_in_request(request: dict[str, Any], poly: Polygon2D | None) -> dict[str, Any]:
+def set_polygon_in_request(
+    request: dict[str, Any], poly: Polygon2D | None
+) -> dict[str, Any]:
     req = dict(request)
     if poly is None:
         req.pop("geometry", None)

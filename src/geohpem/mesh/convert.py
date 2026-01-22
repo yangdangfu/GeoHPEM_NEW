@@ -170,7 +170,9 @@ def meshio_to_contract(mesh) -> tuple[dict[str, Any], ImportReport]:  # noqa: AN
                 if dim != 2:
                     continue
                 idx = (np.nonzero(tags == pid)[0] + offset).astype(np.int32)
-                elem_sets.setdefault(nm, {}).setdefault("tri3", np.zeros((0,), dtype=np.int32))
+                elem_sets.setdefault(nm, {}).setdefault(
+                    "tri3", np.zeros((0,), dtype=np.int32)
+                )
                 elem_sets[nm]["tri3"] = np.concatenate([elem_sets[nm]["tri3"], idx])
             offset += conn.shape[0]
 
@@ -194,7 +196,9 @@ def meshio_to_contract(mesh) -> tuple[dict[str, Any], ImportReport]:  # noqa: AN
                 if dim != 2:
                     continue
                 idx = (np.nonzero(tags == pid)[0] + offset).astype(np.int32)
-                elem_sets.setdefault(nm, {}).setdefault("quad4", np.zeros((0,), dtype=np.int32))
+                elem_sets.setdefault(nm, {}).setdefault(
+                    "quad4", np.zeros((0,), dtype=np.int32)
+                )
                 elem_sets[nm]["quad4"] = np.concatenate([elem_sets[nm]["quad4"], idx])
             offset += conn.shape[0]
 
@@ -234,7 +238,9 @@ def meshio_to_contract(mesh) -> tuple[dict[str, Any], ImportReport]:  # noqa: AN
                     continue
                 nodes = conn[np.nonzero(tags == pid)[0], 0].astype(np.int32)
                 if nm in node_sets:
-                    node_sets[nm] = np.unique(np.concatenate([node_sets[nm], nodes])).astype(np.int32)
+                    node_sets[nm] = np.unique(
+                        np.concatenate([node_sets[nm], nodes])
+                    ).astype(np.int32)
                 else:
                     node_sets[nm] = np.unique(nodes).astype(np.int32)
 
@@ -245,7 +251,9 @@ def meshio_to_contract(mesh) -> tuple[dict[str, Any], ImportReport]:  # noqa: AN
         out[f"edge_set__{name}"] = np.asarray(arr, dtype=np.int32).reshape(-1, 2)
     for name, by_type in elem_sets.items():
         for cell_type, idx in by_type.items():
-            out[f"elem_set__{name}__{cell_type}"] = np.asarray(idx, dtype=np.int32).reshape(-1)
+            out[f"elem_set__{name}__{cell_type}"] = np.asarray(
+                idx, dtype=np.int32
+            ).reshape(-1)
 
     report = ImportReport(
         points=int(points2.shape[0]),
@@ -253,7 +261,8 @@ def meshio_to_contract(mesh) -> tuple[dict[str, Any], ImportReport]:  # noqa: AN
         node_sets={k: int(v.size) for k, v in node_sets.items()},
         edge_sets={k: int(v.shape[0]) for k, v in edge_sets.items()},
         element_sets={
-            k: int(sum(int(v.size) for v in by_type.values())) for k, by_type in elem_sets.items()
+            k: int(sum(int(v.size) for v in by_type.values()))
+            for k, by_type in elem_sets.items()
         },
     )
     return out, report

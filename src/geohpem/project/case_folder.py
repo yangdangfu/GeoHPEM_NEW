@@ -24,4 +24,6 @@ def load_case_folder(case_dir: str | Path) -> ProjectData:
         except Exception:
             result_meta, result_arrays = None, None
 
-    return ProjectData(request=request, mesh=mesh, result_meta=result_meta, result_arrays=result_arrays)
+    return ProjectData(
+        request=request, mesh=mesh, result_meta=result_meta, result_arrays=result_arrays
+    )

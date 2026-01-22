@@ -16,7 +16,7 @@ class ImportMeshDialog:
     def __init__(self, parent) -> None:  # noqa: ANN001
         from PySide6.QtWidgets import (
             QCheckBox,
-            QDialog,
+            QDialog,  # type: ignore
             QDialogButtonBox,
             QFileDialog,
             QFormLayout,
@@ -25,7 +25,7 @@ class ImportMeshDialog:
             QPushButton,
             QVBoxLayout,
             QWidget,
-        )  # type: ignore
+        )
 
         self._QFileDialog = QFileDialog
         self._QDialog = QDialog
@@ -47,7 +47,9 @@ class ImportMeshDialog:
         rl.addWidget(self.btn_browse)
         form.addRow("Mesh file", row)
 
-        self.gen_sets = QCheckBox("Generate sets from Gmsh physical groups (if available)")
+        self.gen_sets = QCheckBox(
+            "Generate sets from Gmsh physical groups (if available)"
+        )
         self.gen_sets.setChecked(True)
         form.addRow("", self.gen_sets)
 
@@ -70,7 +72,15 @@ class ImportMeshDialog:
 
         mesh, report = import_with_meshio_report(path)
         if not self.gen_sets.isChecked():
-            mesh = {k: v for k, v in mesh.items() if not (k.startswith("node_set__") or k.startswith("edge_set__") or k.startswith("elem_set__"))}
+            mesh = {
+                k: v
+                for k, v in mesh.items()
+                if not (
+                    k.startswith("node_set__")
+                    or k.startswith("edge_set__")
+                    or k.startswith("elem_set__")
+                )
+            }
         return ImportMeshResult(mesh=mesh, report=report)
 
     def _browse(self) -> None:

@@ -74,7 +74,11 @@ def parse_batch_report(path: Path) -> list[BatchReportRecord]:
                 rss_end_mb=_to_float(r.get("rss_end_mb")),
                 out_dir=_to_path(r.get("out_dir")),
                 diagnostics_zip=_to_path(r.get("diagnostics_zip")),
-                error_code=str(r.get("error_code")) if isinstance(r.get("error_code"), str) else None,
+                error_code=(
+                    str(r.get("error_code"))
+                    if isinstance(r.get("error_code"), str)
+                    else None
+                ),
                 error=str(r.get("error")) if isinstance(r.get("error"), str) else None,
                 compare_max_linf=max_linf,
                 compare_max_l2=max_l2,
@@ -92,8 +96,8 @@ class BatchReportDialog:
         open_output_cb: Callable[[Path], None] | None = None,
     ) -> None:  # noqa: ANN001
         from PySide6.QtCore import Qt  # type: ignore
-        from PySide6.QtWidgets import (  # type: ignore
-            QAbstractItemView,
+        from PySide6.QtWidgets import (
+            QAbstractItemView,  # type: ignore
             QCheckBox,
             QDialog,
             QFileDialog,
@@ -204,7 +208,9 @@ class BatchReportDialog:
         return int(self._dialog.exec())
 
     def _open_report(self) -> None:
-        file, _ = self._QFileDialog.getOpenFileName(self._dialog, "Open Batch Report", "", "JSON (*.json);;All Files (*)")
+        file, _ = self._QFileDialog.getOpenFileName(
+            self._dialog, "Open Batch Report", "", "JSON (*.json);;All Files (*)"
+        )
         if not file:
             return
         path = Path(file)
@@ -233,7 +239,9 @@ class BatchReportDialog:
         ok = sum(1 for r in self._records_all if r.status == "success")
         failed = sum(1 for r in self._records_all if r.status == "failed")
         canceled = sum(1 for r in self._records_all if r.status == "canceled")
-        self._summary.setText(f"Total={len(self._records_all)}  success={ok}  failed={failed}  canceled={canceled}")
+        self._summary.setText(
+            f"Total={len(self._records_all)}  success={ok}  failed={failed}  canceled={canceled}"
+        )
 
         def set_item(row: int, col: int, txt: str) -> None:
             it = self._QTableWidgetItem(txt)
@@ -244,14 +252,24 @@ class BatchReportDialog:
             set_item(row, 1, r.status)
             set_item(row, 2, r.error_code or "")
             set_item(row, 3, f"{r.elapsed_s:.4g}" if r.elapsed_s is not None else "")
-            set_item(row, 4, f"{r.rss_start_mb:.4g}" if r.rss_start_mb is not None else "")
+            set_item(
+                row, 4, f"{r.rss_start_mb:.4g}" if r.rss_start_mb is not None else ""
+            )
             set_item(row, 5, f"{r.rss_end_mb:.4g}" if r.rss_end_mb is not None else "")
             if r.rss_start_mb is not None and r.rss_end_mb is not None:
                 set_item(row, 6, f"{(r.rss_end_mb - r.rss_start_mb):.4g}")
             else:
                 set_item(row, 6, "")
-            set_item(row, 7, f"{r.compare_max_linf:.4g}" if r.compare_max_linf is not None else "")
-            set_item(row, 8, f"{r.compare_max_l2:.4g}" if r.compare_max_l2 is not None else "")
+            set_item(
+                row,
+                7,
+                f"{r.compare_max_linf:.4g}" if r.compare_max_linf is not None else "",
+            )
+            set_item(
+                row,
+                8,
+                f"{r.compare_max_l2:.4g}" if r.compare_max_l2 is not None else "",
+            )
             set_item(row, 9, str(r.out_dir) if r.out_dir else "")
             set_item(row, 10, str(r.diagnostics_zip) if r.diagnostics_zip else "")
             set_item(row, 11, r.solver_selector)
@@ -312,4 +330,6 @@ class BatchReportDialog:
 
             os.startfile(str(path))  # type: ignore[attr-defined]
         except Exception as exc:
-            self._QMessageBox.information(self._dialog, "Open", f"Failed to open:\n{path}\n\n{exc}")
+            self._QMessageBox.information(
+                self._dialog, "Open", f"Failed to open:\n{path}\n\n{exc}"
+            )

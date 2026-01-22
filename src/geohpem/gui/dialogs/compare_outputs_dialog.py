@@ -5,15 +5,26 @@ from typing import Any
 
 import numpy as np
 
-from geohpem.app.compare_outputs import FieldKey, common_fields, common_steps, diff_stats_for, load_outputs, step_curve_for
-from geohpem.viz.vtk_convert import contract_mesh_to_pyvista, get_array_for, vector_magnitude
+from geohpem.app.compare_outputs import (
+    FieldKey,
+    common_fields,
+    common_steps,
+    diff_stats_for,
+    load_outputs,
+    step_curve_for,
+)
+from geohpem.viz.vtk_convert import (
+    contract_mesh_to_pyvista,
+    get_array_for,
+    vector_magnitude,
+)
 
 
 class CompareOutputsDialog:
     def __init__(self, parent) -> None:  # noqa: ANN001
-        from PySide6.QtWidgets import (  # type: ignore
+        from PySide6.QtWidgets import (
             QComboBox,
-            QDialog,
+            QDialog,  # type: ignore
             QDialogButtonBox,
             QFileDialog,
             QFormLayout,
@@ -21,10 +32,10 @@ class CompareOutputsDialog:
             QLabel,
             QListWidget,
             QMessageBox,
+            QPlainTextEdit,
             QPushButton,
             QSpinBox,
             QSplitter,
-            QPlainTextEdit,
             QVBoxLayout,
             QWidget,
         )
@@ -165,14 +176,18 @@ class CompareOutputsDialog:
         except Exception:
             from PySide6.QtWidgets import QLabel  # type: ignore
 
-            self._viewer_host_l.addWidget(QLabel("PyVistaQt not installed. Install pyvista + pyvistaqt."))
+            self._viewer_host_l.addWidget(
+                QLabel("PyVistaQt not installed. Install pyvista + pyvistaqt.")
+            )
             return
         self._viewer = QtInteractor(self._viewer_host)
         self._viewer_host_l.addWidget(self._viewer)
         self._viewer.set_background("white")
 
     def _open_side(self, which: str) -> None:
-        folder = self._QFileDialog.getExistingDirectory(self._dialog, f"Select {'A' if which=='a' else 'B'} output or case folder")
+        folder = self._QFileDialog.getExistingDirectory(
+            self._dialog, f"Select {'A' if which=='a' else 'B'} output or case folder"
+        )
         if not folder:
             return
         p = Path(folder)
@@ -204,7 +219,12 @@ class CompareOutputsDialog:
         self._refresh_fields_and_steps()
 
     def _refresh_fields_and_steps(self) -> None:
-        if not self._meta_a or not self._meta_b or self._arr_a is None or self._arr_b is None:
+        if (
+            not self._meta_a
+            or not self._meta_b
+            or self._arr_a is None
+            or self._arr_b is None
+        ):
             return
         self._field_keys = common_fields(self._meta_a, self._meta_b)
         self._fields.clear()
@@ -239,10 +259,17 @@ class CompareOutputsDialog:
         self._ensure_viewer()
         if self._viewer is None:
             return
-        if not self._meta_a or not self._meta_b or self._arr_a is None or self._arr_b is None:
+        if (
+            not self._meta_a
+            or not self._meta_b
+            or self._arr_a is None
+            or self._arr_b is None
+        ):
             return
         if self._mesh is None:
-            self._stats.setPlainText("Mesh not found. Open a case folder (with mesh.npz) or place mesh.npz next to outputs.")
+            self._stats.setPlainText(
+                "Mesh not found. Open a case folder (with mesh.npz) or place mesh.npz next to outputs."
+            )
             return
         field = self._selected_field()
         step = self._selected_step_id()
@@ -250,8 +277,12 @@ class CompareOutputsDialog:
             return
 
         # Read arrays
-        a = get_array_for(arrays=self._arr_a, location=field.location, name=field.name, step=step)
-        b = get_array_for(arrays=self._arr_b, location=field.location, name=field.name, step=step)
+        a = get_array_for(
+            arrays=self._arr_a, location=field.location, name=field.name, step=step
+        )
+        b = get_array_for(
+            arrays=self._arr_b, location=field.location, name=field.name, step=step
+        )
         if a is None or b is None:
             self._stats.setPlainText("Missing arrays for selected field/step.")
             return
@@ -271,7 +302,9 @@ class CompareOutputsDialog:
             scalar_name = field.name
 
         if sa.shape != sb.shape:
-            self._stats.setPlainText(f"Shape mismatch: A{list(sa.shape)} vs B{list(sb.shape)}")
+            self._stats.setPlainText(
+                f"Shape mismatch: A{list(sa.shape)} vs B{list(sb.shape)}"
+            )
             return
 
         if view == "a":
@@ -285,7 +318,14 @@ class CompareOutputsDialog:
             title = f"Diff (A-B): {scalar_name} step {step:06d}"
 
         # Stats
-        st = diff_stats_for(meta_a=self._meta_a, arrays_a=self._arr_a, meta_b=self._meta_b, arrays_b=self._arr_b, field=field, step=step)
+        st = diff_stats_for(
+            meta_a=self._meta_a,
+            arrays_a=self._arr_a,
+            meta_b=self._meta_b,
+            arrays_b=self._arr_b,
+            field=field,
+            step=step,
+        )
         if st is None:
             self._stats.setPlainText("Stats unavailable (missing arrays or mismatch).")
         else:
@@ -302,14 +342,18 @@ class CompareOutputsDialog:
         # Attach scalars
         if field.location in ("node", "nodal"):
             if scalar.shape[0] != grid.n_points:
-                self._stats.setPlainText(f"Array size mismatch: {scalar.shape[0]} vs n_points {grid.n_points}")
+                self._stats.setPlainText(
+                    f"Array size mismatch: {scalar.shape[0]} vs n_points {grid.n_points}"
+                )
                 return
             grid.point_data.clear()
             grid.point_data[scalar_name] = scalar
             scalars_kwargs = {"scalars": scalar_name, "preference": "point"}
         else:
             if scalar.shape[0] != grid.n_cells:
-                self._stats.setPlainText(f"Array size mismatch: {scalar.shape[0]} vs n_cells {grid.n_cells}")
+                self._stats.setPlainText(
+                    f"Array size mismatch: {scalar.shape[0]} vs n_cells {grid.n_cells}"
+                )
                 return
             grid.cell_data.clear()
             grid.cell_data[scalar_name] = scalar
@@ -322,12 +366,19 @@ class CompareOutputsDialog:
         self._viewer.render()
 
     def _export_curve(self) -> None:
-        if not self._meta_a or not self._meta_b or self._arr_a is None or self._arr_b is None:
+        if (
+            not self._meta_a
+            or not self._meta_b
+            or self._arr_a is None
+            or self._arr_b is None
+        ):
             return
         field = self._selected_field()
         if field is None or not self._steps:
             return
-        path, _ = self._QFileDialog.getSaveFileName(self._dialog, "Export CSV", "", "CSV (*.csv);;All Files (*)")
+        path, _ = self._QFileDialog.getSaveFileName(
+            self._dialog, "Export CSV", "", "CSV (*.csv);;All Files (*)"
+        )
         if not path:
             return
         steps = list(self._steps)
@@ -338,10 +389,36 @@ class CompareOutputsDialog:
 
             with open(path, "w", newline="", encoding="utf-8") as f:
                 w = csv.writer(f)
-                w.writerow(["step", "A_min", "A_max", "A_mean", "B_min", "B_max", "B_mean", "diff_mean"])
+                w.writerow(
+                    [
+                        "step",
+                        "A_min",
+                        "A_max",
+                        "A_mean",
+                        "B_min",
+                        "B_max",
+                        "B_mean",
+                        "diff_mean",
+                    ]
+                )
                 for s, a, b in zip(steps, curve_a, curve_b):
-                    diff_mean = float(a["mean"] - b["mean"]) if (np.isfinite(a["mean"]) and np.isfinite(b["mean"])) else float("nan")
-                    w.writerow([f"{s:06d}", a["min"], a["max"], a["mean"], b["min"], b["max"], b["mean"], diff_mean])
+                    diff_mean = (
+                        float(a["mean"] - b["mean"])
+                        if (np.isfinite(a["mean"]) and np.isfinite(b["mean"]))
+                        else float("nan")
+                    )
+                    w.writerow(
+                        [
+                            f"{s:06d}",
+                            a["min"],
+                            a["max"],
+                            a["mean"],
+                            b["min"],
+                            b["max"],
+                            b["mean"],
+                            diff_mean,
+                        ]
+                    )
             self._QMessageBox.information(self._dialog, "Export CSV", f"Wrote: {path}")
         except Exception as exc:
             self._QMessageBox.critical(self._dialog, "Export CSV", str(exc))
